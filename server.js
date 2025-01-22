@@ -2,6 +2,7 @@ const app = require('./app');
 const { sequelize } = require('./models');
 const logger = require('./utils/logger');
 const config = require('./config/config');
+const { setupSocket } = require('./config/socket'); // Added from the first version
 
 const startServer = async () => {
   try {
@@ -13,6 +14,9 @@ const startServer = async () => {
     const server = app.listen(config.port, () => {
       logger.info(`Server running on port ${config.port} in ${config.nodeEnv} mode`);
     });
+
+    // Set up Socket.IO (Added from the first version)
+    setupSocket(server);
 
     // Handle unhandled rejections
     process.on('unhandledRejection', (err) => {
