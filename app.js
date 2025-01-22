@@ -6,6 +6,8 @@ const { errorHandler } = require('./middleware/errorHandler');
 const { rateLimiter } = require('./middleware/rateLimiter');
 const { requestLogger } = require('./middleware/requestLogger');
 const { setupPassport } = require('./config/passport');
+const { setupSwagger } = require('./config/swagger');
+const config = require('./config/config');
 
 const app = express();
 
@@ -24,6 +26,9 @@ app.use(rateLimiter);
 
 // Initialize passport
 setupPassport(app);
+
+// Swagger API documentation
+setupSwagger(app);
 
 // Routes will be added here
 // app.use('/api/v1/admin', adminRoutes);
