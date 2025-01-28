@@ -1,0 +1,1235 @@
+1. Credential Verification Checklist
+Database Credentials:
+
+bash
+Copy
+# Test PostgreSQL connection
+psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -W
+# Enter your password when prompted
+Redis Credentials:
+
+bash
+Copy
+# Test Redis connection
+redis-cli -h $REDIS_HOST -p $REDIS_PORT PING
+# Should respond with "PONG"
+JWT Configuration:
+
+javascript
+Copy
+// Test JWT signing/verification
+const jwt = require('jsonwebtoken');
+const token = jwt.sign({ test: true }, process.env.JWT_SECRET, { 
+  algorithm: process.env.JWT_ALGORITHM,
+  expiresIn: process.env.JWT_DEFAULT_EXPIRATION 
+});
+jwt.verify(token, process.env.JWT_SECRET); // Should not throw error
+Google OAuth:
+
+Visit the OAuth playground: https://developers.google.com/oauthplayground
+
+Use your client ID and secret to test the flow
+
+Verify the redirect URI matches exactly
+
+Twilio WhatsApp:
+
+javascript
+Copy
+const twilio = require('twilio');
+const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+
+// Test credentials validity
+client.api.accounts(process.env.TWILIO_ACCOUNT_SID)
+  .fetch()
+  .then(account => console.log('Twilio auth successful'))
+  .catch(err => console.error('Twilio auth failed'));
+Email Service:
+
+javascript
+Copy
+const nodemailer = require('nodemailer');
+
+const transporter = nodemailer.createTransport({
+  host: process.env.EMAIL_SERVICE_HOST,
+  port: process.env.EMAIL_SERVICE_PORT,
+  secure: process.env.EMAIL_SERVICE_ENCRYPTION === 'ssl',
+  auth: {
+    user: process.env.EMAIL_SERVICE_USERNAME,
+    pass: process.env.EMAIL_SERVICE_PASSWORD
+  }
+});
+
+// Test connection
+transporter.verify((error, success) => {
+  if (error) console.error('Email connection failed:', error);
+  else console.log('Email server ready');
+});
+2. Refresh Token Implementation
+Update your JWT configuration in .env:
+
+env
+Copy
+# JWT Settings
+JWT_ACCESS_SECRET=afe4137b5164670330edad6f789cc400fec0c8ff70631d2de2820b59bcc537a8
+JWT_ACCESS_EXPIRES_IN=15m  # Shorter expiration for access tokens
+JWT_REFRESH_SECRET=y1cebff58cd4179e4685cbf942331da61e5ef4af1e296210e0445dfff80505c6b
+JWT_REFRESH_EXPIRES_IN=7d
+JWT_ALGORITHM=HS256
+Update your auth middleware:
+
+javascript
+Copy
+// authMiddleware.js
+const generateTokens = (user) => ({
+  accessToken: jwt.sign(user, process.env.JWT_ACCESS_SECRET, {
+    algorithm: process.env.JWT_ALGORITHM,
+    expiresIn: process.env.JWT_ACCESS_EXPIRES_IN
+  }),
+  refreshToken: jwt.sign(user, process.env.JWT_REFRESH_SECRET, {
+    algorithm: process.env.JWT_ALGORITHM,
+    expiresIn: process.env.JWT_REFRESH_EXPIRES_IN
+  })
+});
+
+// Store refresh tokens in Redis with user ID as key
+const storeRefreshToken = async (userId, refreshToken) => {
+  await redisClient.set(userId, refreshToken, {
+    EX: 60 * 60 * 24 * 7 // 7 days
+  });
+};
+Add refresh token endpoint:
+
+javascript
+Copy
+// authRoutes.js
+router.post('/refresh', async (req, res) => {
+  const { refreshToken } = req.body;
+  
+  try {
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    const storedToken = await redisClient.get(decoded.userId);
+    
+    if (refreshToken !== storedToken) {
+      return res.status(401).json({ error: 'Invalid refresh token' });
+    }
+
+    const newAccessToken = jwt.sign(
+      { userId: decoded.userId },
+      process.env.JWT_ACCESS_SECRET,
+      { expiresIn: process.env.JWT_ACCESS_EXPIRES_IN }
+    );
+
+    res.json({ accessToken: newAccessToken });
+  } catch (error) {
+    res.status(401).json({ error: 'Invalid refresh token' });
+  }
+});
+3. Security Best Practices
+Credential Rotation:
+
+bash
+Copy
+# Generate new secure secrets
+openssl rand -hex 32  # For JWT secrets
+openssl rand -base64 32  # For session secrets
+Environment Validation Script:
+
+javascript
+Copy
+// validateEnv.js
+const requiredEnv = ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET', 'DB_PASSWORD'];
+const missingEnv = requiredEnv.filter(env => !process.env[env]);
+
+if (missingEnv.length > 0) {
+  console.error('Missing required environment variables:', missingEnv);
+  process.exit(1);
+}
+Encryption:
+
+bash
+Copy
+# Install encryption package
+npm install crypto-js
+javascript
+Copy
+// encryptSecrets.js
+const CryptoJS = require('crypto-js');
+const SECRET_KEY = process.env.SECRET_KEY;
+
+const encrypt = (text) => CryptoJS.AES.encrypt(text, SECRET_KEY).toString();
+const decrypt = (ciphertext) => {
+  const bytes = CryptoJS.AES.decrypt(ciphertext, SECRET_KEY);
+  return bytes.toString(CryptoJS.enc.Utf8);
+};
+4. Monitoring Setup
+Add these to your .env:
+
+env
+Copy
+# Security Monitoring
+SENTRY_DSN=your_sentry_dsn
+AUDIT_LOG_PATH=./logs/security.log
+javascript
+Copy
+// auditLogger.js
+const fs = require('fs');
+const winston = require('winston');
+
+const auditLogger = winston.createLogger({
+  level: 'info',
+  format: winston.format.json(),
+  transports: [
+    new winston.transports.File({ 
+      filename: process.env.AUDIT_LOG_PATH,
+      level: 'info' 
+    })
+  ]
+});
+
+// Log all sensitive operations
+const logAuthAttempt = (userId, success) => {
+  auditLogger.info({
+    timestamp: new Date(),
+    userId,
+    event: 'authentication_attempt',
+    success,
+    ipAddress: req.ip
+  });
+};
+5. Regular Maintenance Script
+json
+Copy
+// package.json
+{
+  "scripts": {
+    "rotate-secrets": "node scripts/rotateSecrets.js",
+    "validate-env": "node scripts/validateEnv.js",
+    "test-connections": "node scripts/testConnections.js"
+  }
+}
+To implement this properly, you should:
+
+Immediately rotate all exposed credentials using the provided methods
+
+Implement the refresh token flow with Redis storage
+
+Set up monitoring and alerting for authentication events
+
+Schedule regular credential rotation (every 90 days recommended)
+
+Add pre-commit hooks to prevent secret leakage:
+
+bash
+Copy
+npm install husky @commitlint/config-conventional @commitlint/cli --save-dev
+
+111
+1
+1
+1
+1
+1
+1
+
+
+{
+    "scripts": {
+      "validate:env": "node scripts/validateEnv.js",
+      "test:connections": "node scripts/testConnections.js",
+      "rotate:secrets": "node scripts/rotateSecrets.js",
+      "prestart": "npm run validate:env && npm run test:connections",
+      "audit:log": "tail -f logs/audit.log"
+    },
+    "devDependencies": {
+      "winston": "^3.11.0",
+      "pg": "^8.11.3",
+      "ioredis": "^5.3.2",
+      "nodemailer": "^6.9.9",
+      "twilio": "^4.20.1",
+      "jsonwebtoken": "^9.0.2"
+    }
+  }
+  1
+  1
+  1
+  1
+  1
+  1
+  1
+  1
+  1
+
+// scripts/validateEnv.js
+require('dotenv').config();
+
+const validateEnv = () => {
+  const requiredEnvVars = [
+    // Database
+    'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD',
+    // JWT
+    'JWT_SECRET', 'JWT_ALGORITHM', 'JWT_DEFAULT_EXPIRATION',
+    'JWT_REFRESH_SECRET', 'JWT_REFRESH_EXPIRES_IN',
+    // Session
+    'SESSION_SECRET',
+    // Google OAuth
+    'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI',
+    // Email
+    'EMAIL_SERVICE_HOST', 'EMAIL_SERVICE_PORT', 
+    'EMAIL_SERVICE_USERNAME', 'EMAIL_SERVICE_PASSWORD',
+    // Twilio
+    'TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_WHATSAPP_NUMBER',
+    // Redis
+    'REDIS_HOST', 'REDIS_PORT'
+  ];
+
+  const missingVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+
+  if (missingVars.length > 0) {
+    console.error('❌ Missing required environment variables:');
+    missingVars.forEach(variable => console.error(`   - ${variable}`));
+    process.exit(1);
+  }
+
+  console.log('✅ All required environment variables are present');
+  return true;
+};
+
+if (require.main === module) {
+  validateEnv();
+}
+
+module.exports = validateEnv;
+
+// scripts/testConnections.js
+require('dotenv').config();
+const { Pool } = require('pg');
+const Redis = require('ioredis');
+const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
+const twilio = require('twilio');
+
+const testDatabase = async () => {
+  const pool = new Pool({
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT,
+    database: process.env.DB_NAME,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD
+  });
+
+  try {
+    const client = await pool.connect();
+    console.log('✅ PostgreSQL connection successful');
+    await client.release();
+    await pool.end();
+    return true;
+  } catch (error) {
+    console.error('❌ PostgreSQL connection failed:', error.message);
+    return false;
+  }
+};
+
+const testRedis = async () => {
+  const redis = new Redis({
+    host: process.env.REDIS_HOST,
+    port: process.env.REDIS_PORT
+  });
+
+  try {
+    const pong = await redis.ping();
+    console.log('✅ Redis connection successful');
+    redis.disconnect();
+    return true;
+  } catch (error) {
+    console.error('❌ Redis connection failed:', error.message);
+    return false;
+  }
+};
+
+const testJWT = () => {
+  try {
+    const payload = { test: true };
+    const token = jwt.sign(payload, process.env.JWT_SECRET, {
+      algorithm: process.env.JWT_ALGORITHM,
+      expiresIn: process.env.JWT_DEFAULT_EXPIRATION
+    });
+    const verified = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('✅ JWT signing/verification successful');
+    return true;
+  } catch (error) {
+    console.error('❌ JWT signing/verification failed:', error.message);
+    return false;
+  }
+};
+
+const testEmail = async () => {
+  const transporter = nodemailer.createTransport({
+    host: process.env.EMAIL_SERVICE_HOST,
+    port: process.env.EMAIL_SERVICE_PORT,
+    secure: process.env.EMAIL_SERVICE_PORT === '465',
+    auth: {
+      user: process.env.EMAIL_SERVICE_USERNAME,
+      pass: process.env.EMAIL_SERVICE_PASSWORD
+    }
+  });
+
+  try {
+    await transporter.verify();
+    console.log('✅ Email service connection successful');
+    return true;
+  } catch (error) {
+    console.error('❌ Email service connection failed:', error.message);
+    return false;
+  }
+};
+
+const testTwilio = async () => {
+  const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+
+  try {
+    const account = await client.api.accounts(process.env.TWILIO_ACCOUNT_SID).fetch();
+    console.log('✅ Twilio connection successful');
+    return true;
+  } catch (error) {
+    console.error('❌ Twilio connection failed:', error.message);
+    return false;
+  }
+};
+
+const runAllTests = async () => {
+  console.log('🔍 Starting connection tests...\n');
+  
+  const results = await Promise.all([
+    testDatabase(),
+    testRedis(),
+    testJWT(),
+    testEmail(),
+    testTwilio()
+  ]);
+
+  const allSuccessful = results.every(result => result === true);
+  
+  console.log('\n' + (allSuccessful 
+    ? '✅ All connections tested successfully' 
+    : '❌ Some connections failed'));
+    
+  process.exit(allSuccessful ? 0 : 1);
+};
+
+if (require.main === module) {
+  runAllTests();
+}
+
+module.exports = {
+  testDatabase,
+  testRedis,
+  testJWT,
+  testEmail,
+  testTwilio,
+  runAllTests
+};
+
+// scripts/rotateSecrets.js
+require('dotenv').config();
+const crypto = require('crypto');
+const fs = require('fs/promises');
+const path = require('path');
+
+const generateSecret = (bytes = 32) => {
+  return crypto.randomBytes(bytes).toString('hex');
+};
+
+const updateEnvFile = async (updates) => {
+  const envPath = path.join(process.cwd(), '.env');
+  let envContent;
+  
+  try {
+    envContent = await fs.readFile(envPath, 'utf8');
+  } catch (error) {
+    console.error('Could not read .env file:', error);
+    process.exit(1);
+  }
+
+  Object.entries(updates).forEach(([key, value]) => {
+    const regex = new RegExp(`^${key}=.*$`, 'm');
+    if (envContent.match(regex)) {
+      envContent = envContent.replace(regex, `${key}=${value}`);
+    } else {
+      envContent += `\n${key}=${value}`;
+    }
+  });
+
+  try {
+    await fs.writeFile(envPath, envContent);
+    console.log('✅ .env file updated successfully');
+  } catch (error) {
+    console.error('Could not write .env file:', error);
+    process.exit(1);
+  }
+};
+
+const rotateSecrets = async () => {
+  console.log('🔄 Starting secret rotation...');
+
+  const updates = {
+    JWT_SECRET: generateSecret(),
+    JWT_REFRESH_SECRET: generateSecret(),
+    SESSION_SECRET: generateSecret()
+  };
+
+  console.log('\nNew secrets generated:');
+  Object.entries(updates).forEach(([key, value]) => {
+    console.log(`${key}: ${value}`);
+  });
+
+  await updateEnvFile(updates);
+  console.log('\n✅ Secret rotation completed successfully');
+};
+
+if (require.main === module) {
+  rotateSecrets();
+}
+
+module.exports = { rotateSecrets, generateSecret };
+
+// scripts/auditLogger.js
+const winston = require('winston');
+const path = require('path');
+
+const auditLogger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.File({
+      filename: path.join(process.cwd(), 'logs', 'audit.log'),
+      level: 'info'
+    }),
+    new winston.transports.File({
+      filename: path.join(process.cwd(), 'logs', 'error.log'),
+      level: 'error'
+    })
+  ]
+});
+
+if (process.env.NODE_ENV !== 'production') {
+  auditLogger.add(new winston.transports.Console({
+    format: winston.format.simple()
+  }));
+}
+
+const logAuthAttempt = (userId, success, ip, metadata = {}) => {
+  auditLogger.info('Authentication attempt', {
+    userId,
+    success,
+    ipAddress: ip,
+    ...metadata,
+    eventType: 'auth_attempt'
+  });
+};
+
+const logSecurityEvent = (eventType, details) => {
+  auditLogger.info('Security event', {
+    eventType,
+    ...details,
+    timestamp: new Date().toISOString()
+  });
+};
+
+module.exports = {
+  auditLogger,
+  logAuthAttempt,
+  logSecurityEvent
+};
+1
+1
+1
+1
+1
+1
+1
+1
+First, install the dependencies:
+
+bashCopynpm install
+
+Then you can run the scripts:
+
+bashCopy# Validate environment variables
+npm run validate:env
+
+# Test all connections
+npm run test:connections
+
+# Rotate secrets
+npm run rotate:secrets
+
+# View audit logs
+npm run audit:log
+The scripts are integrated into your application startup:
+
+Environment validation runs before the app starts
+Connection tests run before the app starts
+Audit logging is available throughout the application
+
+Would you like me to explain any particular script in more detail or help you implement any additional security features?
+
+
+1
+1
+1
+1
+1
+1
+
+Updated Security Configuration:
+
+javascriptCopy// Security middleware configuration
+const helmet = require('helmet');
+const cors = require('cors');
+
+app.use(helmet());
+app.use(cors({
+  origin: process.env.FRONTEND_URL,
+  credentials: true
+}));
+
+// Add CSRF protection
+const csrf = require('csurf');
+app.use(csrf({ cookie: true }));
+
+// Add secure headers
+app.use(helmet.contentSecurityPolicy({
+  directives: {
+    defaultSrc: ["'self'"],
+    styleSrc: ["'self'", "'unsafe-inline'"],
+    scriptSrc: ["'self'"],
+    imgSrc: ["'self'", "data:", "https:"],
+    connectSrc: ["'self'"],
+    fontSrc: ["'self'"],
+    objectSrc: ["'none'"],
+    mediaSrc: ["'self'"],
+    frameSrc: ["'none'"]
+  }
+}));
+
+
+1
+1
+1
+1
+1
+1
+1
+
+Add Password Security:
+
+javascriptCopyconst bcrypt = require('bcrypt');
+
+const hashPassword = async (password) => {
+  const saltRounds = 12;
+  return await bcrypt.hash(password, saltRounds);
+};
+
+const verifyPassword = async (password, hash) => {
+  return await bcrypt.compare(password, hash);
+};
+
+
+1
+1
+1
+1
+1
+1
+
+// src/services/tokenService.js
+const jwt = require('jsonwebtoken');
+const Redis = require('ioredis');
+const { v4: uuidv4 } = require('uuid');
+
+const redis = new Redis({
+  host: process.env.REDIS_HOST,
+  port: process.env.REDIS_PORT
+});
+
+class TokenService {
+  constructor() {
+    this.redis = redis;
+  }
+
+  generateTokens(user) {
+    const tokenId = uuidv4();
+    
+    const accessToken = jwt.sign(
+      { 
+        userId: user.id, 
+        role: user.role,
+        tokenId 
+      },
+      process.env.JWT_SECRET,
+      { 
+        expiresIn: process.env.JWT_DEFAULT_EXPIRATION 
+      }
+    );
+
+    const refreshToken = jwt.sign(
+      { 
+        userId: user.id,
+        tokenId
+      },
+      process.env.JWT_REFRESH_SECRET,
+      { 
+        expiresIn: process.env.JWT_REFRESH_EXPIRES_IN 
+      }
+    );
+
+    return { accessToken, refreshToken, tokenId };
+  }
+
+  async saveRefreshToken(userId, tokenId, refreshToken) {
+    // Store refresh token with user ID and token ID
+    const key = `refresh_token:${userId}:${tokenId}`;
+    await this.redis.set(
+      key, 
+      refreshToken,
+      'EX',
+      7 * 24 * 60 * 60 // 7 days in seconds
+    );
+  }
+
+  async verifyRefreshToken(refreshToken) {
+    try {
+      const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+      const storedToken = await this.redis.get(
+        `refresh_token:${decoded.userId}:${decoded.tokenId}`
+      );
+
+      if (!storedToken || storedToken !== refreshToken) {
+        throw new Error('Invalid refresh token');
+      }
+
+      return decoded;
+    } catch (error) {
+      throw new Error('Invalid refresh token');
+    }
+  }
+
+  async revokeRefreshToken(userId, tokenId) {
+    await this.redis.del(`refresh_token:${userId}:${tokenId}`);
+  }
+
+  async revokeAllUserTokens(userId) {
+    const pattern = `refresh_token:${userId}:*`;
+    const keys = await this.redis.keys(pattern);
+    if (keys.length > 0) {
+      await this.redis.del(keys);
+    }
+  }
+}
+
+module.exports = new TokenService();
+
+// src/middleware/auth.js
+const jwt = require('jsonwebtoken');
+const tokenService = require('../services/tokenService');
+const { logAuthAttempt } = require('../scripts/auditLogger');
+
+const authMiddleware = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      throw new Error('No token provided');
+    }
+
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    req.user = decoded;
+    next();
+  } catch (error) {
+    logAuthAttempt(req.user?.userId || 'unknown', false, req.ip, {
+      error: error.message
+    });
+    res.status(401).json({ error: 'Unauthorized' });
+  }
+};
+1
+1
+1
+1
+1
+1
+1
+1
+
+// src/config/monitoring.js
+const Sentry = require('@sentry/node');
+const { ProfilingIntegration } = require('@sentry/profiling-node');
+const { Express } = require('@sentry/integrations');
+const winston = require('winston');
+const { createClient } = require('redis');
+const os = require('os');
+
+class MonitoringService {
+  constructor() {
+    this.initializeSentry();
+    this.initializeRedis();
+    this.initializeLogger();
+    
+    // Start collecting metrics
+    this.startMetricsCollection();
+  }
+
+  initializeSentry() {
+    Sentry.init({
+      dsn: process.env.SENTRY_DSN,
+      integrations: [
+        new ProfilingIntegration(),
+        new Express({ app }),
+      ],
+      tracesSampleRate: 1.0,
+      profilesSampleRate: 1.0,
+    });
+  }
+
+  initializeRedis() {
+    this.redis = createClient({
+      url: `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT}`
+    });
+  }
+
+  initializeLogger() {
+    this.logger = winston.createLogger({
+      level: 'info',
+      format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.json()
+      ),
+      defaultMeta: { service: 'monitoring-service' },
+      transports: [
+        new winston.transports.File({ 
+          filename: 'logs/system-metrics.log'
+        })
+      ]
+    });
+  }
+
+  async collectSystemMetrics() {
+    const metrics = {
+      timestamp: new Date(),
+      memory: {
+        total: os.totalmem(),
+        free: os.freemem(),
+        usage: process.memoryUsage()
+      },
+      cpu: {
+        loadAvg: os.loadavg(),
+        cpus: os.cpus().length
+      },
+      uptime: process.uptime()
+    };
+
+    await this.redis.hSet(
+      'system:metrics:latest',
+      'data',
+      JSON.stringify(metrics)
+    );
+
+    this.logger.info('System metrics collected', { metrics });
+  }
+
+  startMetricsCollection() {
+    // Collect metrics every minute
+    setInterval(() => {
+      this.collectSystemMetrics().catch(error => {
+        this.logger.error('Error collecting metrics', { error });
+        Sentry.captureException(error);
+      });
+    }, 60000);
+  }
+
+  async checkSystemHealth() {
+    try {
+      const metrics = await this.redis.hGet('system:metrics:latest', 'data');
+      const { memory, cpu } = JSON.parse(metrics);
+
+      const memoryUsagePercent = 
+        (memory.usage.heapUsed / memory.usage.heapTotal) * 100;
+      const cpuLoad = cpu.loadAvg[0];
+
+      const health = {
+        status: 'healthy',
+        checks: {
+          memory: memoryUsagePercent < 90,
+          cpu: cpuLoad < cpu.cpus * 0.8,
+          redis: await this.checkRedisHealth()
+        }
+      };
+
+      health.status = Object.values(health.checks).every(Boolean) 
+        ? 'healthy' 
+        : 'unhealthy';
+
+      return health;
+    } catch (error) {
+      Sentry.captureException(error);
+      return {
+        status: 'error',
+        error: error.message
+      };
+    }
+  }
+
+  async checkRedisHealth() {
+    try {
+      await this.redis.ping();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+module.exports = new MonitoringService();
+Last edited 1 minute ago
+
+
+1
+1
+1
+1
+1
+
+// scripts/maintenance/backup.js
+const { exec } = require('child_process');
+const path = require('path');
+const fs = require('fs/promises');
+const { format } = require('date-fns');
+
+class MaintenanceScripts {
+  constructor() {
+    this.backupDir = path.join(process.cwd(), 'backups');
+    this.logsDir = path.join(process.cwd(), 'logs');
+  }
+
+  async createBackupDirectories() {
+    await fs.mkdir(this.backupDir, { recursive: true });
+    await fs.mkdir(path.join(this.backupDir, 'database'), { recursive: true });
+    await fs.mkdir(path.join(this.backupDir, 'logs'), { recursive: true });
+  }
+
+  async backupDatabase() {
+    const timestamp = format(new Date(), 'yyyy-MM-dd-HH-mm');
+    const filename = `database-backup-${timestamp}.sql`;
+    const filepath = path.join(this.backupDir, 'database', filename);
+
+    const command = `PGPASSWORD=${process.env.DB_PASSWORD} pg_dump -h ${
+      process.env.DB_HOST
+    } -U ${process.env.DB_USER} -d ${
+      process.env.DB_NAME
+    } -F p -f ${filepath}`;
+
+    return new Promise((resolve, reject) => {
+      exec(command, (error, stdout, stderr) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(filepath);
+      });
+    });
+  }
+
+  async rotateLogs() {
+    const logFiles = await fs.readdir(this.logsDir);
+    const timestamp = format(new Date(), 'yyyy-MM-dd');
+
+    for (const file of logFiles) {
+      if (file.endsWith('.log')) {
+        const stats = await fs.stat(path.join(this.logsDir, file));
+        const isOld = (Date.now() - stats.mtime.getTime()) > 7 * 24 * 60 * 60 * 1000;
+
+        if (isOld) {
+          const archiveName = `${file.replace('.log', '')}-${timestamp}.log`;
+          await fs.rename(
+            path.join(this.logsDir, file),
+            path.join(this.backupDir, 'logs', archiveName)
+          );
+        }
+      }
+    }
+  }
+
+  async clearRedisCache() {
+    const redis = require('ioredis');
+    const client = new redis({
+      host: process.env.REDIS_HOST,
+      port: process.env.REDIS_PORT
+    });
+
+    try {
+      // Clear all cache keys but keep refresh tokens
+      const keys = await client.keys('cache:*');
+      if (keys.length > 0) {
+        await client.del(keys);
+      }
+    } finally {
+      await client.quit();
+    }
+  }
+
+  async runHealthCheck() {
+    const monitoring = require('../config/monitoring');
+    const health = await monitoring.checkSystemHealth();
+    
+    if (health.status !== 'healthy') {
+      throw new Error(`System health check failed: ${JSON.stringify(health)}`);
+    }
+    
+    return health;
+  }
+
+  async performMaintenance() {
+    console.log('Starting maintenance tasks...');
+
+    try {
+      // Create backup directories
+      await this.createBackupDirectories();
+      console.log('✅ Backup directories created');
+
+      // Backup database
+      const backupPath = await this.backupDatabase();
+      console.log(`✅ Database backed up to: ${backupPath}`);
+
+      // Rotate logs
+      await this.rotateLogs();
+      console.log('✅ Logs rotated');
+
+      // Clear cache
+      await this.clearRedisCache();
+      console.log('✅ Redis cache cleared');
+
+      // Run health check
+      const health = await this.runHealthCheck();
+      console.log('✅ Health check passed:', health);
+
+    } catch (error) {
+      console.error('❌ Maintenance failed:', error);
+      process.exit(1);
+    }
+  }
+}
+
+const maintenance = new MaintenanceScripts();
+
+if (require.main === module) {
+  maintenance.performMaintenance();
+}
+
+module.exports = maintenance;
+Last edited 1 minute ago
+
+
+1
+1
+1
+1
+1
+
+Refresh Token System:
+
+
+Token generation and verification
+Redis storage for refresh tokens
+Token revocation capabilities
+Secure middleware implementation
+
+
+Monitoring System:
+
+
+Sentry integration for error tracking
+System metrics collection
+Health monitoring
+Performance profiling
+Logging configuration
+
+
+Maintenance Scripts:
+
+
+Database backups
+Log rotation
+Cache management
+System health checks
+Automated maintenance tasks
+
+To use these systems:
+
+Add these dependencies to your package.json:
+
+jsonCopy{
+  "dependencies": {
+    "@sentry/node": "^7.0.0",
+    "@sentry/profiling-node": "^1.0.0",
+    "@sentry/integrations": "^7.0.0",
+    "ioredis": "^5.0.0",
+    "winston": "^3.0.0",
+    "date-fns": "^2.0.0",
+    "uuid": "^9.0.0"
+  }
+}
+
+Add to your main application:
+
+javascriptCopyconst tokenService = require('./services/tokenService');
+const monitoring = require('./config/monitoring');
+const maintenance = require('./scripts/maintenance/backup');
+
+// Use in your auth routes
+app.post('/auth/refresh', async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    const decoded = await tokenService.verifyRefreshToken(refreshToken);
+    const { accessToken } = tokenService.generateTokens({ id: decoded.userId });
+    res.json({ accessToken });
+  } catch (error) {
+    res.status(401).json({ error: 'Invalid refresh token' });
+  }
+});
+
+Schedule maintenance:
+
+javascriptCopy// Add to your package.json scripts
+{
+  "scripts": {
+    "maintenance": "node scripts/maintenance/backup.js",
+    "monitoring": "node -r dotenv/config scripts/monitoring.js"
+  }
+}
+
+
+1
+1
+1
+1
+
+Let me break down the reasoning and then provide you with a comprehensive prompt for ChatGPT.
+Reasoning Behind Each Component:
+
+Refresh Token Implementation
+
+
+Why?
+
+Short-lived access tokens (15 mins) improve security
+Refresh tokens (7 days) provide better user experience
+Redis storage allows token revocation and tracking
+UUID for each token prevents replay attacks
+
+
+
+
+Monitoring Configuration
+
+
+Why?
+
+Sentry tracks errors and performance in production
+System metrics help identify problems early
+Health checks ensure system stability
+Profiling helps identify bottlenecks
+Winston logging provides audit trail
+
+
+
+
+Maintenance Scripts
+
+
+Why?
+
+Database backups prevent data loss
+Log rotation prevents disk space issues
+Cache clearing improves performance
+Health checks catch issues early
+Automated maintenance reduces human error
+
+
+
+Here's a comprehensive prompt for ChatGPT:
+CopyI need help implementing security and maintenance upgrades for my Node.js/Express application called MunchMtxi 2.0. The app uses PostgreSQL, Redis, and handles multiple user roles (Customers, Merchants, Staff, Drivers, and Admins). Here are my current credentials and configuration:
+
+Environment Variables:
+[PASTE YOUR CURRENT .env FILE HERE]
+
+Requirements:
+
+1. Implement a secure refresh token system:
+- Short-lived access tokens (15 minutes)
+- Long-lived refresh tokens (7 days)
+- Redis storage for tokens
+- Token revocation capabilities
+- Secure middleware
+
+2. Set up comprehensive monitoring:
+- Sentry integration
+- System metrics collection
+- Health monitoring
+- Performance profiling
+- Winston logging configuration
+
+3. Create maintenance scripts for:
+- Database backups
+- Log rotation
+- Cache management
+- System health checks
+- Automated maintenance tasks
+
+4. Implement security best practices:
+- Rate limiting
+- Security headers
+- CORS configuration
+- Input validation
+- Data encryption
+
+Please help me implement these changes step by step, including:
+1. Required package installations
+2. Code changes needed
+3. New files to create
+4. Configuration updates
+5. Implementation instructions
+
+Please also provide explanations for why each change is necessary and how it improves the system's security and reliability.
+
+Additional Context:
+- Using Node.js/Express
+- PostgreSQL database
+- Redis for caching
+- Multiple user roles
+- Handling sensitive user data
+- Need for high availability
+- Production deployment considerations
+This prompt should help ChatGPT give you:
+
+Step-by-step implementation instructions
+Explanations for each change
+Security considerations
+Best practices specific to your stack
+Production deployment guidance
+
+The key points this prompt emphasizes:
+
+Your specific tech stack
+Security requirements
+Maintenance needs
+Multiple user roles
+Production considerations
+
+
+
+
