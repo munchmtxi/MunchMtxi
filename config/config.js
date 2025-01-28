@@ -8,8 +8,13 @@ const baseConfig = {
   port: process.env.PORT || 3000,
   jwt: {
     secret: process.env.JWT_SECRET,
-    expiresIn: process.env.JWT_EXPIRES_IN
+    expiresIn: process.env.JWT_EXPIRES_IN,
+    algorithm: process.env.JWT_ALGORITHM,
+    defaultExpiration: process.env.JWT_DEFAULT_EXPIRATION,
+    refreshSecret: process.env.JWT_REFRESH_SECRET,
+    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN
   },
+  sessionSecret: process.env.SESSION_SECRET,
   redis: {
     host: process.env.REDIS_HOST,
     port: process.env.REDIS_PORT
@@ -20,9 +25,24 @@ const baseConfig = {
   googleMaps: {
     apiKey: process.env.GOOGLE_MAPS_API_KEY
   },
+  googleOAuth: {
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    redirectUri: process.env.GOOGLE_REDIRECT_URI
+  },
   whatsapp: {
-    apiKey: process.env.WHATSAPP_API_KEY
-  }
+    twilioAccountSid: process.env.TWILIO_ACCOUNT_SID,
+    twilioAuthToken: process.env.TWILIO_AUTH_TOKEN,
+    twilioWhatsappNumber: process.env.TWILIO_WHATSAPP_NUMBER
+  },
+  emailService: {
+    host: process.env.EMAIL_SERVICE_HOST,
+    port: process.env.EMAIL_SERVICE_PORT,
+    username: process.env.EMAIL_SERVICE_USERNAME,
+    password: process.env.EMAIL_SERVICE_PASSWORD,
+    encryption: process.env.EMAIL_SERVICE_ENCRYPTION
+  },
+  frontendUrl: process.env.FRONTEND_URL
 };
 
 // Environment-specific database configurations
@@ -88,8 +108,18 @@ if (!process.env.SKIP_CONFIG_VALIDATION) {
       'DB_USER',
       'DB_PASSWORD',
       'JWT_SECRET',
+      'SESSION_SECRET',
       'GOOGLE_MAPS_API_KEY',
-      'WHATSAPP_API_KEY'
+      'GOOGLE_CLIENT_ID',
+      'GOOGLE_CLIENT_SECRET',
+      'TWILIO_ACCOUNT_SID',
+      'TWILIO_AUTH_TOKEN',
+      'TWILIO_WHATSAPP_NUMBER',
+      'EMAIL_SERVICE_HOST',
+      'EMAIL_SERVICE_USERNAME',
+      'EMAIL_SERVICE_PASSWORD',
+      'JWT_ALGORITHM',
+      'JWT_DEFAULT_EXPIRATION'
     ];
 
     if (environment === 'test') {

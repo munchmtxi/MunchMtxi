@@ -1,23 +1,32 @@
-// config/passport.js
 const passport = require('passport');
 const { Strategy: JwtStrategy, ExtractJwt } = require('passport-jwt');
 const { User } = require('../models');
-const config = require('./config');
-
-const jwtOptions = {
-  jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-  secretOrKey: config.jwt.secret,
-};
+const jwtConfig = require('./jwtConfig'); // Separate config file
 
 passport.use(
-  new JwtStrategy(jwtOptions, async (payload, done) => {
+  new JwtStrategy(jwtConfig, async (payload, done) => {
     try {
-      const user = await User.findByPk(payload.id);
-      if (!user) {
-        return done(null, false);
+      // Validate payload structure
+      if (!payload || !payload.id) {
+        return done(null, false, { message: 'Invalid token payload' });
       }
+
+      // Find user by ID
+      const user = await User.findByPk(payload.id);
+
+      // Check if user exists and is active
+      if (!user) {
+        return done(null, false, { message: 'User not found' });
+      }
+      if (!user.isActive) {
+        return done(null, false, { message: 'User account is inactive' });
+      }
+
+      // User authenticated
       return done(null, user);
     } catch (error) {
+      // Log error
+      console.error('Error during JWT verification:', error);
       return done(error, false);
     }
   })
