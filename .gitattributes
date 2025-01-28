@@ -1,1 +1,35 @@
 * text=auto
+
+# Ignore node_modules
+node_modules/
+
+# Ignore environment variables
+.env
+
+# Ignore logs
+logs/
+*.log
+
+# Ignore IDE-specific files
+.vscode/
+.idea/
+
+# Ignore build artifacts
+dist/
+build/
+
+# Ignore database files
+*.sqlite
+
+# Linguist Overrides
+*.js linguist-language=JavaScript
+
+# Binary Files
+*.png binary
+*.jpg binary
+*.gif binary
+*.pdf binary
+
+# End of Line Configuration
+*.sh eol=lf
+*.bat eol=crlf
