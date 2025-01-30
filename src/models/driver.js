@@ -1,6 +1,6 @@
-// models/driver.js
 'use strict';
 const { Model } = require('sequelize');
+const libphonenumber = require('google-libphonenumber');
 
 module.exports = (sequelize, DataTypes) => {
   class Driver extends Model {
@@ -22,6 +22,16 @@ module.exports = (sequelize, DataTypes) => {
         as: 'notifications',
       });
     }
+
+    formatPhoneForWhatsApp() {
+      const phoneUtil = libphonenumber.PhoneNumberUtil.getInstance();
+      try {
+        const number = phoneUtil.parse(this.phoneNumber);
+        return `+${number.getCountryCode()}${number.getNationalNumber()}`;
+      } catch (error) {
+        throw new Error('Invalid phone number format');
+      }
+    }
   }
 
   Driver.init({
@@ -36,6 +46,32 @@ module.exports = (sequelize, DataTypes) => {
       validate: {
         notNull: { msg: 'User ID is required' },
         isInt: { msg: 'User ID must be an integer' },
+      },
+    },
+    name: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        notEmpty: { msg: 'Name is required' },
+      },
+    },
+    phoneNumber: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: true,
+      validate: {
+        notEmpty: { msg: 'Phone number is required' },
+        isPhoneNumber(value) {
+          const phoneUtil = libphonenumber.PhoneNumberUtil.getInstance();
+          try {
+            const number = phoneUtil.parse(value);
+            if (!phoneUtil.isValidNumber(number)) {
+              throw new Error('Invalid phone number format');
+            }
+          } catch (error) {
+            throw new Error('Invalid phone number format');
+          }
+        },
       },
     },
     vehicleInfo: {
@@ -71,6 +107,12 @@ module.exports = (sequelize, DataTypes) => {
     modelName: 'Driver',
     timestamps: true,
     paranoid: true,
+    indexes: [
+      {
+        unique: true,
+        fields: ['phoneNumber'],
+      },
+    ],
   });
 
   return Driver;

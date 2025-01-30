@@ -1,4 +1,3 @@
-// models/customer.js
 'use strict';
 const { Model } = require('sequelize');
 const libphonenumber = require('google-libphonenumber');
@@ -26,6 +25,16 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'userId',
         as: 'notifications',
       });
+    }
+
+    formatPhoneForWhatsApp() {
+      const phoneUtil = libphonenumber.PhoneNumberUtil.getInstance();
+      try {
+        const number = phoneUtil.parse(this.phoneNumber);
+        return `+${number.getCountryCode()}${number.getNationalNumber()}`;
+      } catch (error) {
+        throw new Error('Invalid phone number format');
+      }
     }
   }
 

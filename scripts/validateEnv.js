@@ -1,6 +1,6 @@
 require('dotenv').config();
 const path = require('path');
-const config = require('../src/config/config');
+const config = require('../config/config');
 const logger = require('../src/utils/logger');
 
 function validateEnvironment() {

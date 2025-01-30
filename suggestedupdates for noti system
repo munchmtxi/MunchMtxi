@@ -1,0 +1,598 @@
+You'll need additional key components for a complete implementation:
+First, you need a centralized event management system:
+javascriptCopy// src/config/events.js
+This file should contain all event constants used across the handlers, ensuring consistent event naming and making maintenance easier.
+You also need specialized middleware:
+javascriptCopy// src/middleware/socketAuth.js
+This handles socket authentication, token verification, and role-based access control specifically for socket connections.
+For real-time features, you'll need dedicated managers:
+javascriptCopy// src/managers/roomManager.js
+This handles socket room management, ensuring users join appropriate rooms based on their roles and relationships.
+javascriptCopy// src/managers/presenceManager.js
+This tracks online/offline status of users, particularly important for merchants and drivers.
+For error handling and monitoring:
+javascriptCopy// src/utils/socketErrorHandler.js
+This provides centralized error handling for socket events, including error logging and client notification.
+For real-time analytics:
+javascriptCopy// src/services/analyticsService.js
+This tracks real-time metrics and performance data across all socket interactions.
+You'll also need integration helpers:
+javascriptCopy// src/integrations/whatsappIntegration.js
+// src/integrations/emailIntegration.js
+These provide standardized interfaces for external service communication.
+For data validation:
+javascriptCopy// src/validators/socketEventValidators.js
+This ensures all socket events receive properly formatted data.
+For testing:
+javascriptCopy// src/tests/socket/
+This directory should contain comprehensive socket event tests, including connection handling, event emission, and error scenarios.
+The most critical missing piece is a Redis implementation for socket scaling:
+javascriptCopy// src/config/redis.js
+This enables socket.io clustering for handling multiple server instances.
+Finally, you need lifecycle hooks:
+javascriptCopy// src/hooks/socketLifecycle.js
+This manages socket connection lifecycle events, including cleanup on disconnection.
+
+For src/handlers/customerHandlers.js, I should add:
+
+handleInDiningOrder(socket):
+
+Places orders directly from table
+Real-time order tracking
+In-app payment processing
+Special dietary requests
+Menu customizations
+
+
+handlePartyManagement(socket):
+
+Group ordering coordination
+Bill splitting functionality
+Party member management
+Shared order tracking
+
+
+
+For src/handlers/merchantHandlers.js, I should add:
+
+handleFinancialOperations(socket):
+
+Revenue tracking
+Payout management
+Expense monitoring
+Financial report generation
+
+
+handleTableManagement(socket):
+
+Real-time table status updates
+Capacity management
+Special event coordination
+Seating optimization
+
+
+handleBusinessTypeSpecifics(socket):
+
+Grocery-specific operations
+Restaurant-specific features
+Business type switching
+Type-specific inventory management
+
+
+
+For src/handlers/staffHandlers.js, I should add:
+
+handleScheduleManagement(socket):
+
+Shift tracking
+Availability updates
+Work hour logging
+Break management
+
+
+handlePerformanceTracking(socket):
+
+Real-time KPI monitoring
+Service speed metrics
+Customer satisfaction tracking
+Quality assurance checks
+
+
+
+For src/handlers/driverHandlers.js, I should add:
+
+handleVehicleManagement(socket):
+
+Vehicle status updates
+Maintenance scheduling
+Fuel tracking
+Vehicle assignment optimization
+
+
+handleDeliveryOptimization(socket):
+
+Multi-order routing
+Real-time traffic adaptation
+Weather condition handling
+Delivery time estimation
+
+
+
+For src/handlers/adminHandlers.js, I should add:
+
+handleRegionalManagement(socket):
+
+Regional settings configuration
+Currency management
+Time zone handling
+Location-based rule enforcement
+
+
+handleComplianceMonitoring(socket):
+
+License verification
+Regulatory compliance checks
+Policy enforcement
+Audit trail management
+
+
+handleBusinessTypeOversight(socket):
+
+Business category management
+Type-specific rule enforcement
+Cross-type operation coordination
+Category-based reporting
+
+src/config/socket.js
+The socket configuration file includes:
+
+setupSocket(server): Initializes and configures Socket.IO with:
+
+CORS configuration allowing all origins ('*')
+Authentication middleware using JWT tokens
+Connection handling that logs user connections/disconnections
+User authentication that verifies JWT tokens against config.jwt.secret
+Socket user assignment after successful authentication
+Comprehensive error logging for authentication failures
+
+
+
+src/utils/logger.js
+A comprehensive logging utility using Winston with:
+
+Daily log rotation setup using winston-daily-rotate-file
+Log directory creation if not exists ('logs')
+Logging configuration with:
+
+Timestamp format: 'YYYY-MM-DD HH:mm:ss'
+Error stack traces
+JSON format for log entries
+
+
+Two main log file types:
+
+Error logs (error-%DATE%.log)
+Combined logs (combined-%DATE%.log)
+
+
+Log management features:
+
+14-day retention period
+20MB max file size
+Zip archiving of old logs
+
+
+Development environment console logging with color formatting
+Uncaught exception handling with dedicated log files
+Unhandled promise rejection conversion to exceptions
+
+src/controllers/notificationController.js
+A simple controller with:
+
+sendNotification function using catchAsync wrapper
+Accepts phoneNumber and message in request body
+Uses whatsappService for message sending
+Returns success status and message on completion
+
+src/utils/catchAsync.js
+Utility wrapper that:
+
+Takes an async function as parameter
+Returns a new function that catches promise rejections
+Passes errors to Express error handling middleware
+
+src/utils/AppError.js
+Extended Error class with:
+
+Custom constructor accepting:
+
+message: Error description
+statusCode: HTTP status code
+errorCode: Custom error identifier
+details: Additional error information
+meta: Contextual metadata
+
+
+Automatic operational error flagging
+Stack trace capture
+Status derivation from status code
+
+src/routes/notificationRoutes.js
+Express router configuration:
+
+Single POST route for WhatsApp notifications
+Protected by authentication middleware
+Restricted to admin role access
+Uses sendNotification controller
+
+src/utils/emailService.js
+Email service configuration:
+
+Nodemailer transport setup using config values
+sendEmail function handling:
+
+Sender configuration
+Email options (to, subject, text, html)
+Async email sending
+
+
+
+src/services/whatsappService.js
+WhatsApp integration service:
+
+Uses axios for API requests
+Authentication with WhatsApp API key
+Error handling with logging
+Custom error throwing for failed messages
+
+src/app.js
+Main application setup with:
+
+Security middleware: helmet, cors
+Body parsing configuration
+Logging setup with morgan and custom logger
+Rate limiting implementation
+Passport authentication configuration
+Swagger API documentation
+Route definitions and error handling
+Server initialization with port configuration
+
+src/services/notificationTemplates.js
+Template definitions for:
+
+Customer notifications:
+
+Order confirmation templates
+Table readiness alerts
+Driver assignment notifications
+
+
+Merchant notifications:
+
+New order alerts
+Inventory warnings
+Staff performance reports
+
+
+Staff notifications:
+
+Task assignment messages
+Tip reception alerts
+
+
+Driver notifications:
+
+New job assignments
+Route update notifications
+
+
+
+Each template includes variations for:
+
+In-app notifications
+WhatsApp messages
+Email content
+Priority levels
+Dynamic data insertion
+
+src/services/notificationService.js
+This service handles notifications in a multi-channel system with these specific functions:
+
+send(userId, type, subtype, data, channels): Main function that orchestrates sending notifications across multiple channels
+sendInApp(userId, template, data): Sends real-time socket notifications to specific users
+sendWhatsApp(userId, template, data): Integrates with WhatsApp API for message delivery
+sendEmail(userId, template, data): Handles email notifications using templates
+sendPushNotification(userId, template, data): Manages push notification delivery
+logNotification(logData): Records notification attempts and their outcomes
+
+The service includes predefined constants:
+
+CHANNELS: IN_APP, WHATSAPP, EMAIL, SMS, PUSH
+PRIORITY: LOW, NORMAL, HIGH, URGENT
+
+src/handlers/customerHandlers.js
+The customer handlers manage socket events for customer interactions:
+
+handleOrders(socket):
+
+Processes new order placement with customizations and dietary preferences
+Handles order modifications and tracking
+Manages order status updates
+
+
+handleTableService(socket):
+
+Processes table booking requests with preferences and special requirements
+Manages group bookings
+Handles in-dining orders
+
+
+handleQuickLinkAction(socket):
+
+Processes assistance requests
+Handles bill requests
+Manages emergency help calls
+
+
+handleTaxiService(socket):
+
+Processes taxi booking requests
+Manages ride tracking
+Handles special vehicle requirements
+
+
+
+src/handlers/merchantHandlers.js
+The merchant handlers manage business operations:
+
+handleInventory(socket):
+
+Real-time inventory tracking
+Stock level monitoring and alerts
+Menu item availability updates
+
+
+handleOrderManagement(socket):
+
+Processes incoming orders
+Manages order status updates
+Handles delivery assignments
+
+
+handlePermissions(socket):
+
+Updates staff access levels
+Manages approval chains
+Handles restricted area access
+
+
+handleStaffTasks(socket):
+
+Assigns tasks to staff
+Monitors task completion
+Manages staff schedules
+
+
+handleMenuSpecials(socket):
+
+Updates special offers
+Manages time-limited promotions
+Handles discount configurations
+
+
+
+src/handlers/staffHandlers.js
+The staff handlers manage employee operations:
+
+handleTaskManagement(socket):
+
+Processes task assignments
+Updates task progress
+Records completion times
+Manages task priorities
+
+
+handleEarningsUpdates(socket):
+
+Records tip transactions
+Updates salary information
+Tracks performance-based earnings
+
+
+handleMetricsUpdates(socket):
+
+Monitors performance metrics
+Tracks task completion rates
+Records customer feedback
+Generates performance reports
+
+
+
+src/handlers/driverHandlers.js
+The driver handlers manage delivery operations:
+
+handleJobManagement(socket):
+
+Processes delivery assignments
+Manages job acceptance/rejection
+Updates delivery status
+Handles multiple delivery optimization
+
+
+handleNavigation(socket):
+
+Updates real-time location
+Optimizes routes based on traffic
+Handles weather-based routing
+Manages estimated arrival times
+
+
+handleEarnings(socket):
+
+Records delivery earnings
+Manages tips and bonuses
+Tracks performance incentives
+Processes payment summaries
+
+
+
+src/handlers/adminHandlers.js
+The admin handlers manage system oversight:
+
+handleUserManagement(socket):
+
+Updates user statuses
+Manages account permissions
+Handles user role changes
+Processes account suspensions
+
+
+handleSystemMonitoring(socket):
+
+Monitors system performance
+Tracks error rates
+Manages system alerts
+Monitors real-time metrics
+
+
+handleSystemAlerts(socket):
+
+Processes critical system alerts
+Manages emergency notifications
+Handles system maintenance alerts
+Distributes system-wide announcements
+
+src/config/socket.js:
+
+
+setupSocket(server): Main socket server setup and configuration
+Handles user authentication and connection/disconnection
+
+
+src/utils/logger.js:
+
+
+Creates a Winston logger instance
+Handles daily log rotation
+Manages different logging levels
+Sets up error logging
+Configures console logging for non-production environments
+Handles uncaught exceptions and unhandled promise rejections
+
+
+src/controllers/notificationController.js:
+
+
+sendNotification: Handles WhatsApp notification sending
+
+
+src/utils/catchAsync.js:
+
+
+Single utility function for handling async errors in route handlers
+
+
+src/utils/AppError.js:
+
+
+Custom error class extending Error
+Handles operational errors with status codes, error codes, and additional metadata
+
+
+src/routes/notificationRoutes.js:
+
+
+Defines notification-related routes
+Sets up authentication and authorization middleware
+
+
+src/utils/emailService.js:
+
+
+sendEmail: Handles email sending using nodemailer
+Configures email transport settings
+
+
+src/services/whatsappService.js:
+
+
+sendWhatsAppMessage: Handles WhatsApp message sending using WhatsApp API
+
+
+src/app.js (Main application file):
+
+
+Sets up Express application
+Configures middleware (security, logging, rate limiting)
+Sets up passport authentication
+Configures Swagger documentation
+Defines routes
+Handles global error handling
+Sets up server startup
+
+
+src/services/notificationTemplates.js:
+
+
+Defines templates for different types of notifications across user roles:
+
+Customer templates (order confirmations, table ready notifications, driver assignments)
+Merchant templates (new orders, inventory alerts, staff performance updates)
+Staff templates (new tasks, tip notifications)
+Driver templates (new delivery jobs, route updates)
+
+
+
+
+src/services/notificationService.js:
+
+
+Handles all notification channels (in-app, WhatsApp, email, SMS, push)
+Processes notification templates
+Manages notification priorities
+Handles notification logging
+Error handling for notification delivery
+
+
+src/handlers/customerHandlers.js:
+
+
+Manages customer-specific socket events
+Handles order-related events
+Manages table bookings
+Processes quick link actions
+Handles taxi service requests
+
+
+src/handlers/merchantHandlers.js:
+
+
+Handles merchant inventory management
+Processes menu updates
+Manages staff permissions
+Handles order management
+
+
+src/handlers/staffHandlers.js:
+
+
+Manages staff task updates
+Handles earnings and tips
+Processes performance metrics
+
+
+src/handlers/driverHandlers.js:
+
+
+Handles job assignments
+Manages location updates
+Processes route optimization
+Handles earnings updates
+
+
+src/handlers/adminHandlers.js:
+
+
+Manages user status updates
+Handles system monitoring
+Processes system alerts

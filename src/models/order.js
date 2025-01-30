@@ -1,4 +1,3 @@
-// models/order.js
 'use strict';
 const { Model } = require('sequelize');
 
@@ -31,6 +30,18 @@ module.exports = (sequelize, DataTypes) => {
         otherKey: 'menuItemId',
         as: 'items',
       });
+    }
+
+    getWhatsAppTemplateForStatus() {
+      const templateMap = {
+        'CONFIRMED': 'order_confirmed',
+        'PREPARING': 'order_preparing',
+        'READY': 'order_ready',
+        'OUT_FOR_DELIVERY': 'order_out_for_delivery',
+        'DELIVERED': 'order_delivered',
+        'CANCELLED': 'order_cancelled'
+      };
+      return templateMap[this.status];
     }
   }
 
@@ -87,10 +98,27 @@ module.exports = (sequelize, DataTypes) => {
         },
       },
     },
-    status: {
-      type: DataTypes.ENUM('pending', 'preparing', 'ready', 'out_for_delivery', 'completed', 'cancelled'),
+    orderNumber: {
+      type: DataTypes.STRING,
       allowNull: false,
-      defaultValue: 'pending',
+      unique: true
+    },
+    estimatedArrival: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
+    status: {
+      type: DataTypes.ENUM(
+        'PENDING',
+        'CONFIRMED',
+        'PREPARING',
+        'READY',
+        'OUT_FOR_DELIVERY',
+        'DELIVERED',
+        'CANCELLED'
+      ),
+      allowNull: false,
+      defaultValue: 'PENDING',
     },
     paymentStatus: {
       type: DataTypes.ENUM('unpaid', 'paid', 'refunded'),

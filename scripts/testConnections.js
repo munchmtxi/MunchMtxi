@@ -3,7 +3,7 @@ const { sequelize } = require('../src/models');
 const Redis = require('ioredis');
 const axios = require('axios');
 const logger = require('../src/utils/logger');
-const config = require('../src/config/config');
+const config = require('../config/config');
 
 async function testDatabaseConnection() {
   try {

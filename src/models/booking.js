@@ -1,4 +1,3 @@
-// models/booking.js
 'use strict';
 const { Model } = require('sequelize');
 
@@ -17,6 +16,19 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'bookingId',
         as: 'notifications',
       });
+    }
+
+    formatDate() {
+      return this.bookingDate.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    }
+
+    formatTime() {
+      return this.bookingTime.slice(0, 5); // Returns HH:MM format
     }
   }
 
@@ -44,6 +56,19 @@ module.exports = (sequelize, DataTypes) => {
         notNull: { msg: 'Merchant ID is required' },
         isInt: { msg: 'Merchant ID must be an integer' },
       },
+    },
+    reference: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: true,
+    },
+    bookingDate: {
+      type: DataTypes.DATEONLY,
+      allowNull: false,
+    },
+    bookingTime: {
+      type: DataTypes.TIME,
+      allowNull: false,
     },
     bookingType: {
       type: DataTypes.ENUM('table', 'taxi'),

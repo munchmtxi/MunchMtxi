@@ -1,4 +1,3 @@
-// models/merchant.js
 'use strict';
 const { Model } = require('sequelize');
 const libphonenumber = require('google-libphonenumber');
@@ -34,6 +33,33 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'userId',
         as: 'notifications',
       });
+    }
+
+    // Method to format phone number for WhatsApp
+    formatPhoneForWhatsApp() {
+      const phoneUtil = libphonenumber.PhoneNumberUtil.getInstance();
+      try {
+        const number = phoneUtil.parse(this.phoneNumber);
+        return `+${number.getCountryCode()}${number.getNationalNumber()}`;
+      } catch (error) {
+        throw new Error('Invalid phone number format');
+      }
+    }
+
+    // Method to format business hours according to timezone
+    formatBusinessHours() {
+      return {
+        open: this.businessHours?.open?.toLocaleTimeString('en-US', { 
+          timeZone: this.timeZone,
+          hour: '2-digit',
+          minute: '2-digit'
+        }),
+        close: this.businessHours?.close?.toLocaleTimeString('en-US', {
+          timeZone: this.timeZone,
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      };
     }
   }
 
@@ -110,6 +136,32 @@ module.exports = (sequelize, DataTypes) => {
         notEmpty: { msg: 'Time zone is required' },
       },
     },
+    businessHours: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      validate: {
+        isValidBusinessHours(value) {
+          if (value && (!value.open || !value.close)) {
+            throw new Error('Business hours must include both open and close times');
+          }
+        }
+      }
+    },
+    notificationPreferences: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      defaultValue: {
+        orderUpdates: true,
+        bookingNotifications: true,
+        customerFeedback: true,
+        marketingMessages: false
+      }
+    },
+    whatsappEnabled: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true
+    }
   }, {
     sequelize,
     modelName: 'Merchant',
