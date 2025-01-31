@@ -6,31 +6,31 @@ module.exports = (sequelize, DataTypes) => {
   class Customer extends Model {
     static associate(models) {
       this.belongsTo(models.User, {
-        foreignKey: 'userId',
+        foreignKey: 'user_id',
         as: 'user',
       });
       this.hasMany(models.Order, {
-        foreignKey: 'customerId',
+        foreignKey: 'customer_id',
         as: 'orders',
       });
       this.hasMany(models.Booking, {
-        foreignKey: 'customerId',
+        foreignKey: 'customer_id',
         as: 'bookings',
       });
       this.hasMany(models.Payment, {
-        foreignKey: 'customerId',
+        foreignKey: 'customer_id',
         as: 'payments',
       });
       this.hasMany(models.Notification, {
-        foreignKey: 'userId',
+        foreignKey: 'user_id',
         as: 'notifications',
       });
     }
 
-    formatPhoneForWhatsApp() {
+    format_phone_for_whatsapp() {
       const phoneUtil = libphonenumber.PhoneNumberUtil.getInstance();
       try {
-        const number = phoneUtil.parse(this.phoneNumber);
+        const number = phoneUtil.parse(this.phone_number);
         return `+${number.getCountryCode()}${number.getNationalNumber()}`;
       } catch (error) {
         throw new Error('Invalid phone number format');
@@ -39,20 +39,28 @@ module.exports = (sequelize, DataTypes) => {
   }
 
   Customer.init({
-    userId: {
+    id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      autoIncrement: true,
+      primaryKey: true,
+    },
+    user_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
       unique: true,
       references: {
-        model: 'Users',
+        model: 'users',
         key: 'id',
       },
+      onUpdate: 'CASCADE',
+      onDelete: 'CASCADE',
       validate: {
         notNull: { msg: 'User ID is required' },
         isInt: { msg: 'User ID must be an integer' },
       },
     },
-    phoneNumber: {
+    phone_number: {
       type: DataTypes.STRING,
       allowNull: false,
       unique: true,
@@ -82,20 +90,41 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.JSON,
       allowNull: true,
     },
-    paymentMethods: {
+    payment_methods: {
       type: DataTypes.JSON,
       allowNull: true,
     },
+    created_at: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP')
+    },
+    updated_at: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP')
+    },
+    deleted_at: {
+      type: DataTypes.DATE,
+      allowNull: true
+    }
   }, {
     sequelize,
     modelName: 'Customer',
-    timestamps: true,
+    tableName: 'customers',
+    underscored: true,
     paranoid: true,
     indexes: [
       {
         unique: true,
-        fields: ['phoneNumber'],
+        fields: ['user_id'],
+        name: 'customers_user_id_unique'
       },
+      {
+        unique: true,
+        fields: ['phone_number'],
+        name: 'customers_phone_number_unique'
+      }
     ],
   });
 

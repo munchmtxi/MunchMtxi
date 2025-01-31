@@ -1,50 +1,49 @@
-// migrations/20250127001100-create-payment.js
 'use strict';
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('Payments', {
+    await queryInterface.createTable('payments', {
       id: {
         allowNull: false,
         autoIncrement: true,
         primaryKey: true,
         type: Sequelize.INTEGER
       },
-      orderId: {
+      order_id: {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: 'Orders',
+          model: 'orders',
           key: 'id',
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE',
       },
-      customerId: {
+      customer_id: {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: 'Customers',
+          model: 'customers',
           key: 'id',
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE',
       },
-      merchantId: {
+      merchant_id: {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: 'Merchants',
+          model: 'merchants',
           key: 'id',
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE',
       },
-      driverId: {
+      driver_id: {
         type: Sequelize.INTEGER,
         allowNull: true,
         references: {
-          model: 'Drivers',
+          model: 'drivers',
           key: 'id',
         },
         onUpdate: 'CASCADE',
@@ -53,11 +52,8 @@ module.exports = {
       amount: {
         type: Sequelize.FLOAT,
         allowNull: false,
-        validate: {
-          min: 0,
-        },
       },
-      paymentMethod: {
+      payment_method: {
         type: Sequelize.STRING,
         allowNull: false,
       },
@@ -66,36 +62,57 @@ module.exports = {
         allowNull: false,
         defaultValue: 'pending',
       },
-      transactionId: {
+      transaction_id: {
         type: Sequelize.STRING,
         allowNull: true,
         unique: true,
       },
-      createdAt: {
+      created_at: {
         allowNull: false,
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
-      updatedAt: {
+      updated_at: {
         allowNull: false,
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
-      deletedAt: {
+      deleted_at: {
         type: Sequelize.DATE,
         allowNull: true
       }
     });
 
-    await queryInterface.addIndex('Payments', ['orderId']);
-    await queryInterface.addIndex('Payments', ['customerId']);
-    await queryInterface.addIndex('Payments', ['merchantId']);
-    await queryInterface.addIndex('Payments', ['driverId']);
-    await queryInterface.addIndex('Payments', ['transactionId'], { unique: true });
+    await queryInterface.addIndex('payments', ['order_id'], {
+      name: 'payments_order_id_index'
+    });
+    await queryInterface.addIndex('payments', ['customer_id'], {
+      name: 'payments_customer_id_index'
+    });
+    await queryInterface.addIndex('payments', ['merchant_id'], {
+      name: 'payments_merchant_id_index'
+    });
+    await queryInterface.addIndex('payments', ['driver_id'], {
+      name: 'payments_driver_id_index'
+    });
+    await queryInterface.addIndex('payments', ['transaction_id'], {
+      unique: true,
+      name: 'payments_transaction_id_unique'
+    });
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('Payments');
-    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_Payments_status";');
+    // Remove indexes first
+    await queryInterface.removeIndex('payments', 'payments_order_id_index');
+    await queryInterface.removeIndex('payments', 'payments_customer_id_index');
+    await queryInterface.removeIndex('payments', 'payments_merchant_id_index');
+    await queryInterface.removeIndex('payments', 'payments_driver_id_index');
+    await queryInterface.removeIndex('payments', 'payments_transaction_id_unique');
+
+    // Drop ENUM type
+    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_payments_status";');
+
+    // Drop table
+    await queryInterface.dropTable('payments');
   }
 };

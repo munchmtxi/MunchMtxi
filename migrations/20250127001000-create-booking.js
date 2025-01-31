@@ -1,36 +1,48 @@
-// migrations/20250127001000-create-booking.js
 'use strict';
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('Bookings', {
+    await queryInterface.createTable('bookings', {
       id: {
         allowNull: false,
         autoIncrement: true,
         primaryKey: true,
         type: Sequelize.INTEGER
       },
-      customerId: {
+      customer_id: {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: 'Customers',
+          model: 'customers',
           key: 'id',
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE',
       },
-      merchantId: {
+      merchant_id: {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: 'Merchants',
+          model: 'merchants',
           key: 'id',
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE',
       },
-      bookingType: {
+      reference: {
+        type: Sequelize.STRING,
+        allowNull: false,
+        unique: true,
+      },
+      booking_date: {
+        type: Sequelize.DATEONLY,
+        allowNull: false,
+      },
+      booking_time: {
+        type: Sequelize.TIME,
+        allowNull: false,
+      },
+      booking_type: {
         type: Sequelize.ENUM('table', 'taxi'),
         allowNull: false,
       },
@@ -43,29 +55,45 @@ module.exports = {
         allowNull: false,
         defaultValue: 'pending',
       },
-      createdAt: {
+      created_at: {
         allowNull: false,
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
-      updatedAt: {
+      updated_at: {
         allowNull: false,
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
-      deletedAt: {
+      deleted_at: {
         type: Sequelize.DATE,
         allowNull: true
       }
     });
 
-    await queryInterface.addIndex('Bookings', ['customerId']);
-    await queryInterface.addIndex('Bookings', ['merchantId']);
+    await queryInterface.addIndex('bookings', ['customer_id'], {
+      name: 'bookings_customer_id_index'
+    });
+    await queryInterface.addIndex('bookings', ['merchant_id'], {
+      name: 'bookings_merchant_id_index'
+    });
+    await queryInterface.addIndex('bookings', ['reference'], {
+      unique: true,
+      name: 'bookings_reference_unique'
+    });
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('Bookings');
-    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_Bookings_bookingType";');
-    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_Bookings_status";');
+    // Remove indexes first
+    await queryInterface.removeIndex('bookings', 'bookings_customer_id_index');
+    await queryInterface.removeIndex('bookings', 'bookings_merchant_id_index');
+    await queryInterface.removeIndex('bookings', 'bookings_reference_unique');
+
+    // Drop ENUM types
+    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_bookings_booking_type";');
+    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_bookings_status";');
+
+    // Drop table
+    await queryInterface.dropTable('bookings');
   }
 };

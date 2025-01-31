@@ -1,4 +1,3 @@
-// models/menuInventory.js
 'use strict';
 const { Model } = require('sequelize');
 
@@ -6,32 +5,40 @@ module.exports = (sequelize, DataTypes) => {
   class MenuInventory extends Model {
     static associate(models) {
       this.belongsTo(models.Merchant, {
-        foreignKey: 'merchantId',
+        foreignKey: 'merchant_id',
         as: 'merchant',
       });
       this.belongsToMany(models.Order, {
         through: models.OrderItems,
-        foreignKey: 'menuItemId',
-        otherKey: 'orderId',
+        foreignKey: 'menu_item_id',
+        otherKey: 'order_id',
         as: 'orders',
       });
     }
   }
 
   MenuInventory.init({
-    merchantId: {
+    id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      autoIncrement: true,
+      primaryKey: true,
+    },
+    merchant_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'Merchants',
+        model: 'merchants',
         key: 'id',
       },
+      onUpdate: 'CASCADE',
+      onDelete: 'CASCADE',
       validate: {
         notNull: { msg: 'Merchant ID is required' },
         isInt: { msg: 'Merchant ID must be an integer' },
       },
     },
-    itemName: {
+    item_name: {
       type: DataTypes.STRING,
       allowNull: false,
       validate: {
@@ -52,7 +59,7 @@ module.exports = (sequelize, DataTypes) => {
         },
       },
     },
-    stockLevel: {
+    stock_level: {
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 0,
@@ -67,11 +74,32 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: true,
     },
+    created_at: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP')
+    },
+    updated_at: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP')
+    },
+    deleted_at: {
+      type: DataTypes.DATE,
+      allowNull: true
+    }
   }, {
     sequelize,
     modelName: 'MenuInventory',
-    timestamps: true,
+    tableName: 'menu_inventories',
+    underscored: true,
     paranoid: true,
+    indexes: [
+      {
+        fields: ['merchant_id'],
+        name: 'menu_inventories_merchant_id_index'
+      }
+    ]
   });
 
   return MenuInventory;

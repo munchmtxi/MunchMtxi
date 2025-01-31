@@ -1,20 +1,19 @@
-// migrations/20250127000200-create-permission.js
 'use strict';
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('Permissions', {
+    await queryInterface.createTable('permissions', {
       id: {
         allowNull: false,
         autoIncrement: true,
         primaryKey: true,
         type: Sequelize.INTEGER
       },
-      roleId: {
+      role_id: {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: 'Roles',
+          model: 'roles',
           key: 'id',
         },
         onUpdate: 'CASCADE',
@@ -28,30 +27,31 @@ module.exports = {
         type: Sequelize.STRING,
         allowNull: false,
       },
-      createdAt: {
+      created_at: {
         allowNull: false,
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
-      updatedAt: {
+      updated_at: {
         allowNull: false,
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
-      deletedAt: {
+      deleted_at: {
         type: Sequelize.DATE,
         allowNull: true
       }
     });
 
-    await queryInterface.addConstraint('Permissions', {
-      fields: ['roleId', 'action', 'resource'],
+    await queryInterface.addConstraint('permissions', {
+      fields: ['role_id', 'action', 'resource'],
       type: 'unique',
       name: 'unique_role_action_resource'
     });
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('Permissions');
+    await queryInterface.removeConstraint('permissions', 'unique_role_action_resource');
+    await queryInterface.dropTable('permissions');
   }
 };

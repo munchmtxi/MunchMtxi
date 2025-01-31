@@ -6,40 +6,40 @@ module.exports = (sequelize, DataTypes) => {
   class Merchant extends Model {
     static associate(models) {
       this.belongsTo(models.User, {
-        foreignKey: 'userId',
+        foreignKey: 'user_id',
         as: 'user',
       });
       this.hasMany(models.Staff, {
-        foreignKey: 'merchantId',
+        foreignKey: 'merchant_id',
         as: 'staff',
       });
       this.hasMany(models.Order, {
-        foreignKey: 'merchantId',
+        foreignKey: 'merchant_id',
         as: 'orders',
       });
       this.hasMany(models.MenuInventory, {
-        foreignKey: 'merchantId',
-        as: 'menuItems',
+        foreignKey: 'merchant_id',
+        as: 'menu_items',
       });
       this.hasMany(models.Booking, {
-        foreignKey: 'merchantId',
+        foreignKey: 'merchant_id',
         as: 'bookings',
       });
       this.hasMany(models.Payment, {
-        foreignKey: 'merchantId',
+        foreignKey: 'merchant_id',
         as: 'payments',
       });
       this.hasMany(models.Notification, {
-        foreignKey: 'userId',
+        foreignKey: 'user_id',
         as: 'notifications',
       });
     }
 
     // Method to format phone number for WhatsApp
-    formatPhoneForWhatsApp() {
+    format_phone_for_whatsapp() {
       const phoneUtil = libphonenumber.PhoneNumberUtil.getInstance();
       try {
-        const number = phoneUtil.parse(this.phoneNumber);
+        const number = phoneUtil.parse(this.phone_number);
         return `+${number.getCountryCode()}${number.getNationalNumber()}`;
       } catch (error) {
         throw new Error('Invalid phone number format');
@@ -47,15 +47,15 @@ module.exports = (sequelize, DataTypes) => {
     }
 
     // Method to format business hours according to timezone
-    formatBusinessHours() {
+    format_business_hours() {
       return {
-        open: this.businessHours?.open?.toLocaleTimeString('en-US', { 
-          timeZone: this.timeZone,
+        open: this.business_hours?.open?.toLocaleTimeString('en-US', { 
+          timeZone: this.time_zone,
           hour: '2-digit',
           minute: '2-digit'
         }),
-        close: this.businessHours?.close?.toLocaleTimeString('en-US', {
-          timeZone: this.timeZone,
+        close: this.business_hours?.close?.toLocaleTimeString('en-US', {
+          timeZone: this.time_zone,
           hour: '2-digit',
           minute: '2-digit'
         })
@@ -64,27 +64,35 @@ module.exports = (sequelize, DataTypes) => {
   }
 
   Merchant.init({
-    userId: {
+    id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      autoIncrement: true,
+      primaryKey: true,
+    },
+    user_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
       unique: true,
       references: {
-        model: 'Users',
+        model: 'users',
         key: 'id',
       },
+      onUpdate: 'CASCADE',
+      onDelete: 'CASCADE',
       validate: {
         notNull: { msg: 'User ID is required' },
         isInt: { msg: 'User ID must be an integer' },
       },
     },
-    businessName: {
+    business_name: {
       type: DataTypes.STRING,
       allowNull: false,
       validate: {
         notEmpty: { msg: 'Business name is required' },
       },
     },
-    businessType: {
+    business_type: {
       type: DataTypes.ENUM('grocery', 'restaurant'),
       allowNull: false,
       validate: {
@@ -101,7 +109,7 @@ module.exports = (sequelize, DataTypes) => {
         notEmpty: { msg: 'Address is required' },
       },
     },
-    phoneNumber: {
+    phone_number: {
       type: DataTypes.STRING,
       allowNull: false,
       unique: true,
@@ -128,7 +136,7 @@ module.exports = (sequelize, DataTypes) => {
         notEmpty: { msg: 'Currency is required' },
       },
     },
-    timeZone: {
+    time_zone: {
       type: DataTypes.STRING,
       allowNull: false,
       defaultValue: 'UTC',
@@ -136,7 +144,7 @@ module.exports = (sequelize, DataTypes) => {
         notEmpty: { msg: 'Time zone is required' },
       },
     },
-    businessHours: {
+    business_hours: {
       type: DataTypes.JSON,
       allowNull: true,
       validate: {
@@ -147,7 +155,7 @@ module.exports = (sequelize, DataTypes) => {
         }
       }
     },
-    notificationPreferences: {
+    notification_preferences: {
       type: DataTypes.JSON,
       allowNull: true,
       defaultValue: {
@@ -157,21 +165,42 @@ module.exports = (sequelize, DataTypes) => {
         marketingMessages: false
       }
     },
-    whatsappEnabled: {
+    whatsapp_enabled: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: true
+    },
+    created_at: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP')
+    },
+    updated_at: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP')
+    },
+    deleted_at: {
+      type: DataTypes.DATE,
+      allowNull: true
     }
   }, {
     sequelize,
     modelName: 'Merchant',
-    timestamps: true,
+    tableName: 'merchants',
+    underscored: true,
     paranoid: true,
     indexes: [
       {
         unique: true,
-        fields: ['phoneNumber'],
+        fields: ['user_id'],
+        name: 'merchants_user_id_unique'
       },
+      {
+        unique: true,
+        fields: ['phone_number'],
+        name: 'merchants_phone_number_unique'
+      }
     ],
   });
 

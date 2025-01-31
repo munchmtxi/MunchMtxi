@@ -3,7 +3,7 @@
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('Roles', {
+    await queryInterface.createTable('roles', {
       id: {
         allowNull: false,
         autoIncrement: true,
@@ -15,24 +15,30 @@ module.exports = {
         allowNull: false,
         unique: true,
       },
-      createdAt: {
+      created_at: {
         allowNull: false,
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
-      updatedAt: {
+      updated_at: {
         allowNull: false,
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
-      deletedAt: {
+      deleted_at: {
         type: Sequelize.DATE,
         allowNull: true
       }
     });
+
+    await queryInterface.addIndex('roles', ['name'], {
+      unique: true,
+      name: 'roles_name_unique'
+    });
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('Roles');
+    await queryInterface.removeIndex('roles', 'roles_name_unique');
+    await queryInterface.dropTable('roles');
   }
 };

@@ -4,18 +4,18 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('Users', {
+    await queryInterface.createTable('users', {
       id: {
         allowNull: false,
         autoIncrement: true,
         primaryKey: true,
         type: Sequelize.INTEGER
       },
-      firstName: {
+      first_name: {
         type: Sequelize.STRING,
         allowNull: false,
       },
-      lastName: {
+      last_name: {
         type: Sequelize.STRING,
         allowNull: false,
       },
@@ -28,17 +28,17 @@ module.exports = {
         type: Sequelize.STRING,
         allowNull: false,
       },
-      roleId: { // Foreign key to Roles
+      role_id: {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: 'Roles',
+          model: 'roles',
           key: 'id',
         },
         onUpdate: 'CASCADE',
         onDelete: 'RESTRICT',
       },
-      googleLocation: {
+      google_location: {
         type: Sequelize.JSON,
         allowNull: true,
       },
@@ -51,61 +51,59 @@ module.exports = {
         type: Sequelize.ENUM('malawi', 'zambia', 'mozambique', 'tanzania'),
         allowNull: false,
       },
-      merchantType: {
+      merchant_type: {
         type: Sequelize.ENUM('grocery', 'restaurant'),
         allowNull: true,
       },
-      isVerified: {
+      is_verified: {
         type: Sequelize.BOOLEAN,
         defaultValue: false,
       },
-      managerId: {
+      manager_id: {
         type: Sequelize.INTEGER,
         allowNull: true,
         references: {
-          model: 'Users',
+          model: 'users',
           key: 'id',
         },
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL',
       },
-      twoFactorSecret: {
+      two_factor_secret: {
         type: Sequelize.STRING,
         allowNull: true,
       },
-      passwordResetToken: {
+      password_reset_token: {
         type: Sequelize.STRING,
         allowNull: true,
       },
-      passwordResetExpires: {
+      password_reset_expires: {
         type: Sequelize.DATE,
         allowNull: true,
       },
-      createdAt: {
+      created_at: {
         allowNull: false,
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
-      updatedAt: {
+      updated_at: {
         allowNull: false,
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
-      deletedAt: {
+      deleted_at: {
         type: Sequelize.DATE,
         allowNull: true
       }
     });
 
-    // Remove or comment out the following lines as unique indexes are already created via model
-    // await queryInterface.addIndex('Users', ['email'], { unique: true });
-    // await queryInterface.addIndex('Users', ['phone'], { unique: true });
+    await queryInterface.addIndex('users', ['email'], { unique: true });
+    await queryInterface.addIndex('users', ['phone'], { unique: true });
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('Users');
-    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_Users_country";');
-    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_Users_merchantType";');
-    // Note: Removed DROP TYPE for 'enum_Users_role' since 'roleId' replaces 'role'
+    await queryInterface.dropTable('users');
+    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_users_country";');
+    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_users_merchant_type";');
   }
 };

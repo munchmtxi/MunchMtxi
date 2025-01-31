@@ -1,40 +1,39 @@
-// migrations/20250127001200-create-notification.js
 'use strict';
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('Notifications', {
+    await queryInterface.createTable('notifications', {
       id: {
         allowNull: false,
         autoIncrement: true,
         primaryKey: true,
         type: Sequelize.INTEGER
       },
-      userId: {
+      user_id: {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: 'Users',
+          model: 'users',
           key: 'id',
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE',
       },
-      orderId: {
+      order_id: {
         type: Sequelize.INTEGER,
         allowNull: true,
         references: {
-          model: 'Orders',
+          model: 'orders',
           key: 'id',
         },
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL',
       },
-      bookingId: {
+      booking_id: {
         type: Sequelize.INTEGER,
         allowNull: true,
         references: {
-          model: 'Bookings',
+          model: 'bookings',
           key: 'id',
         },
         onUpdate: 'CASCADE',
@@ -48,32 +47,44 @@ module.exports = {
         type: Sequelize.TEXT,
         allowNull: false,
       },
-      readStatus: {
+      read_status: {
         type: Sequelize.BOOLEAN,
         defaultValue: false,
       },
-      createdAt: {
+      created_at: {
         allowNull: false,
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
-      updatedAt: {
+      updated_at: {
         allowNull: false,
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
-      deletedAt: {
+      deleted_at: {
         type: Sequelize.DATE,
         allowNull: true
       }
     });
 
-    await queryInterface.addIndex('Notifications', ['userId']);
-    await queryInterface.addIndex('Notifications', ['orderId']);
-    await queryInterface.addIndex('Notifications', ['bookingId']);
+    await queryInterface.addIndex('notifications', ['user_id'], {
+      name: 'notifications_user_id_index'
+    });
+    await queryInterface.addIndex('notifications', ['order_id'], {
+      name: 'notifications_order_id_index'
+    });
+    await queryInterface.addIndex('notifications', ['booking_id'], {
+      name: 'notifications_booking_id_index'
+    });
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('Notifications');
+    // Remove indexes first
+    await queryInterface.removeIndex('notifications', 'notifications_user_id_index');
+    await queryInterface.removeIndex('notifications', 'notifications_order_id_index');
+    await queryInterface.removeIndex('notifications', 'notifications_booking_id_index');
+    
+    // Drop table
+    await queryInterface.dropTable('notifications');
   }
 };

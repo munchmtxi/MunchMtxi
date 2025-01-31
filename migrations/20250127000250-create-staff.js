@@ -1,31 +1,30 @@
-// migrations/20250127000700-create-staff.js
 'use strict';
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('Staff', {
+    await queryInterface.createTable('staff', {
       id: {
         allowNull: false,
         autoIncrement: true,
         primaryKey: true,
         type: Sequelize.INTEGER
       },
-      userId: {
+      user_id: {
         type: Sequelize.INTEGER,
         allowNull: false,
         unique: true,
         references: {
-          model: 'Users',
+          model: 'users',
           key: 'id',
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE',
       },
-      merchantId: {
+      merchant_id: {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: 'Merchants',
+          model: 'merchants',
           key: 'id',
         },
         onUpdate: 'CASCADE',
@@ -35,36 +34,40 @@ module.exports = {
         type: Sequelize.STRING,
         allowNull: false,
       },
-      managerId: {
+      manager_id: {
         type: Sequelize.INTEGER,
         allowNull: true,
         references: {
-          model: 'Users',
+          model: 'users',
           key: 'id',
         },
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL',
       },
-      createdAt: {
+      created_at: {
         allowNull: false,
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
-      updatedAt: {
+      updated_at: {
         allowNull: false,
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
-      deletedAt: {
+      deleted_at: {
         type: Sequelize.DATE,
         allowNull: true
       }
     });
 
-    await queryInterface.addIndex('Staff', ['userId'], { unique: true });
+    await queryInterface.addIndex('staff', ['user_id'], { 
+      unique: true,
+      name: 'staff_user_id_unique'
+    });
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('Staff');
+    await queryInterface.removeIndex('staff', 'staff_user_id_unique');
+    await queryInterface.dropTable('staff');
   }
 };

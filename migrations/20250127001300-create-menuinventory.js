@@ -1,26 +1,25 @@
-// migrations/20250127001300-create-menuinventory.js
 'use strict';
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('MenuInventories', {
+    await queryInterface.createTable('menu_inventories', {
       id: {
         allowNull: false,
         autoIncrement: true,
         primaryKey: true,
         type: Sequelize.INTEGER
       },
-      merchantId: {
+      merchant_id: {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: 'Merchants',
+          model: 'merchants',
           key: 'id',
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE',
       },
-      itemName: {
+      item_name: {
         type: Sequelize.STRING,
         allowNull: false,
       },
@@ -31,42 +30,42 @@ module.exports = {
       price: {
         type: Sequelize.FLOAT,
         allowNull: false,
-        validate: {
-          min: 0,
-        },
       },
-      stockLevel: {
+      stock_level: {
         type: Sequelize.INTEGER,
         allowNull: false,
         defaultValue: 0,
-        validate: {
-          min: 0,
-        },
       },
       category: {
         type: Sequelize.STRING,
         allowNull: true,
       },
-      createdAt: {
+      created_at: {
         allowNull: false,
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
-      updatedAt: {
+      updated_at: {
         allowNull: false,
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
-      deletedAt: {
+      deleted_at: {
         type: Sequelize.DATE,
         allowNull: true
       }
     });
 
-    await queryInterface.addIndex('MenuInventories', ['merchantId']);
+    await queryInterface.addIndex('menu_inventories', ['merchant_id'], {
+      name: 'menu_inventories_merchant_id_index'
+    });
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('MenuInventories');
+    // Remove index first
+    await queryInterface.removeIndex('menu_inventories', 'menu_inventories_merchant_id_index');
+    
+    // Drop table
+    await queryInterface.dropTable('menu_inventories');
   }
 };

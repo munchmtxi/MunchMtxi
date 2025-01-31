@@ -33,22 +33,22 @@ module.exports = {
         defaultValue: 'en',
         allowNull: false
       },
-      merchantId: {
+      merchant_id: {
         type: Sequelize.INTEGER,
         allowNull: true,
         references: {
-          model: 'Merchants',
+          model: 'merchants',
           key: 'id'
         },
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL'
       },
-      createdAt: {
+      created_at: {
         type: Sequelize.DATE,
         allowNull: false,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
-      updatedAt: {
+      updated_at: {
         type: Sequelize.DATE,
         allowNull: false,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
@@ -65,7 +65,7 @@ module.exports = {
       name: 'templates_type_status'
     });
 
-    await queryInterface.addIndex('templates', ['merchantId'], {
+    await queryInterface.addIndex('templates', ['merchant_id'], {
       name: 'templates_merchant_id'
     });
   },
@@ -75,6 +75,10 @@ module.exports = {
     await queryInterface.removeIndex('templates', 'templates_name_unique');
     await queryInterface.removeIndex('templates', 'templates_type_status');
     await queryInterface.removeIndex('templates', 'templates_merchant_id');
+
+    // Drop ENUM types
+    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_templates_type";');
+    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_templates_status";');
 
     // Then drop the table
     await queryInterface.dropTable('templates');

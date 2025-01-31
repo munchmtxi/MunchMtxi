@@ -1,63 +1,66 @@
-// migrations/20250127000500-create-device.js
 'use strict';
 
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('Devices', {
+    await queryInterface.createTable('devices', {
       id: {
         allowNull: false,
         autoIncrement: true,
         primaryKey: true,
         type: Sequelize.INTEGER
       },
-      userId: {
+      user_id: {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: 'Users',
+          model: 'users',
           key: 'id',
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE',
       },
-      deviceId: {
+      device_id: {
         type: Sequelize.STRING,
         allowNull: false,
       },
-      deviceType: {
+      device_type: {
         type: Sequelize.STRING,
         allowNull: false,
       },
-      lastUsedAt: {
+      last_used_at: {
         allowNull: false,
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
-      createdAt: {
+      created_at: {
         allowNull: false,
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
-      updatedAt: {
+      updated_at: {
         allowNull: false,
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
-      deletedAt: {
+      deleted_at: {
         type: Sequelize.DATE,
         allowNull: true
       }
     });
 
-    await queryInterface.addConstraint('Devices', {
-      fields: ['userId', 'deviceId'],
+    await queryInterface.addConstraint('devices', {
+      fields: ['user_id', 'device_id'],
       type: 'unique',
       name: 'unique_user_device'
     });
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('Devices');
+    // Remove constraint first
+    await queryInterface.removeConstraint('devices', 'unique_user_device');
+    
+    // Drop table
+    await queryInterface.dropTable('devices');
   }
 };

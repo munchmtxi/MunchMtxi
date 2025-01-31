@@ -1,4 +1,3 @@
-// models/staffpermissions.js
 'use strict';
 const { Model } = require('sequelize');
 
@@ -10,27 +9,33 @@ module.exports = (sequelize, DataTypes) => {
   }
 
   StaffPermissions.init({
-    staffId: {
+    staff_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'Staff',
+        model: 'staff',
         key: 'id',
       },
+      onUpdate: 'CASCADE',
+      onDelete: 'CASCADE',
       primaryKey: true,
     },
-    permissionId: {
+    permission_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'Permissions',
+        model: 'permissions',
         key: 'id',
       },
+      onUpdate: 'CASCADE',
+      onDelete: 'CASCADE',
       primaryKey: true,
     },
   }, {
     sequelize,
     modelName: 'StaffPermissions',
+    tableName: 'staff_permissions',
+    underscored: true,
     timestamps: false,
     paranoid: false,
   });

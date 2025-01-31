@@ -1,17 +1,16 @@
+'use strict';
 const { Model, DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
   class Template extends Model {
     static associate(models) {
-      // Notification association
       Template.hasMany(models.Notification, {
-        foreignKey: 'templateId',
+        foreignKey: 'template_id',
         as: 'notifications'
       });
 
-      // Merchant association
       Template.belongsTo(models.Merchant, {
-        foreignKey: 'merchantId',
+        foreignKey: 'merchant_id',
         as: 'merchant'
       });
     }
@@ -21,7 +20,8 @@ module.exports = (sequelize) => {
     id: {
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
-      primaryKey: true
+      primaryKey: true,
+      allowNull: false
     },
     name: {
       type: DataTypes.STRING,
@@ -38,34 +38,52 @@ module.exports = (sequelize) => {
     },
     status: {
       type: DataTypes.ENUM('ACTIVE', 'INACTIVE', 'DEPRECATED'),
-      defaultValue: 'ACTIVE'
+      defaultValue: 'ACTIVE',
+      allowNull: false
     },
     language: {
       type: DataTypes.STRING,
-      defaultValue: 'en'
+      defaultValue: 'en',
+      allowNull: false
     },
-    merchantId: {
+    merchant_id: {
       type: DataTypes.INTEGER,
       allowNull: true,
       references: {
-        model: 'Merchants',
+        model: 'merchants',
         key: 'id'
-      }
+      },
+      onUpdate: 'CASCADE',
+      onDelete: 'SET NULL'
+    },
+    created_at: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP')
+    },
+    updated_at: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP')
     }
   }, {
     sequelize,
     modelName: 'Template',
     tableName: 'templates',
+    underscored: true,
     indexes: [
       {
         fields: ['name'],
-        unique: true
+        unique: true,
+        name: 'templates_name_unique'
       },
       {
-        fields: ['type', 'status']
+        fields: ['type', 'status'],
+        name: 'templates_type_status'
       },
       {
-        fields: ['merchantId']
+        fields: ['merchant_id'],
+        name: 'templates_merchant_id'
       }
     ]
   });

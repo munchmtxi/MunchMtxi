@@ -5,21 +5,21 @@ module.exports = (sequelize, DataTypes) => {
   class Booking extends Model {
     static associate(models) {
       this.belongsTo(models.Customer, {
-        foreignKey: 'customerId',
+        foreignKey: 'customer_id',
         as: 'customer',
       });
       this.belongsTo(models.Merchant, {
-        foreignKey: 'merchantId',
+        foreignKey: 'merchant_id',
         as: 'merchant',
       });
       this.hasMany(models.Notification, {
-        foreignKey: 'bookingId',
+        foreignKey: 'booking_id',
         as: 'notifications',
       });
     }
 
-    formatDate() {
-      return this.bookingDate.toLocaleDateString('en-US', {
+    format_date() {
+      return this.booking_date.toLocaleDateString('en-US', {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
@@ -27,31 +27,41 @@ module.exports = (sequelize, DataTypes) => {
       });
     }
 
-    formatTime() {
-      return this.bookingTime.slice(0, 5); // Returns HH:MM format
+    format_time() {
+      return this.booking_time.slice(0, 5); // Returns HH:MM format
     }
   }
 
   Booking.init({
-    customerId: {
+    id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      autoIncrement: true,
+      primaryKey: true,
+    },
+    customer_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'Customers',
+        model: 'customers',
         key: 'id',
       },
+      onUpdate: 'CASCADE',
+      onDelete: 'CASCADE',
       validate: {
         notNull: { msg: 'Customer ID is required' },
         isInt: { msg: 'Customer ID must be an integer' },
       },
     },
-    merchantId: {
+    merchant_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'Merchants',
+        model: 'merchants',
         key: 'id',
       },
+      onUpdate: 'CASCADE',
+      onDelete: 'CASCADE',
       validate: {
         notNull: { msg: 'Merchant ID is required' },
         isInt: { msg: 'Merchant ID must be an integer' },
@@ -62,15 +72,15 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       unique: true,
     },
-    bookingDate: {
+    booking_date: {
       type: DataTypes.DATEONLY,
       allowNull: false,
     },
-    bookingTime: {
+    booking_time: {
       type: DataTypes.TIME,
       allowNull: false,
     },
-    bookingType: {
+    booking_type: {
       type: DataTypes.ENUM('table', 'taxi'),
       allowNull: false,
       validate: {
@@ -89,11 +99,41 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: 'pending',
     },
+    created_at: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP')
+    },
+    updated_at: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP')
+    },
+    deleted_at: {
+      type: DataTypes.DATE,
+      allowNull: true
+    }
   }, {
     sequelize,
     modelName: 'Booking',
-    timestamps: true,
+    tableName: 'bookings',
+    underscored: true,
     paranoid: true,
+    indexes: [
+      {
+        fields: ['customer_id'],
+        name: 'bookings_customer_id_index'
+      },
+      {
+        fields: ['merchant_id'],
+        name: 'bookings_merchant_id_index'
+      },
+      {
+        unique: true,
+        fields: ['reference'],
+        name: 'bookings_reference_unique'
+      }
+    ],
   });
 
   return Booking;

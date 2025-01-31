@@ -5,78 +5,90 @@ module.exports = (sequelize, DataTypes) => {
   class Order extends Model {
     static associate(models) {
       this.belongsTo(models.Customer, {
-        foreignKey: 'customerId',
+        foreignKey: 'customer_id',
         as: 'customer',
       });
       this.belongsTo(models.Merchant, {
-        foreignKey: 'merchantId',
+        foreignKey: 'merchant_id',
         as: 'merchant',
       });
       this.belongsTo(models.Driver, {
-        foreignKey: 'driverId',
+        foreignKey: 'driver_id',
         as: 'driver',
       });
       this.hasMany(models.Payment, {
-        foreignKey: 'orderId',
+        foreignKey: 'order_id',
         as: 'payments',
       });
       this.hasMany(models.Notification, {
-        foreignKey: 'orderId',
+        foreignKey: 'order_id',
         as: 'notifications',
       });
       this.belongsToMany(models.MenuInventory, {
         through: models.OrderItems,
-        foreignKey: 'orderId',
-        otherKey: 'menuItemId',
+        foreignKey: 'order_id',
+        otherKey: 'menu_item_id',
         as: 'items',
       });
     }
 
-    getWhatsAppTemplateForStatus() {
+    get_whatsapp_template_for_status() {
       const templateMap = {
-        'CONFIRMED': 'order_confirmed',
-        'PREPARING': 'order_preparing',
-        'READY': 'order_ready',
-        'OUT_FOR_DELIVERY': 'order_out_for_delivery',
-        'DELIVERED': 'order_delivered',
-        'CANCELLED': 'order_cancelled'
+        'confirmed': 'order_confirmed',
+        'preparing': 'order_preparing',
+        'ready': 'order_ready',
+        'out_for_delivery': 'order_out_for_delivery',
+        'completed': 'order_delivered',
+        'cancelled': 'order_cancelled'
       };
       return templateMap[this.status];
     }
   }
 
   Order.init({
-    customerId: {
+    id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      autoIncrement: true,
+      primaryKey: true,
+    },
+    customer_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'Customers',
+        model: 'customers',
         key: 'id',
       },
+      onUpdate: 'CASCADE',
+      onDelete: 'CASCADE',
       validate: {
         notNull: { msg: 'Customer ID is required' },
         isInt: { msg: 'Customer ID must be an integer' },
       },
     },
-    merchantId: {
+    merchant_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'Merchants',
+        model: 'merchants',
         key: 'id',
       },
+      onUpdate: 'CASCADE',
+      onDelete: 'CASCADE',
       validate: {
         notNull: { msg: 'Merchant ID is required' },
         isInt: { msg: 'Merchant ID must be an integer' },
       },
     },
-    driverId: {
+    driver_id: {
       type: DataTypes.INTEGER,
       allowNull: true,
       references: {
-        model: 'Drivers',
+        model: 'drivers',
         key: 'id',
       },
+      onUpdate: 'CASCADE',
+      onDelete: 'SET NULL',
       validate: {
         isInt: { msg: 'Driver ID must be an integer' },
       },
@@ -88,7 +100,7 @@ module.exports = (sequelize, DataTypes) => {
         notEmpty: { msg: 'Items are required' },
       },
     },
-    totalAmount: {
+    total_amount: {
       type: DataTypes.FLOAT,
       allowNull: false,
       validate: {
@@ -98,38 +110,72 @@ module.exports = (sequelize, DataTypes) => {
         },
       },
     },
-    orderNumber: {
+    order_number: {
       type: DataTypes.STRING,
       allowNull: false,
       unique: true
     },
-    estimatedArrival: {
+    estimated_arrival: {
       type: DataTypes.DATE,
       allowNull: true
     },
     status: {
       type: DataTypes.ENUM(
-        'PENDING',
-        'CONFIRMED',
-        'PREPARING',
-        'READY',
-        'OUT_FOR_DELIVERY',
-        'DELIVERED',
-        'CANCELLED'
+        'pending',
+        'confirmed',
+        'preparing',
+        'ready',
+        'out_for_delivery',
+        'completed',
+        'cancelled'
       ),
       allowNull: false,
-      defaultValue: 'PENDING',
+      defaultValue: 'pending',
     },
-    paymentStatus: {
+    payment_status: {
       type: DataTypes.ENUM('unpaid', 'paid', 'refunded'),
       allowNull: false,
       defaultValue: 'unpaid',
     },
+    created_at: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP')
+    },
+    updated_at: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP')
+    },
+    deleted_at: {
+      type: DataTypes.DATE,
+      allowNull: true
+    }
   }, {
     sequelize,
     modelName: 'Order',
-    timestamps: true,
+    tableName: 'orders',
+    underscored: true,
     paranoid: true,
+    indexes: [
+      {
+        fields: ['customer_id'],
+        name: 'orders_customer_id_index'
+      },
+      {
+        fields: ['merchant_id'],
+        name: 'orders_merchant_id_index'
+      },
+      {
+        fields: ['driver_id'],
+        name: 'orders_driver_id_index'
+      },
+      {
+        unique: true,
+        fields: ['order_number'],
+        name: 'orders_order_number_unique'
+      }
+    ]
   });
 
   return Order;

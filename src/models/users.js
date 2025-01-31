@@ -2,65 +2,70 @@
 'use strict';
 const { Model } = require('sequelize');
 const libphonenumber = require('google-libphonenumber');
-const bcrypt = require('bcryptjs'); // Ensure 'bcryptjs' is installed
+const bcrypt = require('bcryptjs');
 
 module.exports = (sequelize, DataTypes) => {
   class User extends Model {
     static associate(models) {
       this.belongsTo(models.Role, {
-        foreignKey: 'roleId',
+        foreignKey: 'role_id',
         as: 'role',
       });
       this.hasOne(models.Customer, {
-        foreignKey: 'userId',
-        as: 'customerProfile',
+        foreignKey: 'user_id',
+        as: 'customer_profile',
       });
       this.hasOne(models.Merchant, {
-        foreignKey: 'userId',
-        as: 'merchantProfile',
+        foreignKey: 'user_id',
+        as: 'merchant_profile',
       });
       this.hasOne(models.Staff, {
-        foreignKey: 'userId',
-        as: 'staffProfile',
+        foreignKey: 'user_id',
+        as: 'staff_profile',
       });
       this.hasOne(models.Driver, {
-        foreignKey: 'userId',
-        as: 'driverProfile',
+        foreignKey: 'user_id',
+        as: 'driver_profile',
       });
       this.belongsTo(models.User, { 
-        as: 'managedBy', 
-        foreignKey: 'managerId' 
+        as: 'managed_by', 
+        foreignKey: 'manager_id' 
       });
       this.hasMany(models.Notification, {
-        foreignKey: 'userId',
+        foreignKey: 'user_id',
         as: 'notifications',
       });
       this.hasMany(models.Payment, {
-        foreignKey: 'customerId',
-        as: 'customerPayments',
+        foreignKey: 'customer_id',
+        as: 'customer_payments',
       });
       this.hasMany(models.Payment, {
-        foreignKey: 'driverId',
-        as: 'driverPayments',
+        foreignKey: 'driver_id',
+        as: 'driver_payments',
       });
       this.hasMany(models.Report, {
-        foreignKey: 'generatedBy',
+        foreignKey: 'generated_by',
         as: 'reports',
       });
       this.hasMany(models.Device, {
-        foreignKey: 'userId',
+        foreignKey: 'user_id',
         as: 'devices',
       });
     }
 
-    // Method to compare passwords
-    validPassword(password) {
+    valid_password(password) {
       return bcrypt.compareSync(password, this.password);
     }
   }
 
   User.init({
-    firstName: {
+    id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      autoIncrement: true,
+      primaryKey: true,
+    },
+    first_name: {
       type: DataTypes.STRING,
       allowNull: false,
       validate: {
@@ -68,7 +73,7 @@ module.exports = (sequelize, DataTypes) => {
         len: { args: [2, 50], msg: 'First name must be between 2 and 50 characters' },
       },
     },
-    lastName: {
+    last_name: {
       type: DataTypes.STRING,
       allowNull: false,
       validate: {
@@ -93,17 +98,17 @@ module.exports = (sequelize, DataTypes) => {
         notEmpty: { msg: 'Password is required' },
       },
     },
-    roleId: {
+    role_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'Roles',
+        model: 'roles',
         key: 'id',
       },
       onUpdate: 'CASCADE',
       onDelete: 'RESTRICT',
     },
-    googleLocation: {
+    google_location: {
       type: DataTypes.JSON,
       allowNull: true,
     },
@@ -138,7 +143,7 @@ module.exports = (sequelize, DataTypes) => {
         },
       },
     },
-    merchantType: {
+    merchant_type: {
       type: DataTypes.ENUM('grocery', 'restaurant'),
       allowNull: true,
       validate: {
@@ -148,38 +153,54 @@ module.exports = (sequelize, DataTypes) => {
         },
       },
     },
-    isVerified: {
+    is_verified: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
     },
-    managerId: {
+    manager_id: {
       type: DataTypes.INTEGER,
       allowNull: true,
       references: {
-        model: 'Users',
+        model: 'users',
         key: 'id',
       },
       onUpdate: 'CASCADE',
       onDelete: 'SET NULL',
     },
-    twoFactorSecret: {
+    two_factor_secret: {
       type: DataTypes.STRING,
       allowNull: true,
     },
-    passwordResetToken: {
+    password_reset_token: {
       type: DataTypes.STRING,
       allowNull: true,
     },
-    passwordResetExpires: {
+    password_reset_expires: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    created_at: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP'),
+    },
+    updated_at: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP'),
+    },
+    deleted_at: {
       type: DataTypes.DATE,
       allowNull: true,
     },
   }, {
     sequelize,
     modelName: 'User',
+    tableName: 'users',
+    underscored: true,
     paranoid: true,
     defaultScope: {
-      attributes: { exclude: ['password', 'twoFactorSecret', 'passwordResetToken', 'passwordResetExpires'] },
+      attributes: { exclude: ['password', 'two_factor_secret', 'password_reset_token', 'password_reset_expires'] },
     },
     hooks: {
       beforeCreate: async (user) => {

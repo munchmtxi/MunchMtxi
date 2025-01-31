@@ -1,25 +1,24 @@
-// migrations/20250127000300-create-staffpermissions.js
 'use strict';
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('StaffPermissions', {
-      staffId: {
+    await queryInterface.createTable('staff_permissions', {
+      staff_id: {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: 'Staff',
+          model: 'staff',
           key: 'id',
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE',
         primaryKey: true,
       },
-      permissionId: {
+      permission_id: {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: 'Permissions',
+          model: 'permissions',
           key: 'id',
         },
         onUpdate: 'CASCADE',
@@ -30,6 +29,6 @@ module.exports = {
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('StaffPermissions');
+    await queryInterface.dropTable('staff_permissions');
   }
 };

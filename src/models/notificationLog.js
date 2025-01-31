@@ -4,7 +4,7 @@ module.exports = (sequelize) => {
   class NotificationLog extends Model {
     static associate(models) {
       NotificationLog.belongsTo(models.Notification, {
-        foreignKey: 'notificationId',
+        foreignKey: 'notification_id',
         as: 'notification'
       });
     }
@@ -14,7 +14,18 @@ module.exports = (sequelize) => {
     id: {
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
-      primaryKey: true
+      primaryKey: true,
+      allowNull: false
+    },
+    notification_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'notifications',
+        key: 'id'
+      },
+      onUpdate: 'CASCADE',
+      onDelete: 'SET NULL'
     },
     type: {
       type: DataTypes.ENUM('WHATSAPP', 'WHATSAPP_CUSTOM'),
@@ -24,13 +35,15 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING,
       allowNull: false
     },
-    templateId: {
+    template_id: {
       type: DataTypes.UUID,
       allowNull: true,
       references: {
         model: 'templates',
         key: 'id'
-      }
+      },
+      onUpdate: 'CASCADE',
+      onDelete: 'SET NULL'
     },
     parameters: {
       type: DataTypes.JSON,
@@ -44,30 +57,46 @@ module.exports = (sequelize) => {
       type: DataTypes.ENUM('SENT', 'FAILED'),
       allowNull: false
     },
-    messageId: {
+    message_id: {
       type: DataTypes.STRING,
       allowNull: true
     },
     error: {
       type: DataTypes.TEXT,
       allowNull: true
+    },
+    created_at: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP')
+    },
+    updated_at: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP')
     }
   }, {
     sequelize,
     modelName: 'NotificationLog',
     tableName: 'notification_logs',
+    underscored: true,
+    timestamps: true,
     indexes: [
       {
-        fields: ['messageId']
+        fields: ['message_id'],
+        name: 'notification_logs_message_id'
       },
       {
-        fields: ['recipient']
+        fields: ['recipient'],
+        name: 'notification_logs_recipient'
       },
       {
-        fields: ['status']
+        fields: ['status'],
+        name: 'notification_logs_status'
       },
       {
-        fields: ['createdAt']
+        fields: ['created_at'],
+        name: 'notification_logs_created_at'
       }
     ]
   });

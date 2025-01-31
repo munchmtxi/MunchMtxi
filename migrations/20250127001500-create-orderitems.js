@@ -1,25 +1,24 @@
-// migrations/20250127001500-create-orderitems.js
 'use strict';
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('OrderItems', {
-      orderId: {
+    await queryInterface.createTable('order_items', {
+      order_id: {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: 'Orders',
+          model: 'orders',
           key: 'id',
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE',
         primaryKey: true,
       },
-      menuItemId: {
+      menu_item_id: {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: 'MenuInventories',
+          model: 'menu_inventories',
           key: 'id',
         },
         onUpdate: 'CASCADE',
@@ -30,31 +29,37 @@ module.exports = {
         type: Sequelize.INTEGER,
         allowNull: false,
         defaultValue: 1,
-        validate: {
-          min: 1,
-        },
       },
       customization: {
         type: Sequelize.JSON,
         allowNull: true,
       },
-      createdAt: {
+      created_at: {
         allowNull: false,
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
-      updatedAt: {
+      updated_at: {
         allowNull: false,
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
-      },
+      }
     });
 
-    await queryInterface.addIndex('OrderItems', ['orderId']);
-    await queryInterface.addIndex('OrderItems', ['menuItemId']);
+    await queryInterface.addIndex('order_items', ['order_id'], {
+      name: 'order_items_order_id_index'
+    });
+    await queryInterface.addIndex('order_items', ['menu_item_id'], {
+      name: 'order_items_menu_item_id_index'
+    });
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('OrderItems');
+    // Remove indexes first
+    await queryInterface.removeIndex('order_items', 'order_items_order_id_index');
+    await queryInterface.removeIndex('order_items', 'order_items_menu_item_id_index');
+    
+    // Drop table
+    await queryInterface.dropTable('order_items');
   }
 };

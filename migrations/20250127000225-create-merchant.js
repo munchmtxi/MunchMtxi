@@ -1,31 +1,30 @@
-// migrations/20250127000600-create-merchant.js
 'use strict';
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('Merchants', {
+    await queryInterface.createTable('merchants', {
       id: {
         allowNull: false,
         autoIncrement: true,
         primaryKey: true,
         type: Sequelize.INTEGER
       },
-      userId: {
+      user_id: {
         type: Sequelize.INTEGER,
         allowNull: false,
         unique: true,
         references: {
-          model: 'Users',
+          model: 'users',
           key: 'id',
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE',
       },
-      businessName: {
+      business_name: {
         type: Sequelize.STRING,
         allowNull: false,
       },
-      businessType: {
+      business_type: {
         type: Sequelize.ENUM('grocery', 'restaurant'),
         allowNull: false,
       },
@@ -33,7 +32,7 @@ module.exports = {
         type: Sequelize.STRING,
         allowNull: false,
       },
-      phoneNumber: {
+      phone_number: {
         type: Sequelize.STRING,
         allowNull: false,
         unique: true,
@@ -43,33 +42,66 @@ module.exports = {
         allowNull: false,
         defaultValue: 'USD',
       },
-      timeZone: {
+      time_zone: {
         type: Sequelize.STRING,
         allowNull: false,
         defaultValue: 'UTC',
       },
-      createdAt: {
+      business_hours: {
+        type: Sequelize.JSON,
+        allowNull: true,
+      },
+      notification_preferences: {
+        type: Sequelize.JSON,
+        allowNull: true,
+        defaultValue: {
+          orderUpdates: true,
+          bookingNotifications: true,
+          customerFeedback: true,
+          marketingMessages: false
+        }
+      },
+      whatsapp_enabled: {
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue: true
+      },
+      created_at: {
         allowNull: false,
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
-      updatedAt: {
+      updated_at: {
         allowNull: false,
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
-      deletedAt: {
+      deleted_at: {
         type: Sequelize.DATE,
         allowNull: true
       }
     });
 
-    await queryInterface.addIndex('Merchants', ['userId'], { unique: true });
-    await queryInterface.addIndex('Merchants', ['phoneNumber'], { unique: true });
+    await queryInterface.addIndex('merchants', ['user_id'], { 
+      unique: true,
+      name: 'merchants_user_id_unique'
+    });
+    
+    await queryInterface.addIndex('merchants', ['phone_number'], { 
+      unique: true,
+      name: 'merchants_phone_number_unique'
+    });
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('Merchants');
-    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_Merchants_businessType";');
+    // Remove indexes first
+    await queryInterface.removeIndex('merchants', 'merchants_user_id_unique');
+    await queryInterface.removeIndex('merchants', 'merchants_phone_number_unique');
+
+    // Drop ENUM type
+    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_merchants_business_type";');
+
+    // Drop table
+    await queryInterface.dropTable('merchants');
   }
 };
