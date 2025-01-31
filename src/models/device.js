@@ -1,6 +1,5 @@
 'use strict';
 const { Model } = require('sequelize');
-
 module.exports = (sequelize, DataTypes) => {
   class Device extends Model {
     static associate(models) {
@@ -10,7 +9,6 @@ module.exports = (sequelize, DataTypes) => {
       });
     }
   }
-
   Device.init({
     id: {
       type: DataTypes.INTEGER,
@@ -31,15 +29,21 @@ module.exports = (sequelize, DataTypes) => {
     device_id: {
       type: DataTypes.STRING,
       allowNull: false,
+      validate: {
+        notEmpty: { msg: 'Device ID is required' },
+      },
     },
     device_type: {
       type: DataTypes.STRING,
       allowNull: false,
+      validate: {
+        notEmpty: { msg: 'Device type is required' },
+      },
     },
     last_used_at: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: DataTypes.NOW,
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP'),
     },
     created_at: {
       type: DataTypes.DATE,
@@ -69,6 +73,5 @@ module.exports = (sequelize, DataTypes) => {
       }
     ],
   });
-
   return Device;
 };

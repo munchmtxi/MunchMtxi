@@ -1,6 +1,5 @@
 'use strict';
 const { Model, DataTypes } = require('sequelize');
-
 module.exports = (sequelize) => {
   class Template extends Model {
     static associate(models) {
@@ -8,14 +7,12 @@ module.exports = (sequelize) => {
         foreignKey: 'template_id',
         as: 'notifications'
       });
-
       Template.belongsTo(models.Merchant, {
         foreignKey: 'merchant_id',
         as: 'merchant'
       });
     }
   }
-
   Template.init({
     id: {
       type: DataTypes.UUID,
@@ -35,6 +32,13 @@ module.exports = (sequelize) => {
     content: {
       type: DataTypes.TEXT,
       allowNull: false
+    },
+    subject: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        notEmpty: { msg: 'Subject is required' },
+      },
     },
     status: {
       type: DataTypes.ENUM('ACTIVE', 'INACTIVE', 'DEPRECATED'),
@@ -84,9 +88,12 @@ module.exports = (sequelize) => {
       {
         fields: ['merchant_id'],
         name: 'templates_merchant_id'
+      },
+      {
+        fields: ['subject'],
+        name: 'templates_subject'
       }
     ]
   });
-
   return Template;
 };

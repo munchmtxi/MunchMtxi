@@ -1,6 +1,5 @@
 'use strict';
 const { Model } = require('sequelize');
-
 module.exports = (sequelize, DataTypes) => {
   class Booking extends Model {
     static associate(models) {
@@ -19,6 +18,7 @@ module.exports = (sequelize, DataTypes) => {
     }
 
     format_date() {
+      if (!this.booking_date) return 'N/A';
       return this.booking_date.toLocaleDateString('en-US', {
         weekday: 'long',
         year: 'numeric',
@@ -28,6 +28,7 @@ module.exports = (sequelize, DataTypes) => {
     }
 
     format_time() {
+      if (!this.booking_time) return 'N/A';
       return this.booking_time.slice(0, 5); // Returns HH:MM format
     }
   }
@@ -90,6 +91,17 @@ module.exports = (sequelize, DataTypes) => {
         },
       },
     },
+    guest_count: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      validate: {
+        min: { args: [1], msg: 'Guest count must be at least 1' },
+      },
+    },
+    special_requests: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
     details: {
       type: DataTypes.JSON,
       allowNull: true,
@@ -132,9 +144,16 @@ module.exports = (sequelize, DataTypes) => {
         unique: true,
         fields: ['reference'],
         name: 'bookings_reference_unique'
+      },
+      {
+        fields: ['guest_count'],
+        name: 'bookings_guest_count_index'
+      },
+      {
+        fields: ['special_requests'],
+        name: 'bookings_special_requests_index'
       }
     ],
   });
-
   return Booking;
 };

@@ -1,6 +1,5 @@
 'use strict';
 const { Model } = require('sequelize');
-
 module.exports = (sequelize, DataTypes) => {
   class Role extends Model {
     static associate(models) {
@@ -13,8 +12,11 @@ module.exports = (sequelize, DataTypes) => {
         as: 'permissions',
       });
     }
-  }
 
+    getPermissions() {
+      return this.permissions.map(permission => permission.name);
+    }
+  }
   Role.init({
     id: {
       type: DataTypes.INTEGER,
@@ -33,17 +35,17 @@ module.exports = (sequelize, DataTypes) => {
     created_at: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: sequelize.literal('CURRENT_TIMESTAMP')
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP'),
     },
     updated_at: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: sequelize.literal('CURRENT_TIMESTAMP')
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP'),
     },
     deleted_at: {
       type: DataTypes.DATE,
-      allowNull: true
-    }
+      allowNull: true,
+    },
   }, {
     sequelize,
     modelName: 'Role',
@@ -54,10 +56,9 @@ module.exports = (sequelize, DataTypes) => {
       {
         unique: true,
         fields: ['name'],
-        name: 'roles_name_unique'
-      }
-    ]
+        name: 'roles_name_unique',
+      },
+    ],
   });
-
   return Role;
 };

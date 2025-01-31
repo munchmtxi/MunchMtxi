@@ -1,5 +1,4 @@
 const { Model, DataTypes } = require('sequelize');
-
 module.exports = (sequelize) => {
   class NotificationLog extends Model {
     static associate(models) {
@@ -9,7 +8,6 @@ module.exports = (sequelize) => {
       });
     }
   }
-
   NotificationLog.init({
     id: {
       type: DataTypes.UUID,
@@ -28,7 +26,7 @@ module.exports = (sequelize) => {
       onDelete: 'SET NULL'
     },
     type: {
-      type: DataTypes.ENUM('WHATSAPP', 'WHATSAPP_CUSTOM'),
+      type: DataTypes.ENUM('WHATSAPP', 'WHATSAPP_CUSTOM', 'EMAIL'),
       allowNull: false
     },
     recipient: {
@@ -44,6 +42,10 @@ module.exports = (sequelize) => {
       },
       onUpdate: 'CASCADE',
       onDelete: 'SET NULL'
+    },
+    templateName: {
+      type: DataTypes.STRING,
+      allowNull: true
     },
     parameters: {
       type: DataTypes.JSON,
@@ -97,9 +99,12 @@ module.exports = (sequelize) => {
       {
         fields: ['created_at'],
         name: 'notification_logs_created_at'
+      },
+      {
+        fields: ['templateName'],
+        name: 'notification_logs_template_name'
       }
     ]
   });
-
   return NotificationLog;
 };

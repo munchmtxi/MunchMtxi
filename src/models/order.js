@@ -1,6 +1,5 @@
 'use strict';
 const { Model } = require('sequelize');
-
 module.exports = (sequelize, DataTypes) => {
   class Order extends Model {
     static associate(models) {
@@ -42,6 +41,22 @@ module.exports = (sequelize, DataTypes) => {
         'cancelled': 'order_cancelled'
       };
       return templateMap[this.status];
+    }
+
+    formatDate() {
+      return this.created_at.toLocaleDateString();
+    }
+
+    formatTime() {
+      return this.created_at.toLocaleTimeString();
+    }
+
+    formatItems() {
+      return JSON.stringify(this.items);
+    }
+
+    formatTotal() {
+      return `${this.currency} ${this.total_amount.toFixed(2)}`;
     }
   }
 
@@ -137,6 +152,14 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: 'unpaid',
     },
+    currency: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: 'MWK',
+      validate: {
+        notEmpty: { msg: 'Currency is required' },
+      },
+    },
     created_at: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -174,9 +197,12 @@ module.exports = (sequelize, DataTypes) => {
         unique: true,
         fields: ['order_number'],
         name: 'orders_order_number_unique'
+      },
+      {
+        fields: ['currency'],
+        name: 'orders_currency_index'
       }
     ]
   });
-
   return Order;
 };

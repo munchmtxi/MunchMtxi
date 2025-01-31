@@ -1,62 +1,77 @@
-erDiagram
-    User ||--o| Role : has
-    User ||--o| Customer : has_profile
-    User ||--o| Merchant : has_profile
-    User ||--o| Staff : has_profile
-    User ||--o| Driver : has_profile
-    User ||--o| User : managed_by
-    User ||--o{ Notification : receives
-    User ||--o{ Payment : processes_as_customer
-    User ||--o{ Payment : processes_as_driver
-    User ||--o{ Report : generates
-    User ||--o{ Device : owns
+# User Model Documentation
 
-    User {
+## ER Diagram (Corrected to Match Model)
+```erDiagram
+    users ||--o| roles : "belongs to (role_id)"
+    users ||--o| customers : "has (user_id)"
+    users ||--o| merchants : "has (user_id)"
+    users ||--o| staff : "has (user_id)"
+    users ||--o| drivers : "has (user_id)"
+    users ||--o| users : "managed by (manager_id)"
+    users ||--o{ notifications : "receives (user_id)"
+    users ||--o{ customer_payments : "processes (customer_id)"
+    users ||--o{ driver_payments : "processes (driver_id)"
+    users ||--o{ reports : "generates (generated_by)"
+    users ||--o{ devices : "owns (user_id)"
+
+    users {
         INTEGER id PK
-        STRING firstName "2-50 characters"
-        STRING lastName "2-50 characters"
+        STRING first_name "2-50 characters"
+        STRING last_name "2-50 characters"
         STRING email UK "Valid email format"
         STRING password "Hashed, min 6 chars"
-        INTEGER roleId FK "Reference to Roles"
-        JSON googleLocation "Optional location data"
+        INTEGER role_id FK "Reference to roles"
+        JSON google_location "Optional location data"
         STRING phone UK "Validated format"
         ENUM country "malawi/zambia/mozambique/tanzania"
-        ENUM merchantType "grocery/restaurant (optional)"
-        BOOLEAN isVerified "Default: false"
-        INTEGER managerId FK "Optional self-reference"
-        STRING twoFactorSecret "2FA implementation"
-        STRING passwordResetToken "Password recovery"
-        DATE passwordResetExpires "Token expiration"
+        ENUM merchant_type "grocery/restaurant (optional)"
+        BOOLEAN is_verified "Default: false"
+        INTEGER manager_id FK "Optional self-reference (users)"
+        STRING two_factor_secret "2FA implementation"
+        STRING password_reset_token "Password recovery"
+        DATE password_reset_expires "Token expiration"
+        TIMESTAMP created_at
+        TIMESTAMP updated_at
         TIMESTAMP deleted_at "Soft delete"
     }
+```
 
-    stateDiagram-v2
-    [*] --> Registration: User Creation
-    Registration --> Unverified: Account Created
-    Unverified --> Verified: Email Verification
-    Verified --> TwoFactor: 2FA Setup
-    Verified --> PasswordReset: Reset Request
+---
+
+## State Diagram (Registration Flow)
+```mermaid
+stateDiagram-v2
+    [*] --> registration: User Creation
+    registration --> unverified: Account Created
+    unverified --> verified: Email Verification
+    verified --> two_factor: 2FA Setup
+    verified --> password_reset: Reset Request
     
-    note right of Registration
-        Password hashing
-        Role assignment
-        Profile creation
+    note right of registration
+        Password hashing via bcrypt
+        Role assignment (role_id)
+        Profile creation (customer/merchant/etc.)
     end note
     
-    note right of Verified
+    note right of verified
         Full access granted
         Profile management
         Device association
     end note
     
-    note right of PasswordReset
-        Token generation
-        Expiration tracking
-        Secure update
+    note right of password_reset
+        Token generation (password_reset_token)
+        Expiration tracking (password_reset_expires)
+        Secure update (valid_password)
     end note
+```
 
-    graph TB
-    A[User Profile] --> B[Customer Profile]
+---
+
+## Profile Relationships
+```mermaid
+graph TB
+    A[User] --> B[Customer Profile]
     A --> C[Merchant Profile]
     A --> D[Staff Profile]
     A --> E[Driver Profile]
@@ -67,47 +82,55 @@ erDiagram
     E --> E1[Delivery Services]
     
     A --> F[Base Information]
-    F --> F1[Personal Details]
-    F --> F2[Contact Information]
-    F --> F3[Location Data]
-    F --> F4[Security Settings]
+    F --> F1[first_name, last_name]
+    F --> F2[email, phone]
+    F --> F3[google_location]
+    F --> F4[password, two_factor_secret]
 
     style A fill:#f9f,stroke:#333,stroke-width:2px
+```
 
-    graph LR
-    A[Validation System] --> B[Personal Information]
+---
+
+## Validation System
+```mermaid
+graph LR
+    A[Validation] --> B[Personal Info]
     A --> C[Contact Details]
-    A --> D[Security Elements]
-    A --> E[Geographic Data]
+    A --> D[Security]
+    A --> E[Geography]
     
-    B --> B1[Name Length]
-    B --> B2[Format Rules]
+    B --> B1[first_name/last_name (2-50 chars)]
+    B --> B2[Country ENUM]
     
     C --> C1[Email Format]
-    C --> C2[Phone Format]
+    C --> C2[Phone Validation]
     
-    D --> D1[Password Length]
-    D --> D2[Token Validation]
+    D --> D1[Password (min 6 chars)]
+    D --> D2[Token Expiry]
     
-    E --> E1[Country Validation]
-    E --> E2[Location Format]
+    E --> E1[Country ENUM]
+    E --> E2[Google Location JSON]
 
-    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style A fill:#ccf,stroke:#333,stroke-width:2px
+```
 
-    graph TD
-    A[Security Features] --> B[Password Management]
-    A --> C[Two-Factor Authentication]
-    A --> D[Reset Mechanism]
+---
+
+## Security Features
+```mermaid
+graph TD
+    A[Security] --> B[Password]
+    A --> C[2FA]
+    A --> D[Reset]
     
     B --> B1[Bcrypt Hashing]
-    B --> B2[Salt Generation]
+    B --> B2[Salt Rounds (10)]
     
-    C --> C1[Secret Management]
-    C --> C2[Verification Flow]
+    C --> C1[Secret Storage (two_factor_secret)]
+    C --> C2[TOTP Verification]
     
-    D --> D1[Token Generation]
-    D --> D2[Expiration Control]
+    D --> D1[Token (password_reset_token)]
+    D --> D2[Expiry (password_reset_expires)]
 
-    style A fill:#f9f,stroke:#333,stroke-width:2px
-
-    
+    style A fill:#cfc,stroke:#333,stroke-width:2px
