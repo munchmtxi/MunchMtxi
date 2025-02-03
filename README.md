@@ -676,8 +676,8 @@ This project is licensed under the MIT License.
 Contact
 For any inquiries or support, please contact:
 
-Email: support@munchmtxi.com
-GitHub: @yourusername
+Email: amin@munchmtxi.com
+GitHub: @munchmtxi
 
 
 

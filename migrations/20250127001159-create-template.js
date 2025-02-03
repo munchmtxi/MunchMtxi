@@ -1,5 +1,4 @@
 'use strict';
-
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
@@ -22,6 +21,13 @@ module.exports = {
       content: {
         type: Sequelize.TEXT,
         allowNull: false
+      },
+      subject: {
+        type: Sequelize.STRING,
+        allowNull: false,
+        validate: {
+          notEmpty: { msg: 'Subject is required' },
+        }
       },
       status: {
         type: Sequelize.ENUM('ACTIVE', 'INACTIVE', 'DEPRECATED'),
@@ -60,26 +66,27 @@ module.exports = {
       unique: true,
       name: 'templates_name_unique'
     });
-
     await queryInterface.addIndex('templates', ['type', 'status'], {
       name: 'templates_type_status'
     });
-
     await queryInterface.addIndex('templates', ['merchant_id'], {
       name: 'templates_merchant_id'
     });
+    await queryInterface.addIndex('templates', ['subject'], {
+      name: 'templates_subject'
+    });
   },
-
   async down(queryInterface, Sequelize) {
     // Remove indexes first
     await queryInterface.removeIndex('templates', 'templates_name_unique');
     await queryInterface.removeIndex('templates', 'templates_type_status');
     await queryInterface.removeIndex('templates', 'templates_merchant_id');
+    await queryInterface.removeIndex('templates', 'templates_subject');
 
     // Drop ENUM types
     await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_templates_type";');
     await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_templates_status";');
-
+    
     // Then drop the table
     await queryInterface.dropTable('templates');
   }

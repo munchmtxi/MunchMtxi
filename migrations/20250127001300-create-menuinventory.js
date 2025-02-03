@@ -1,5 +1,4 @@
 'use strict';
-
 module.exports = {
   async up(queryInterface, Sequelize) {
     await queryInterface.createTable('menu_inventories', {
@@ -18,10 +17,17 @@ module.exports = {
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE',
+        validate: {
+          notNull: { msg: 'Merchant ID is required' },
+          isInt: { msg: 'Merchant ID must be an integer' },
+        }
       },
       item_name: {
         type: Sequelize.STRING,
         allowNull: false,
+        validate: {
+          notEmpty: { msg: 'Item name is required' },
+        }
       },
       description: {
         type: Sequelize.TEXT,
@@ -30,11 +36,23 @@ module.exports = {
       price: {
         type: Sequelize.FLOAT,
         allowNull: false,
+        validate: {
+          min: {
+            args: [0],
+            msg: 'Price must be positive',
+          }
+        }
       },
       stock_level: {
         type: Sequelize.INTEGER,
         allowNull: false,
         defaultValue: 0,
+        validate: {
+          min: {
+            args: [0],
+            msg: 'Stock level cannot be negative',
+          }
+        }
       },
       category: {
         type: Sequelize.STRING,
@@ -54,18 +72,21 @@ module.exports = {
         type: Sequelize.DATE,
         allowNull: true
       }
+    }, { // Options for createTable
+      timestamps: true, // Ensure timestamps are enabled
+      paranoid: true,   // Enable paranoid soft-deletes
     });
 
+    // Adding index on merchant_id
     await queryInterface.addIndex('menu_inventories', ['merchant_id'], {
       name: 'menu_inventories_merchant_id_index'
     });
   },
-
   async down(queryInterface, Sequelize) {
-    // Remove index first
+    // Remove index on merchant_id
     await queryInterface.removeIndex('menu_inventories', 'menu_inventories_merchant_id_index');
-    
-    // Drop table
+
+    // Drop the table
     await queryInterface.dropTable('menu_inventories');
   }
 };

@@ -1,5 +1,4 @@
 'use strict';
-
 module.exports = {
   async up(queryInterface, Sequelize) {
     await queryInterface.createTable('drivers', {
@@ -19,24 +18,51 @@ module.exports = {
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE',
+        validate: {
+          notNull: { msg: 'User ID is required' },
+          isInt: { msg: 'User ID must be an integer' },
+        }
       },
       name: {
         type: Sequelize.STRING,
         allowNull: false,
+        validate: {
+          notEmpty: { msg: 'Name is required' },
+        }
       },
       phone_number: {
         type: Sequelize.STRING,
         allowNull: false,
         unique: true,
+        validate: {
+          notEmpty: { msg: 'Phone number is required' },
+          isPhoneNumber(value) {
+            const phoneUtil = libphonenumber.PhoneNumberUtil.getInstance();
+            try {
+              const number = phoneUtil.parse(value);
+              if (!phoneUtil.isValidNumber(number)) {
+                throw new Error('Invalid phone number format');
+              }
+            } catch (error) {
+              throw new Error('Invalid phone number format');
+            }
+          }
+        }
       },
       vehicle_info: {
         type: Sequelize.JSON,
         allowNull: false,
+        validate: {
+          notEmpty: { msg: 'Vehicle information is required' },
+        }
       },
       license_number: {
         type: Sequelize.STRING,
         allowNull: false,
         unique: true,
+        validate: {
+          notEmpty: { msg: 'License number is required' },
+        }
       },
       routes: {
         type: Sequelize.JSON,
@@ -65,26 +91,27 @@ module.exports = {
         type: Sequelize.DATE,
         allowNull: true
       }
+    }, { // Options for createTable
+      timestamps: true, // Ensure timestamps are enabled
+      paranoid: true,   // Enable paranoid soft-deletes
     });
 
+    // Adding unique indexes
     await queryInterface.addIndex('drivers', ['user_id'], {
       unique: true,
       name: 'drivers_user_id_unique'
     });
-    
     await queryInterface.addIndex('drivers', ['phone_number'], {
       unique: true,
       name: 'drivers_phone_number_unique'
     });
-    
     await queryInterface.addIndex('drivers', ['license_number'], {
       unique: true,
       name: 'drivers_license_number_unique'
     });
   },
-
   async down(queryInterface, Sequelize) {
-    // Remove indexes first
+    // Remove unique indexes
     await queryInterface.removeIndex('drivers', 'drivers_user_id_unique');
     await queryInterface.removeIndex('drivers', 'drivers_phone_number_unique');
     await queryInterface.removeIndex('drivers', 'drivers_license_number_unique');
@@ -92,7 +119,7 @@ module.exports = {
     // Drop ENUM type
     await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_drivers_availability_status";');
 
-    // Drop table
+    // Drop the table
     await queryInterface.dropTable('drivers');
   }
 };

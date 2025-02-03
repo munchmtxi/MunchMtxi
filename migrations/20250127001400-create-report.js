@@ -1,5 +1,4 @@
 'use strict';
-
 module.exports = {
   async up(queryInterface, Sequelize) {
     await queryInterface.createTable('reports', {
@@ -12,6 +11,9 @@ module.exports = {
       report_type: {
         type: Sequelize.STRING,
         allowNull: false,
+        validate: {
+          notEmpty: { msg: 'Report type is required' },
+        }
       },
       data: {
         type: Sequelize.JSON,
@@ -26,6 +28,10 @@ module.exports = {
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE',
+        validate: {
+          notNull: { msg: 'GeneratedBy is required' },
+          isInt: { msg: 'GeneratedBy must be an integer' },
+        }
       },
       created_at: {
         allowNull: false,
@@ -41,15 +47,21 @@ module.exports = {
         type: Sequelize.DATE,
         allowNull: true
       }
+    }, { // Options for createTable
+      timestamps: true, // Ensure timestamps are enabled
+      paranoid: true,   // Enable paranoid soft-deletes
     });
 
+    // Adding index on generated_by
     await queryInterface.addIndex('reports', ['generated_by'], {
       name: 'reports_generated_by_index'
     });
   },
-
   async down(queryInterface, Sequelize) {
+    // Remove index on generated_by
     await queryInterface.removeIndex('reports', 'reports_generated_by_index');
+
+    // Drop the table
     await queryInterface.dropTable('reports');
   }
 };

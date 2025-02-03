@@ -1,5 +1,4 @@
 'use strict';
-
 module.exports = {
   async up(queryInterface, Sequelize) {
     await queryInterface.createTable('staff', {
@@ -19,6 +18,10 @@ module.exports = {
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE',
+        validate: {
+          notNull: { msg: 'User ID is required' },
+          isInt: { msg: 'User ID must be an integer' },
+        }
       },
       merchant_id: {
         type: Sequelize.INTEGER,
@@ -29,10 +32,17 @@ module.exports = {
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE',
+        validate: {
+          notNull: { msg: 'Merchant ID is required' },
+          isInt: { msg: 'Merchant ID must be an integer' },
+        }
       },
       position: {
         type: Sequelize.STRING,
         allowNull: false,
+        validate: {
+          notEmpty: { msg: 'Position is required' },
+        }
       },
       manager_id: {
         type: Sequelize.INTEGER,
@@ -58,16 +68,22 @@ module.exports = {
         type: Sequelize.DATE,
         allowNull: true
       }
+    }, { // Options for createTable
+      timestamps: true, // Ensure timestamps are enabled
+      paranoid: true,   // Enable paranoid soft-deletes
     });
 
-    await queryInterface.addIndex('staff', ['user_id'], { 
+    // Adding unique index on user_id
+    await queryInterface.addIndex('staff', ['user_id'], {
       unique: true,
       name: 'staff_user_id_unique'
     });
   },
-
   async down(queryInterface, Sequelize) {
+    // Remove unique index on user_id
     await queryInterface.removeIndex('staff', 'staff_user_id_unique');
+
+    // Drop the table
     await queryInterface.dropTable('staff');
   }
 };

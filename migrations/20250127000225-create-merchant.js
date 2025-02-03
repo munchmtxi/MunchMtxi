@@ -1,5 +1,4 @@
 'use strict';
-
 module.exports = {
   async up(queryInterface, Sequelize) {
     await queryInterface.createTable('merchants', {
@@ -19,37 +18,80 @@ module.exports = {
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE',
+        validate: {
+          notNull: { msg: 'User ID is required' },
+          isInt: { msg: 'User ID must be an integer' },
+        }
       },
       business_name: {
         type: Sequelize.STRING,
         allowNull: false,
+        validate: {
+          notEmpty: { msg: 'Business name is required' },
+        }
       },
       business_type: {
         type: Sequelize.ENUM('grocery', 'restaurant'),
         allowNull: false,
+        validate: {
+          isIn: {
+            args: [['grocery', 'restaurant']],
+            msg: 'Business type must be either grocery or restaurant',
+          }
+        }
       },
       address: {
         type: Sequelize.STRING,
         allowNull: false,
+        validate: {
+          notEmpty: { msg: 'Address is required' },
+        }
       },
       phone_number: {
         type: Sequelize.STRING,
         allowNull: false,
         unique: true,
+        validate: {
+          notEmpty: { msg: 'Phone number is required' },
+          isPhoneNumber(value) {
+            const phoneUtil = libphonenumber.PhoneNumberUtil.getInstance();
+            try {
+              const number = phoneUtil.parse(value);
+              if (!phoneUtil.isValidNumber(number)) {
+                throw new Error('Invalid phone number format');
+              }
+            } catch (error) {
+              throw new Error('Invalid phone number format');
+            }
+          }
+        }
       },
       currency: {
         type: Sequelize.STRING,
         allowNull: false,
         defaultValue: 'USD',
+        validate: {
+          notEmpty: { msg: 'Currency is required' },
+        }
       },
       time_zone: {
         type: Sequelize.STRING,
         allowNull: false,
         defaultValue: 'UTC',
+        validate: {
+          notEmpty: { msg: 'Time zone is required' },
+        }
       },
       business_hours: {
         type: Sequelize.JSON,
         allowNull: true,
+        validate: {
+          isValidBusinessHours(value) {
+            if (value && (!value.open || !value.close)) {
+              throw new Error('Business hours must include both open and close times');
+            }
+          }
+        }
       },
       notification_preferences: {
         type: Sequelize.JSON,
@@ -80,28 +122,30 @@ module.exports = {
         type: Sequelize.DATE,
         allowNull: true
       }
+    }, { // Options for createTable
+      timestamps: true, // Ensure timestamps are enabled
+      paranoid: true,   // Enable paranoid soft-deletes
     });
 
-    await queryInterface.addIndex('merchants', ['user_id'], { 
+    // Adding unique indexes
+    await queryInterface.addIndex('merchants', ['user_id'], {
       unique: true,
       name: 'merchants_user_id_unique'
     });
-    
-    await queryInterface.addIndex('merchants', ['phone_number'], { 
+    await queryInterface.addIndex('merchants', ['phone_number'], {
       unique: true,
       name: 'merchants_phone_number_unique'
     });
   },
-
   async down(queryInterface, Sequelize) {
-    // Remove indexes first
+    // Remove unique indexes
     await queryInterface.removeIndex('merchants', 'merchants_user_id_unique');
     await queryInterface.removeIndex('merchants', 'merchants_phone_number_unique');
 
     // Drop ENUM type
     await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_merchants_business_type";');
 
-    // Drop table
+    // Drop the table
     await queryInterface.dropTable('merchants');
   }
 };

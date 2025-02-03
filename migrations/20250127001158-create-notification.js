@@ -1,5 +1,4 @@
 'use strict';
-
 module.exports = {
   async up(queryInterface, Sequelize) {
     await queryInterface.createTable('notifications', {
@@ -18,6 +17,10 @@ module.exports = {
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE',
+        validate: {
+          notNull: { msg: 'User ID is required' },
+          isInt: { msg: 'User ID must be an integer' },
+        }
       },
       order_id: {
         type: Sequelize.INTEGER,
@@ -28,6 +31,9 @@ module.exports = {
         },
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL',
+        validate: {
+          isInt: { msg: 'Order ID must be an integer' },
+        }
       },
       booking_id: {
         type: Sequelize.INTEGER,
@@ -38,14 +44,23 @@ module.exports = {
         },
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL',
+        validate: {
+          isInt: { msg: 'Booking ID must be an integer' },
+        }
       },
       type: {
         type: Sequelize.STRING,
         allowNull: false,
+        validate: {
+          notEmpty: { msg: 'Notification type is required' },
+        }
       },
       message: {
         type: Sequelize.TEXT,
         allowNull: false,
+        validate: {
+          notEmpty: { msg: 'Notification message is required' },
+        }
       },
       read_status: {
         type: Sequelize.BOOLEAN,
@@ -65,8 +80,12 @@ module.exports = {
         type: Sequelize.DATE,
         allowNull: true
       }
+    }, { // Options for createTable
+      timestamps: true, // Ensure timestamps are enabled
+      paranoid: true,   // Enable paranoid soft-deletes
     });
 
+    // Adding indexes
     await queryInterface.addIndex('notifications', ['user_id'], {
       name: 'notifications_user_id_index'
     });
@@ -77,14 +96,13 @@ module.exports = {
       name: 'notifications_booking_id_index'
     });
   },
-
   async down(queryInterface, Sequelize) {
     // Remove indexes first
     await queryInterface.removeIndex('notifications', 'notifications_user_id_index');
     await queryInterface.removeIndex('notifications', 'notifications_order_id_index');
     await queryInterface.removeIndex('notifications', 'notifications_booking_id_index');
-    
-    // Drop table
+
+    // Drop the table
     await queryInterface.dropTable('notifications');
   }
 };

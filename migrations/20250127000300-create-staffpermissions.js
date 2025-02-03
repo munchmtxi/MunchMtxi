@@ -1,5 +1,4 @@
 'use strict';
-
 module.exports = {
   async up(queryInterface, Sequelize) {
     await queryInterface.createTable('staff_permissions', {
@@ -25,9 +24,11 @@ module.exports = {
         onDelete: 'CASCADE',
         primaryKey: true,
       },
+    }, { // Options for createTable
+      timestamps: false,
+      paranoid: false,
     });
   },
-
   async down(queryInterface, Sequelize) {
     await queryInterface.dropTable('staff_permissions');
   }

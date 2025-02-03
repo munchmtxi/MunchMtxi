@@ -2,7 +2,7 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('devices', {
+    await queryInterface.createTable('password_histories', {
       id: {
         allowNull: false,
         autoIncrement: true,
@@ -23,56 +23,33 @@ module.exports = {
           isInt: { msg: 'User ID must be an integer' },
         }
       },
-      device_id: {
+      password_hash: {
         type: Sequelize.STRING,
         allowNull: false,
         validate: {
-          notEmpty: { msg: 'Device ID is required' },
+          notEmpty: { msg: 'Password hash is required' },
         }
-      },
-      device_type: {
-        type: Sequelize.STRING,
-        allowNull: false,
-        validate: {
-          notEmpty: { msg: 'Device type is required' },
-        }
-      },
-      last_used_at: {
-        allowNull: false,
-        type: Sequelize.DATE,
-        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
       created_at: {
         allowNull: false,
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
-      },
-      updated_at: {
-        allowNull: false,
-        type: Sequelize.DATE,
-        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
-      },
-      deleted_at: {
-        type: Sequelize.DATE,
-        allowNull: true
       }
     }, { // Options for createTable
       timestamps: true, // Ensure timestamps are enabled
       paranoid: true,   // Enable paranoid soft-deletes
     });
 
-    // Adding unique constraint on user_id and device_id
-    await queryInterface.addConstraint('devices', {
-      fields: ['user_id', 'device_id'],
-      type: 'unique',
-      name: 'unique_user_device'
+    // Adding index on user_id
+    await queryInterface.addIndex('password_histories', ['user_id'], {
+      name: 'password_histories_user_id_index'
     });
   },
   async down(queryInterface, Sequelize) {
-    // Remove unique constraint on user_id and device_id
-    await queryInterface.removeConstraint('devices', 'unique_user_device');
+    // Remove index on user_id
+    await queryInterface.removeIndex('password_histories', 'password_histories_user_id_index');
 
     // Drop the table
-    await queryInterface.dropTable('devices');
+    await queryInterface.dropTable('password_histories');
   }
 };

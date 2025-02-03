@@ -1,5 +1,4 @@
 'use strict';
-
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
@@ -21,7 +20,7 @@ module.exports = {
         onDelete: 'SET NULL'
       },
       type: {
-        type: Sequelize.ENUM('WHATSAPP', 'WHATSAPP_CUSTOM'),
+        type: Sequelize.ENUM('WHATSAPP', 'WHATSAPP_CUSTOM', 'EMAIL'),
         allowNull: false
       },
       recipient: {
@@ -37,6 +36,10 @@ module.exports = {
         },
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL'
+      },
+      templateName: {
+        type: Sequelize.STRING,
+        allowNull: true
       },
       parameters: {
         type: Sequelize.JSON,
@@ -68,38 +71,41 @@ module.exports = {
         allowNull: false,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       }
+    }, { // Options for createTable
+      timestamps: true, // Ensure timestamps are enabled
+      paranoid: true,   // Enable paranoid soft-deletes
     });
 
-    // Creating indexes for optimized query performance
+    // Adding indexes for optimized query performance
     await queryInterface.addIndex('notification_logs', ['message_id'], {
       name: 'notification_logs_message_id'
     });
-
     await queryInterface.addIndex('notification_logs', ['recipient'], {
       name: 'notification_logs_recipient'
     });
-
     await queryInterface.addIndex('notification_logs', ['status'], {
       name: 'notification_logs_status'
     });
-
     await queryInterface.addIndex('notification_logs', ['created_at'], {
       name: 'notification_logs_created_at'
     });
+    await queryInterface.addIndex('notification_logs', ['templateName'], {
+      name: 'notification_logs_template_name'
+    });
   },
-
   async down(queryInterface, Sequelize) {
     // Remove indexes first
     await queryInterface.removeIndex('notification_logs', 'notification_logs_message_id');
     await queryInterface.removeIndex('notification_logs', 'notification_logs_recipient');
     await queryInterface.removeIndex('notification_logs', 'notification_logs_status');
     await queryInterface.removeIndex('notification_logs', 'notification_logs_created_at');
+    await queryInterface.removeIndex('notification_logs', 'notification_logs_template_name');
 
     // Drop ENUM types
     await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_notification_logs_type";');
     await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_notification_logs_status";');
 
-    // Drop table
+    // Drop the table
     await queryInterface.dropTable('notification_logs');
   }
 };

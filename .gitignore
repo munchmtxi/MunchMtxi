@@ -1,7 +1,7 @@
 # Node modules
 node_modules/
 
-# Environment variables
+# .env.local is an untracked file and should remain untracked
 .env
 
 # Logs
@@ -53,3 +53,6 @@ dist/
 
 # Expo directories
 .expo/
+
+#notes
+notes/
