@@ -5,13 +5,13 @@ const fs = require('fs');
 const path = require('path');
 
 // Ensure logs directory exists
-const logDir = 'logs';
+const logDir = path.join(__dirname, 'logs');
 if (!fs.existsSync(logDir)) {
   fs.mkdirSync(logDir);
 }
 
 const logger = winston.createLogger({
-  level: config.logging.level,
+  level: config.logging.level || 'info',
   format: winston.format.combine(
     winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
     winston.format.errors({ stack: true }),
@@ -29,6 +29,30 @@ const logger = winston.createLogger({
     new DailyRotateFile({
       filename: path.join(logDir, 'combined-%DATE%.log'),
       datePattern: 'YYYY-MM-DD',
+      zippedArchive: true,
+      maxSize: '20m',
+      maxFiles: '14d'
+    }),
+    new DailyRotateFile({
+      filename: path.join(logDir, 'security-%DATE%.log'),
+      datePattern: 'YYYY-MM-DD',
+      level: 'info',
+      zippedArchive: true,
+      maxSize: '20m',
+      maxFiles: '14d'
+    }),
+    new DailyRotateFile({
+      filename: path.join(logDir, 'transactions-%DATE%.log'),
+      datePattern: 'YYYY-MM-DD',
+      level: 'info',
+      zippedArchive: true,
+      maxSize: '20m',
+      maxFiles: '14d'
+    }),
+    new DailyRotateFile({
+      filename: path.join(logDir, 'api-%DATE%.log'),
+      datePattern: 'YYYY-MM-DD',
+      level: 'info',
       zippedArchive: true,
       maxSize: '20m',
       maxFiles: '14d'
@@ -68,4 +92,24 @@ process.on('unhandledRejection', (reason) => {
   throw reason;
 });
 
-module.exports = logger;
+// Helper function to log security-related events
+function logSecurityEvent(message, metadata = {}) {
+  logger.info({ message, ...metadata, type: 'security' });
+}
+
+// Helper function to log transaction-related events
+function logTransactionEvent(message, metadata = {}) {
+  logger.info({ message, ...metadata, type: 'transaction' });
+}
+
+// Helper function to log API usage events
+function logApiEvent(message, metadata = {}) {
+  logger.info({ message, ...metadata, type: 'api' });
+}
+
+module.exports = {
+  logger,
+  logSecurityEvent,
+  logTransactionEvent,
+  logApiEvent
+};

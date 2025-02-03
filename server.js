@@ -1,9 +1,9 @@
 // server.js
 const app = require('./app');
 const { sequelize } = require('./models');
-const logger = require('./utils/logger');
+const logger = require('./src/utils/logger');
 const config = require('./config/config');
-const { setupSocket } = require('./config/socket'); // Added from the first version
+const { setupSocket } = require('./src/config/socket'); // Added from the first version
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (err) => {

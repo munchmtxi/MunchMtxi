@@ -1,4 +1,4 @@
-'use strict';
+// Order.js
 const { Model } = require('sequelize');
 module.exports = (sequelize, DataTypes) => {
   class Order extends Model {
@@ -27,10 +27,9 @@ module.exports = (sequelize, DataTypes) => {
         through: models.OrderItems,
         foreignKey: 'order_id',
         otherKey: 'menu_item_id',
-        as: 'items',
+        as: 'orderedItems', // Change 'as' to avoid collision
       });
     }
-
     get_whatsapp_template_for_status() {
       const templateMap = {
         'confirmed': 'order_confirmed',
@@ -42,24 +41,19 @@ module.exports = (sequelize, DataTypes) => {
       };
       return templateMap[this.status];
     }
-
     formatDate() {
       return this.created_at.toLocaleDateString();
     }
-
     formatTime() {
       return this.created_at.toLocaleTimeString();
     }
-
     formatItems() {
       return JSON.stringify(this.items);
     }
-
     formatTotal() {
       return `${this.currency} ${this.total_amount.toFixed(2)}`;
     }
   }
-
   Order.init({
     id: {
       type: DataTypes.INTEGER,

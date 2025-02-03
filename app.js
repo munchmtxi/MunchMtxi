@@ -3,21 +3,26 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const passport = require('passport');
-const { errorHandler } = require('./middleware/errorHandler');
-const { rateLimiter } = require('./middleware/rateLimiter');
-const { requestLogger } = require('./middleware/requestLogger');
-const { setupPassport } = require('./config/passport');
-const { setupSwagger } = require('./config/swagger');
+const errorHandler = require('./src/middleware/errorHandler');
+const { rateLimiter } = require('./src/middleware/rateLimiter');
+const { requestLogger } = require('./src/middleware/requestLogger');
+const { setupPassport } = require('./src/config/passport');
+const { setupSwagger } = require('./src/config/swagger');
 const config = require('./config/config');
-const securityMiddleware = require('./middleware/security');
-const { initMonitoring } = require('./config/monitoring');
-const tokenService = require('./services/tokenService');
+const securityMiddleware = require('./src/middleware/security');
+const { initMonitoring } = require('./src/config/monitoring');
+const tokenService = require('./src/services/tokenService');
 
 // Route imports
 const authRoutes = require('./routes/authRoutes');
+const twoFARoutes = require('./routes/2faRoutes'); // Import 2FA routes
+const deviceRoutes = require('./routes/deviceRoutes'); // Import device routes
+const notificationRoutes = require('./routes/notificationRoutes'); // Import notification routes
+const passwordRoutes = require('./routes/passwordRoutes'); // Import password routes
+
+// Uncomment and import other routes as needed
 // const adminRoutes = require('./routes/adminRoutes');
 // const customerRoutes = require('./routes/customerRoutes');
-// Add other route imports here
 
 const AppError = require('./utils/AppError');
 
@@ -66,10 +71,15 @@ setupSwagger(app);
 // ------------------------
 // Routes
 // ------------------------
-app.use('/auth', authRoutes);
+app.use('/auth', authRoutes); // Authentication routes
+app.use('/2fa', twoFARoutes); // Two-factor authentication routes
+app.use('/devices', deviceRoutes); // Device management routes
+app.use('/notifications', notificationRoutes); // Notification routes
+app.use('/password', passwordRoutes); // Password management routes
+
+// Uncomment and add other routes as needed
 // app.use('/api/v1/admin', adminRoutes);
 // app.use('/api/v1/customer', customerRoutes);
-// Add other routes here
 
 // Example protected route from first file
 app.get('/admin', (req, res) => {
