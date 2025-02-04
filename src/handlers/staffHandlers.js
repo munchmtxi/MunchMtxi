@@ -1,6 +1,6 @@
 // src/handlers/staffHandlers.js
-const logger = require('../utils/logger');
-const { EVENTS } = require('../config/events');
+const logger = require('@utils/logger');
+const events = require('@config/events');
 const { 
   Staff, 
   Order, 
@@ -11,7 +11,7 @@ const {
   Training,
   Schedule,
   QuickLink
-} = require('../models');
+} = require('@models');
 const NotificationService = require('../services/notificationService');
 const PerformanceService = require('../services/performanceService');
 const SchedulingService = require('../services/schedulingService');

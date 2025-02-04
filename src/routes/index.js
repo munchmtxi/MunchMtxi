@@ -1,10 +1,10 @@
 // src/routes/index.js
 const express = require('express');
-const authRoutes = require('./authRoutes');
-const passwordRoutes = require('./passwordRoutes');
-const notificationRoutes = require('./notificationRoutes');
-const deviceRoutes = require('./deviceRoutes');
-const twoFactorRoutes = require('./2faRoutes');
+const authRoutes = require('@routes/authRoutes');
+const passwordRoutes = require('@routes/passwordRoutes');
+const notificationRoutes = require('@routes/notificationRoutes');
+const deviceRoutes = require('@routes/deviceRoutes');
+const twoFaRoutes = require('@routes/2faRoutes');
 
 const router = express.Router();
 

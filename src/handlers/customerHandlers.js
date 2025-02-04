@@ -1,6 +1,6 @@
 // src/handlers/customerHandlers.js
-const logger = require('../utils/logger');
-const { EVENTS } = require('../config/events');
+const logger = require('@utils/logger');
+const events = require('@config/events');
 const { 
   Customer, 
   Order, 
@@ -11,7 +11,7 @@ const {
   Subscription,
   QuickLink,
   Payment
-} = require('../models');
+} = require('@models');
 const NotificationService = require('../services/notificationService');
 
 const customerHandlers = {

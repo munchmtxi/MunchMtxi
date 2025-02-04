@@ -1,5 +1,4 @@
 require('dotenv').config();
-
 const environment = process.env.NODE_ENV || 'development';
 
 // Base configuration shared across all environments
@@ -8,11 +7,11 @@ const baseConfig = {
   port: process.env.PORT || 3000,
   jwt: {
     secret: process.env.JWT_SECRET,
-    expiresIn: process.env.JWT_EXPIRES_IN,
-    algorithm: process.env.JWT_ALGORITHM,
-    defaultExpiration: process.env.JWT_DEFAULT_EXPIRATION,
+    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+    algorithm: process.env.JWT_ALGORITHM || 'HS256',
+    defaultExpiration: process.env.JWT_DEFAULT_EXPIRATION || '1h',
     refreshSecret: process.env.JWT_REFRESH_SECRET,
-    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN
+    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d'
   },
   sessionSecret: process.env.SESSION_SECRET,
   redis: {
@@ -36,11 +35,11 @@ const baseConfig = {
     twilioWhatsappNumber: process.env.TWILIO_WHATSAPP_NUMBER
   },
   emailService: {
-    host: process.env.EMAIL_SERVICE_HOST,
-    port: process.env.EMAIL_SERVICE_PORT,
-    username: process.env.EMAIL_SERVICE_USERNAME,
-    password: process.env.EMAIL_SERVICE_PASSWORD,
-    encryption: process.env.EMAIL_SERVICE_ENCRYPTION
+    host: process.env.EMAIL_HOST,
+    port: process.env.EMAIL_PORT,
+    username: process.env.EMAIL_USER,
+    password: process.env.EMAIL_PASS,
+    encryption: process.env.EMAIL_ENCRYPTION
   },
   frontendUrl: process.env.FRONTEND_URL
 };
@@ -115,9 +114,11 @@ if (!process.env.SKIP_CONFIG_VALIDATION) {
       'TWILIO_ACCOUNT_SID',
       'TWILIO_AUTH_TOKEN',
       'TWILIO_WHATSAPP_NUMBER',
-      'EMAIL_SERVICE_HOST',
-      'EMAIL_SERVICE_USERNAME',
-      'EMAIL_SERVICE_PASSWORD',
+      'EMAIL_HOST',
+      'EMAIL_PORT',
+      'EMAIL_USER',
+      'EMAIL_PASS',
+      'EMAIL_ENCRYPTION',
       'JWT_ALGORITHM',
       'JWT_DEFAULT_EXPIRATION'
     ];
@@ -128,13 +129,12 @@ if (!process.env.SKIP_CONFIG_VALIDATION) {
       requiredEnvVars.push('DB_NAME');
     }
 
-    for (const envVar of requiredEnvVars) {
-      if (!process.env[envVar]) {
-        throw new Error(`Missing required environment variable: ${envVar}`);
-      }
+    const missingVars = requiredEnvVars.filter((varName) => !process.env[varName]);
+    if (missingVars.length > 0) {
+      console.error(`Missing required environment variables: ${missingVars.join(', ')}`);
+      throw new Error('Configuration validation failed');
     }
   };
-
   validateConfig();
 }
 

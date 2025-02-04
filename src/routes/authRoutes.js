@@ -1,8 +1,8 @@
 const express = require('express');
-const { register, login, refreshToken, registerNonCustomer } = require('../controllers/authController');
-const { validateRegister, validateLogin, validateRegisterNonCustomer } = require('../validators/authValidators');
+const authController = require('@controllers/authController');
+const authValidators = require('@validators/authValidators');
 const rateLimit = require('express-rate-limit');
-const { authenticate, authorizeRoles } = require('../middleware/authMiddleware');
+const authMiddleware = require('@middleware/authMiddleware');
 
 const router = express.Router();
 

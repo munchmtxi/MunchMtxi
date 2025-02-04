@@ -1,7 +1,7 @@
 // src/controllers/passwordController.js
-const { createPasswordResetToken, resetPassword } = require('../services/passwordService');
-const catchAsync = require('../utils/catchAsync');
-const AppError = require('../utils/AppError');
+const passwordService = require('@services/passwordService');
+const catchAsync = require('@utils/catchAsync');
+const AppError = require('@utils/AppError');
 
 const forgotPassword = catchAsync(async (req, res, next) => {
   const { email } = req.body;

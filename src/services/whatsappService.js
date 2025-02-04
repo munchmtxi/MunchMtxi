@@ -1,9 +1,9 @@
 // src/services/whatsappService.js
 const axios = require('axios');
-const config = require('../config/config');
-const logger = require('../utils/logger');
-const { AppError } = require('../utils/errors');
-const { Message, Template, NotificationLog } = require('../models');
+const config = require('@config/config');
+const logger = require('@utils/logger');
+const AppError = require('@utils/AppError');
+const { Message, Template, NotificationLog } = require('@models');
 
 class WhatsAppService {
   constructor() {

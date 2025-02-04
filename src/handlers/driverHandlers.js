@@ -1,6 +1,6 @@
 // src/handlers/driverHandlers.js
-const logger = require('../utils/logger');
-const { EVENTS } = require('../config/events');
+const logger = require('@utils/logger');
+const events = require('@config/events');
 const { 
   Driver, 
   Order, 
@@ -9,7 +9,7 @@ const {
   Payment,
   Route,
   Vehicle
-} = require('../models');
+} = require('@models');
 const NotificationService = require('../services/notificationService');
 const RouteOptimizationService = require('../services/routeOptimizationService');
 const FareCalculationService = require('../services/fareCalculationService');

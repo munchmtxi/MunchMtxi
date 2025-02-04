@@ -1,7 +1,7 @@
 // src/controllers/2faController.js
-const { generate2FASecret, verify2FACode, getQRCode } = require('../services/2faService');
-const catchAsync = require('../utils/catchAsync');
-const AppError = require('../utils/AppError');
+const twoFaService = require('@services/2faService');
+const catchAsync = require('@utils/catchAsync');
+const AppError = require('@utils/AppError');
 
 const setup2FA = catchAsync(async (req, res, next) => {
   const userId = req.user.id;

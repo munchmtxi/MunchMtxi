@@ -1,6 +1,6 @@
 const express = require('express');
-const { sendWhatsAppTemplate, sendCustomWhatsApp, sendEmailTemplate, sendCustomEmail, sendBulkNotifications, getTemplates, getNotificationLogs, getNotificationStats, retryFailedNotifications } = require('../controllers/notificationController');
-const { authenticate, authorizeRoles } = require('../middleware/authMiddleware');
+const notificationController = require('@controllers/notificationController');
+const authMiddleware = require('@middleware/authMiddleware');
 
 const router = express.Router();
 

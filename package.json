@@ -1,8 +1,8 @@
 {
   "name": "munch-mtxi",
+  "license": "MIT",
   "version": "1.0.0",
   "main": "index.js",
-  "license": "MIT",
   "scripts": {
     "audit:log": "powershell Get-Content -Path logs/audit.log -Wait",
     "backup": "node scripts/maintenance.js dailyBackup",
@@ -26,6 +26,16 @@
     "test:watch": "jest --watch",
     "validate:env": "node scripts/validateEnv.js"
   },
+  "_moduleAliases": {
+    "@": "src",
+    "@config": "src/config",
+    "@controllers": "src/controllers",
+    "@models": "src/models",
+    "@routes": "src/routes",
+    "@utils": "src/utils",
+    "@services": "src/services",
+    "@middleware": "src/middleware"
+  },
   "dependencies": {
     "@googlemaps/google-maps-services-js": "^3.3.0",
     "@sentry/node": "^8.51.0",
@@ -46,6 +56,7 @@
     "ioredis": "^5.4.2",
     "joi": "^17.13.3",
     "jsonwebtoken": "^9.0.2",
+    "module-alias": "^2.2.3",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
     "node-cron": "^3.0.2",
@@ -61,6 +72,7 @@
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
     "speakeasy": "^2.0.0",
+    "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^11.0.5",
     "web-push": "^3.4.5",

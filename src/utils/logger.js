@@ -1,6 +1,6 @@
 const winston = require('winston');
 const DailyRotateFile = require('winston-daily-rotate-file');
-const config = require('../../config/config');
+const config = require('@config/config');
 const fs = require('fs');
 const path = require('path');
 
@@ -11,7 +11,7 @@ if (!fs.existsSync(logDir)) {
 }
 
 const logger = winston.createLogger({
-  level: config.logging.level || 'info',
+  level: 'info',
   format: winston.format.combine(
     winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
     winston.format.errors({ stack: true }),

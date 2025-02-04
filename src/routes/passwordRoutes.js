@@ -1,6 +1,6 @@
 const express = require('express');
-const { forgotPassword, resetPassword } = require('../controllers/passwordController');
-const { validateForgotPassword, validateResetPassword } = require('../validators/passwordValidators');
+const passwordController = require('@controllers/passwordController');
+const passwordValidators = require('@validators/passwordValidators');
 const rateLimit = require('express-rate-limit');
 
 const router = express.Router();

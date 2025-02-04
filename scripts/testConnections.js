@@ -1,9 +1,10 @@
+require('module-alias/register');
 require('dotenv').config();
 const { sequelize } = require('../src/models');
 const Redis = require('ioredis');
 const axios = require('axios');
-const logger = require('../src/utils/logger');
-const config = require('../config/config');
+const config = require('@config/config');
+const { logger } = require('@utils/logger');
 
 async function testDatabaseConnection() {
   try {

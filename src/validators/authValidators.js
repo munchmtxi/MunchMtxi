@@ -1,6 +1,6 @@
 // validators/authValidators.js
 const Joi = require('joi');
-const AppError = require('../utils/AppError');
+const AppError = require('@utils/AppError');
 
 const validateRegister = (req, res, next) => {
   const schema = Joi.object({

@@ -1,8 +1,9 @@
+require('module-alias/register');
 require('dotenv').config();
 const crypto = require('crypto');
 const fs = require('fs/promises');
 const path = require('path');
-const logger = require('../src/utils/logger');
+const { logger } = require('@utils/logger');
 
 async function generateNewSecret(length = 64) {
   return crypto.randomBytes(length).toString('hex');
@@ -42,4 +43,4 @@ async function rotateSecrets() {
   }
 }
 
-rotateSecrets();
+rotateSecrets();//

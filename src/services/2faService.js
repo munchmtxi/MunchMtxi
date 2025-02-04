@@ -1,8 +1,8 @@
 // src/services/2faService.js
 const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
-const { User } = require('../models');
-const AppError = require('../utils/AppError');
+const { User } = require('@models');
+const AppError = require('@utils/AppError');
 
 const generate2FASecret = async (userId) => {
   const secret = speakeasy.generateSecret({ length: 20 });

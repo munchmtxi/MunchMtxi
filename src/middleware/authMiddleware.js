@@ -1,8 +1,8 @@
 // middleware/authMiddleware.js
 const passport = require('passport');
-const AppError = require('../utils/AppError');
-const { getRolePermissions } = require('../services/roleService');
-const { trackDevice } = require('../services/deviceService');
+const AppError = require('@utils/AppError');
+const roleService = require('@services/roleService');
+const { trackDevice } = require('@services/deviceService');
 
 // Initialize Passport JWT strategy
 require('../config/passport')(passport);

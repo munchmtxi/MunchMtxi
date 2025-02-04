@@ -1,8 +1,8 @@
 // src/services/passwordService.js
 const crypto = require('crypto');
-const { User } = require('../models');
-const { sendEmail } = require('../utils/emailService');
-const AppError = require('../utils/AppError');
+const { User } = require('@models');
+const emailService = require('@services/emailService');
+const AppError = require('@utils/AppError');
 const bcrypt = require('bcryptjs');
 const { Op } = require('sequelize');
 

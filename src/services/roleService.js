@@ -1,6 +1,6 @@
 // src/services/roleService.js
-const { Role, Permission } = require('../models');
-const AppError = require('../utils/AppError');
+const { Role, Permission } = require('@models');
+const AppError = require('@utils/AppError');
 
 /**
  * Creates a new role with associated permissions.

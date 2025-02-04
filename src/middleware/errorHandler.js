@@ -1,7 +1,7 @@
 // /middlewares/errorHandler.js
-const logger = require('../utils/logger');
-const AppError = require('../utils/AppError');
-const config = require('../config/config');
+const logger = require('@utils/logger');
+const AppError = require('@utils/AppError');
+const config = require('@config/config');
 const {
   ValidationError,
   AuthenticationError,

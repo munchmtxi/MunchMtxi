@@ -1,7 +1,13 @@
 const passport = require('passport');
 const { Strategy: JwtStrategy, ExtractJwt } = require('passport-jwt');
-const { User } = require('../models');
-const jwtConfig = require('./jwtConfig'); // Separate config file
+const { User } = require('@models');
+const jwtConfig = require('@config/jwtConfig');
+
+// Debugging: Ensure jwtConfig.secretOrKey is defined
+if (!jwtConfig.secretOrKey) {
+  console.error('JWT_SECRET is missing or invalid. Check your .env file.');
+  process.exit(1);
+}
 
 passport.use(
   new JwtStrategy(jwtConfig, async (payload, done) => {

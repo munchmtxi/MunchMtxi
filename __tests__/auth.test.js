@@ -1,7 +1,7 @@
 // __tests__/auth.test.js
 const request = require('supertest');
 const app = require('../app');
-const { sequelize, User } = require('../models');
+const { sequelize, User } = require('@models');
 
 beforeAll(async () => {
   await sequelize.sync({ force: true });

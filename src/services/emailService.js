@@ -1,9 +1,9 @@
 // src/services/emailService.js
 const nodemailer = require('nodemailer');
-const config = require('../config/config');
-const logger = require('../utils/logger');
-const { AppError } = require('../utils/errors');
-const { Template, NotificationLog } = require('../models');
+const config = require('@config/config');
+const logger = require('@utils/logger');
+const AppError = require('@utils/AppError');
+const { Template, NotificationLog } = require('@models');
 
 class EmailService {
   constructor() {

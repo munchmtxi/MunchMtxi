@@ -1,17 +1,15 @@
 // src/config/socket.js
 const socketIO = require('socket.io');
 const jwt = require('jsonwebtoken');
-const config = require('./config');
-const logger = require('../utils/logger');
-const { User, Session } = require('../models');
-const { EVENTS } = require('./events');
-const { 
-  customerHandlers,
-  merchantHandlers, 
-  driverHandlers,
-  staffHandlers,
-  adminHandlers 
-} = require('../handlers');
+const config = require('@config/config');
+const logger = require('@utils/logger');
+const { User, Session } = require('@models');
+const events = require('@config/events');
+const staffHandlers = require('@handlers/staffHandlers');
+const merchantHandlers = require('@handlers/merchantHandlers');
+const driverHandlers = require('@handlers/driverHandlers');
+const customerHandlers = require('@handlers/customerHandlers');
+const adminHandlers = require('@handlers/adminHandlers');
 
 // Socket connection options
 const socketOptions = {

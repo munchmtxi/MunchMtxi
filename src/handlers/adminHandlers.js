@@ -1,6 +1,6 @@
 // src/handlers/adminHandlers.js
-const logger = require('../utils/logger');
-const { EVENTS } = require('../config/events');
+const logger = require('@utils/logger');
+const events = require('@config/events');
 const { 
   Admin,
   Merchant,
@@ -15,7 +15,7 @@ const {
   ContentManagement,
   Location,
   Configuration
-} = require('../models');
+} = require('@models');
 const NotificationService = require('../services/notificationService');
 const AnalyticsService = require('../services/analyticsService');
 const ReportingService = require('../services/reportingService');

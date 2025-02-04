@@ -1,10 +1,10 @@
 // src/controllers/notificationController.js
-const whatsappService = require('../services/whatsappService');
-const emailService = require('../services/emailService');
-const catchAsync = require('../utils/catchAsync');
-const AppError = require('../utils/AppError');
-const { NotificationLog, Template, User } = require('../models');
-const logger = require('../utils/logger');
+const whatsappService = require('@services/whatsappService');
+const emailService = require('@services/emailService');
+const catchAsync = require('@utils/catchAsync');
+const AppError = require('@utils/AppError');
+const { NotificationLog, Template, User } = require('@models');
+const logger = require('@utils/logger');
 
 /**
  * Notification Controller

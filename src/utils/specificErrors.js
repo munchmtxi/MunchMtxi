@@ -1,5 +1,5 @@
 // /utils/specificErrors.js
-const AppError = require('./AppError');
+const AppError = require('@utils/AppError');
 
 class ValidationError extends AppError {
   constructor(message, details = null) {

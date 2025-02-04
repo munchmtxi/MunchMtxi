@@ -1,6 +1,6 @@
 // src/services/deviceService.js
-const { Device } = require('../models');
-const AppError = require('../utils/AppError');
+const { Device } = require('@models');
+const AppError = require('@utils/AppError');
 
 /**
  * Tracks or updates a device for a user.

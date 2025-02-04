@@ -1,8 +1,8 @@
 // src/controllers/authController.js
-const { registerUser, loginUser, generateToken, generateRefreshToken, verifyRefreshToken } = require('../services/authService');
-const catchAsync = require('../utils/catchAsync');
-const AppError = require('../utils/AppError');
-const logger = require('../utils/logger');
+const authService = require('@services/authService');
+const catchAsync = require('@utils/catchAsync');
+const AppError = require('@utils/AppError');
+const logger = require('@utils/logger');
 
 /**
  * Registers a new user (Customer).

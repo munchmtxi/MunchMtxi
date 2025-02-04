@@ -1,6 +1,6 @@
 // src/handlers/merchantHandlers.js
-const logger = require('../utils/logger');
-const { EVENTS } = require('../config/events');
+const logger = require('@utils/logger');
+const events = require('@config/events');
 const { 
   Merchant, 
   Order, 
@@ -12,7 +12,7 @@ const {
   Report,
   Analytics,
   Promotion
-} = require('../models');
+} = require('@models');
 const NotificationService = require('../services/notificationService');
 const AnalyticsService = require('../services/analyticsService');
 const ReportingService = require('../services/reportingService');

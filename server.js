@@ -1,9 +1,9 @@
-// server.js
+require('module-alias/register'); // Register path aliases
 const app = require('./app');
-const { sequelize } = require('./models');
-const logger = require('./src/utils/logger');
-const config = require('./config/config');
-const { setupSocket } = require('./src/config/socket'); // Added from the first version
+const { sequelize } = require('@models');
+const { logger } = require('@utils/logger');
+const config = require('@config/config');
+const setupSocket = require('@config/socket');
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
@@ -12,6 +12,7 @@ process.on('uncaughtException', (err) => {
   process.exit(1);
 });
 
+// Graceful shutdown function
 const shutdown = (server, code) => {
   server.close(() => {
     logger.info('Server closed');
@@ -25,6 +26,7 @@ const shutdown = (server, code) => {
   }, 10000);
 };
 
+// Start the server
 const startServer = async () => {
   try {
     // Validate essential environment variables
@@ -45,7 +47,7 @@ const startServer = async () => {
       logger.info(`Server running on port ${config.port} in ${config.nodeEnv} mode`);
     });
 
-    // Set up Socket.IO (Added from the first version)
+    // Set up Socket.IO
     setupSocket(server);
 
     // Handle unhandled promise rejections

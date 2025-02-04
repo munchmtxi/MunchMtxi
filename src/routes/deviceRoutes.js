@@ -1,6 +1,6 @@
 const express = require('express');
-const { getUserDevices, removeDevice } = require('../services/deviceService');
-const { authenticate } = require('../middleware/authMiddleware');
+const { getUserDevices, removeDevice } = require('@services/deviceService');
+const authMiddleware = require('@middleware/authMiddleware');
 
 const router = express.Router();
 
