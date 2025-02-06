@@ -1,6 +1,6 @@
 // src/handlers/staffHandlers.js
 const logger = require('@utils/logger');
-const events = require('@config/events');
+const { EVENTS } = require('@config/events');
 const { 
   Staff, 
   Order, 
@@ -12,9 +12,9 @@ const {
   Schedule,
   QuickLink
 } = require('@models');
-const NotificationService = require('../services/notificationService');
-const PerformanceService = require('../services/performanceService');
-const SchedulingService = require('../services/schedulingService');
+//const NotificationService = require('../services/notificationService');
+//const PerformanceService = require('../services/performanceService');
+//const SchedulingService = require('../services/schedulingService');
 
 const staffHandlers = {
   // Room Management
@@ -24,29 +24,23 @@ const staffHandlers = {
         where: { userId: socket.user.id },
         include: ['assignedTasks', 'activeOrders', 'assignedTables'] 
       });
-
       if (staff) {
         // Join staff-specific room
         socket.join(`staff:${staff.id}`);
-        
         // Join merchant room
         socket.join(`merchant:${staff.merchantId}`);
-        
         // Join task rooms
         staff.assignedTasks?.forEach(task => {
           socket.join(`task:${task.id}`);
         });
-
         // Join order rooms
         staff.activeOrders?.forEach(order => {
           socket.join(`order:${order.id}`);
         });
-
         // Join table rooms
         staff.assignedTables?.forEach(table => {
           socket.join(`table:${table.id}`);
         });
-
         logger.info(`Staff ${staff.id} joined their rooms`);
       }
     } catch (error) {
@@ -57,30 +51,21 @@ const staffHandlers = {
 
   // Initialize all staff event handlers
   initialize(socket, io) {
-    // Profile and Authentication Management
     this.handleProfileUpdates(socket, io);
     this.handleAuthenticationRequests(socket, io);
-    
-    // Task and Order Management
     this.handleTaskAssignments(socket, io);
     this.handleOrderProcessing(socket, io);
     this.handleQuickLinks(socket, io);
-    
-    // Schedule and Availability Management
     this.handleScheduleUpdates(socket, io);
     this.handleAvailabilityUpdates(socket, io);
-    
-    // Performance and Training
     this.handlePerformanceTracking(socket, io);
     this.handleTrainingProgress(socket, io);
-    
-    // Earnings and Tips
     this.handleEarningsManagement(socket, io);
     this.handleTipAllocation(socket, io);
   },
 
   // Profile Management
-  handleProfileUpdates(socket, io) {
+  handleProfileUpdates: function(socket, io) {
     socket.on(EVENTS.STAFF.PROFILE_UPDATE, async (data) => {
       try {
         const updatedProfile = await Staff.update(socket.user.id, {
@@ -89,7 +74,6 @@ const staffHandlers = {
           emergencyContact: data.emergencyContact,
           preferences: data.preferences
         });
-
         socket.emit(EVENTS.STAFF.PROFILE_UPDATED, updatedProfile);
         logger.info(`Staff ${socket.user.id} profile updated`);
       } catch (error) {
@@ -100,7 +84,7 @@ const staffHandlers = {
   },
 
   // Authentication Requests
-  handleAuthenticationRequests(socket, io) {
+  handleAuthenticationRequests: function(socket, io) {
     // Handle password changes
     socket.on(EVENTS.STAFF.CHANGE_PASSWORD, async (data) => {
       try {
@@ -108,7 +92,6 @@ const staffHandlers = {
           currentPassword: data.currentPassword,
           newPassword: data.newPassword
         });
-
         socket.emit(EVENTS.STAFF.PASSWORD_CHANGED, {
           message: 'Password updated successfully'
         });
@@ -119,10 +102,10 @@ const staffHandlers = {
     });
 
     // Handle 2FA setup
-    socket.on(EVENTS.STAFF.SETUP_2FA, async (data) => {
+    socket.on(EVENTS.STAFF.TWO_FACTOR_SETUP, async (data) => {
       try {
         const twoFactorSetup = await Staff.setup2FA(socket.user.id);
-        socket.emit(EVENTS.STAFF.2FA_SETUP_COMPLETE, twoFactorSetup);
+        socket.emit(EVENTS.STAFF.TWO_FACTOR_COMPLETE, twoFactorSetup);
       } catch (error) {
         logger.error('2FA setup error:', error);
         socket.emit(EVENTS.ERROR, { message: 'Failed to setup 2FA' });
@@ -131,7 +114,7 @@ const staffHandlers = {
   },
 
   // Task Management
-  handleTaskAssignments(socket, io) {
+  handleTaskAssignments: function(socket, io) {
     // Accept task assignment
     socket.on(EVENTS.TASK.ACCEPT, async (data) => {
       try {
@@ -139,15 +122,12 @@ const staffHandlers = {
           taskId: data.taskId,
           staffId: socket.user.id
         });
-
         socket.join(`task:${data.taskId}`);
-
         // Notify merchant
         io.to(`merchant:${task.merchantId}`).emit(EVENTS.TASK.STAFF_ASSIGNED, {
           taskId: task.id,
           staffDetails: await Staff.getPublicProfile(socket.user.id)
         });
-
         socket.emit(EVENTS.TASK.ASSIGNMENT_CONFIRMED, task);
       } catch (error) {
         logger.error('Task acceptance error:', error);
@@ -159,13 +139,11 @@ const staffHandlers = {
     socket.on(EVENTS.TASK.UPDATE_STATUS, async (data) => {
       try {
         const task = await Task.updateStatus(data.taskId, data.status);
-
         io.to(`task:${data.taskId}`).emit(EVENTS.TASK.STATUS_UPDATED, {
           taskId: data.taskId,
           status: data.status,
           timestamp: new Date()
         });
-
         // Record performance metrics
         await PerformanceService.recordTaskCompletion({
           staffId: socket.user.id,
@@ -180,7 +158,7 @@ const staffHandlers = {
   },
 
   // Order Processing
-  handleOrderProcessing(socket, io) {
+  handleOrderProcessing: function(socket, io) {
     // Update order status
     socket.on(EVENTS.ORDER.UPDATE_STATUS, async (data) => {
       try {
@@ -188,13 +166,11 @@ const staffHandlers = {
           status: data.status,
           updatedBy: socket.user.id
         });
-
         io.to(`order:${data.orderId}`).emit(EVENTS.ORDER.STATUS_UPDATED, {
           orderId: data.orderId,
           status: data.status,
           timestamp: new Date()
         });
-
         // Notify customer if status is significant
         if (['PREPARING', 'READY', 'COMPLETED'].includes(data.status)) {
           io.to(`customer:${order.customerId}`).emit(EVENTS.ORDER.STATUS_CHANGED, {
@@ -218,7 +194,6 @@ const staffHandlers = {
           reason: data.reason,
           staffId: socket.user.id
         });
-
         io.to(`order:${data.orderId}`).emit(EVENTS.ORDER.MODIFIED, {
           orderId: data.orderId,
           modifications: data.modifications,
@@ -232,7 +207,7 @@ const staffHandlers = {
   },
 
   // Quick Link Management
-  handleQuickLinks(socket, io) {
+  handleQuickLinks: function(socket, io) {
     // Handle quick link requests
     socket.on(EVENTS.QUICK_LINK.RESPOND, async (data) => {
       try {
@@ -242,7 +217,6 @@ const staffHandlers = {
           response: data.response,
           actionTaken: data.actionTaken
         });
-
         io.to(`customer:${response.customerId}`).emit(EVENTS.QUICK_LINK.STAFF_RESPONSE, {
           requestId: data.requestId,
           response: data.response,
@@ -256,7 +230,7 @@ const staffHandlers = {
   },
 
   // Schedule Management
-  handleScheduleUpdates(socket, io) {
+  handleScheduleUpdates: function(socket, io) {
     // Update availability
     socket.on(EVENTS.SCHEDULE.UPDATE_AVAILABILITY, async (data) => {
       try {
@@ -264,9 +238,7 @@ const staffHandlers = {
           staffId: socket.user.id,
           availability: data.availability
         });
-
         socket.emit(EVENTS.SCHEDULE.AVAILABILITY_UPDATED, schedule);
-        
         // Notify merchant of availability update
         io.to(`merchant:${schedule.merchantId}`).emit(EVENTS.SCHEDULE.STAFF_AVAILABILITY_CHANGED, {
           staffId: socket.user.id,
@@ -287,9 +259,7 @@ const staffHandlers = {
           endDate: data.endDate,
           reason: data.reason
         });
-
         socket.emit(EVENTS.SCHEDULE.TIME_OFF_REQUESTED, request);
-        
         // Notify merchant of time off request
         io.to(`merchant:${request.merchantId}`).emit(EVENTS.SCHEDULE.TIME_OFF_REQUEST_RECEIVED, {
           staffId: socket.user.id,
@@ -303,7 +273,7 @@ const staffHandlers = {
   },
 
   // Performance Tracking
-  handlePerformanceTracking(socket, io) {
+  handlePerformanceTracking: function(socket, io) {
     // Request performance metrics
     socket.on(EVENTS.PERFORMANCE.GET_METRICS, async (data) => {
       try {
@@ -313,7 +283,6 @@ const staffHandlers = {
           endDate: data.endDate,
           metricTypes: data.metricTypes
         });
-
         socket.emit(EVENTS.PERFORMANCE.METRICS_RESPONSE, metrics);
       } catch (error) {
         logger.error('Performance metrics error:', error);
@@ -330,7 +299,6 @@ const staffHandlers = {
           content: data.content,
           source: data.source
         });
-
         socket.emit(EVENTS.PERFORMANCE.FEEDBACK_RECORDED, feedback);
       } catch (error) {
         logger.error('Feedback recording error:', error);
@@ -340,7 +308,7 @@ const staffHandlers = {
   },
 
   // Training Progress Management
-  handleTrainingProgress(socket, io) {
+  handleTrainingProgress: function(socket, io) {
     // Update training progress
     socket.on(EVENTS.TRAINING.UPDATE_PROGRESS, async (data) => {
       try {
@@ -350,9 +318,7 @@ const staffHandlers = {
           progress: data.progress,
           completionStatus: data.completionStatus
         });
-
         socket.emit(EVENTS.TRAINING.PROGRESS_UPDATED, progress);
-
         // If training completed, notify merchant
         if (data.completionStatus === 'COMPLETED') {
           io.to(`merchant:${progress.merchantId}`).emit(EVENTS.TRAINING.MODULE_COMPLETED, {
@@ -368,7 +334,7 @@ const staffHandlers = {
   },
 
   // Earnings Management
-  handleEarningsManagement(socket, io) {
+  handleEarningsManagement: function(socket, io) {
     // Request earnings summary
     socket.on(EVENTS.EARNINGS.GET_SUMMARY, async (data) => {
       try {
@@ -377,7 +343,6 @@ const staffHandlers = {
           startDate: data.startDate,
           endDate: data.endDate
         });
-
         socket.emit(EVENTS.EARNINGS.SUMMARY_RESPONSE, summary);
       } catch (error) {
         logger.error('Earnings summary error:', error);
@@ -387,7 +352,7 @@ const staffHandlers = {
   },
 
   // Tip Management
-  handleTipAllocation(socket, io) {
+  handleTipAllocation: function(socket, io) {
     // Record received tip
     socket.on(EVENTS.TIP.RECORD, async (data) => {
       try {
@@ -397,7 +362,6 @@ const staffHandlers = {
           amount: data.amount,
           type: data.type
         });
-
         socket.emit(EVENTS.TIP.RECORDED, tip);
       } catch (error) {
         logger.error('Tip recording error:', error);
@@ -413,7 +377,6 @@ const staffHandlers = {
           startDate: data.startDate,
           endDate: data.endDate
         });
-
         socket.emit(EVENTS.TIP.HISTORY_RESPONSE, history);
       } catch (error) {
         logger.error('Tip history error:', error);

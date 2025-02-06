@@ -1,7 +1,7 @@
 const express = require('express');
 const { setup2FA, verify2FA } = require('@controllers/2faController');
-const authMiddleware = require('@middleware/authMiddleware');
-const twoFaValidators = require('@validators/2faValidators');
+const { authenticate } = require('@middleware/authMiddleware');  // Destructure authenticate
+const { validate2FASetup, validate2FAVerify } = require('@validators/2faValidators');
 
 const router = express.Router();
 

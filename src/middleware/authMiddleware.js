@@ -4,9 +4,6 @@ const AppError = require('@utils/AppError');
 const roleService = require('@services/roleService');
 const { trackDevice } = require('@services/deviceService');
 
-// Initialize Passport JWT strategy
-require('../config/passport')(passport);
-
 /**
  * Middleware to authenticate users using JWT.
  */
@@ -41,7 +38,8 @@ const authenticate = async (req, res, next) => {
  */
 const authorizeRoles = (...roles) => {
   return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
+    const allowedRoles = roles.flat(); // This handles both strings and arrays
+    if (!allowedRoles.includes(req.user.role)) {
       return next(new AppError('You are not authorized to access this resource', 403));
     }
     next();

@@ -3,7 +3,7 @@ const app = require('./app');
 const { sequelize } = require('@models');
 const { logger } = require('@utils/logger');
 const config = require('@config/config');
-const setupSocket = require('@config/socket');
+const { setupSocket } = require('@config/socket');
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (err) => {

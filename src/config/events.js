@@ -97,6 +97,9 @@ const EVENTS = {
     LOGGED_IN: 'staff:loggedIn',
     LOGGED_OUT: 'staff:loggedOut',
     PROFILE_UPDATED: 'staff:profileUpdated',
+    'TWO_FACTOR_SETUP': 'staff:2fa:setup',
+    'TWO_FACTOR_COMPLETE': 'staff:2fa:complete',
+    'TWO_FACTOR_VERIFY': 'staff:2fa:verify',
     
     // Tasks and Assignments
     TASK_ASSIGNED: 'staff:taskAssigned',
@@ -109,6 +112,7 @@ const EVENTS = {
     
     // Permissions
     PERMISSIONS_UPDATED: 'staff:permissionsUpdated'
+
   },
 
   // Taxi Events

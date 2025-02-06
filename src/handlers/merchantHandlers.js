@@ -13,9 +13,9 @@ const {
   Analytics,
   Promotion
 } = require('@models');
-const NotificationService = require('../services/notificationService');
-const AnalyticsService = require('../services/analyticsService');
-const ReportingService = require('../services/reportingService');
+//const NotificationService = require('../services/notificationService');
+//const AnalyticsService = require('../services/analyticsService');
+//const ReportingService = require('../services/reportingService');
 
 const merchantHandlers = {
   // Room Management

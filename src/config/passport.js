@@ -9,37 +9,36 @@ if (!jwtConfig.secretOrKey) {
   process.exit(1);
 }
 
-passport.use(
-  new JwtStrategy(jwtConfig, async (payload, done) => {
-    try {
-      // Validate payload structure
-      if (!payload || !payload.id) {
-        return done(null, false, { message: 'Invalid token payload' });
-      }
+const configurePassport = () => {
+  passport.use(
+    new JwtStrategy(jwtConfig, async (payload, done) => {
+      try {
+        if (!payload || !payload.id) {
+          return done(null, false, { message: 'Invalid token payload' });
+        }
 
-      // Find user by ID
-      const user = await User.findByPk(payload.id);
+        const user = await User.findByPk(payload.id);
 
-      // Check if user exists and is active
-      if (!user) {
-        return done(null, false, { message: 'User not found' });
-      }
-      if (!user.isActive) {
-        return done(null, false, { message: 'User account is inactive' });
-      }
+        if (!user) {
+          return done(null, false, { message: 'User not found' });
+        }
+        if (!user.isActive) {
+          return done(null, false, { message: 'User account is inactive' });
+        }
 
-      // User authenticated
-      return done(null, user);
-    } catch (error) {
-      // Log error
-      console.error('Error during JWT verification:', error);
-      return done(error, false);
-    }
-  })
-);
+        return done(null, user);
+      } catch (error) {
+        console.error('Error during JWT verification:', error);
+        return done(error, false);
+      }
+    })
+  );
+};
 
 const setupPassport = (app) => {
+  configurePassport();
   app.use(passport.initialize());
 };
 
+// Export as an object with setupPassport function
 module.exports = { setupPassport };

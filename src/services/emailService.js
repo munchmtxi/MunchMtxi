@@ -8,22 +8,22 @@ const { Template, NotificationLog } = require('@models');
 class EmailService {
   constructor() {
     this.transporter = nodemailer.createTransport({
-      host: config.email.host,
-      port: config.email.port,
-      secure: config.email.secure,
+      host: config.emailService.host,
+      port: config.emailService.port,
+      secure: config.emailService.encryption === 'tls' ? false : true,
       auth: {
-        user: config.email.user,
-        pass: config.email.pass
+        user: config.emailService.username,
+        pass: config.emailService.password
       }
     });
-
+  
     // Email template cache
     this.templateCache = new Map();
     
     // Default sender
     this.defaultFrom = {
-      name: config.email.senderName || 'MunchMtxi',
-      email: config.email.senderEmail || 'no-reply@munchmtxi.com'
+      name: config.emailService.senderName || 'MunchMtxi',
+      email: config.emailService.senderEmail || 'no-reply@munchmtxi.com'
     };
   }
 

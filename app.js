@@ -1,77 +1,63 @@
+// app.js
 const express = require('express');
 const cors = require('cors');
-const helmet = require('helmet');
 const morgan = require('morgan');
+const { logger } = require('@utils/logger');
 
-// Create Express app first
+// Create Express app
 const app = express();
 
-// Initialize monitoring AFTER app is created
-const initMonitoring = require('@config/monitoring');
-initMonitoring(app);
-
-const { setupPassport } = require('@config/passport');
-const { setupSwagger } = require('@config/swagger');
-const securityMiddleware = require('@middleware/security');
-const errorHandlerMiddleware = require('@middleware/errorHandler');
-const rateLimiterMiddleware = require('@middleware/rateLimiter');
-const requestLoggerMiddleware = require('@middleware/requestLogger');
-const config = require('@config/config');
-const AppError = require('@utils/AppError');
-
-// ------------------------
-// Security Middleware
-// ------------------------
-app.use(helmet());
+// Basic middleware
 app.use(cors());
-securityMiddleware(app);
-
-// ------------------------
-// Body Parsing Middleware
-// ------------------------
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ------------------------
-// Logging Middleware
-// ------------------------
-app.use(morgan('combined')); // HTTP request logger
-app.use(requestLoggerMiddleware); // Custom request logger
+// Morgan logger middleware (after logger is initialized)
+app.use(morgan('combined', { 
+  stream: { 
+    write: message => logger.info(message.trim()) 
+  }
+}));
 
-// ------------------------
-// Rate Limiting Middleware
-// ------------------------
-app.use(rateLimiterMiddleware);
+// Apply security middleware
+const securityMiddleware = require('@middleware/security');
+securityMiddleware(app);
 
-// ------------------------
-// Initialize Passport
-// ------------------------
+// Custom request logger
+const requestLogger = require('@middleware/requestLogger');
+app.use(requestLogger);  
+
+// Initialize authentication
+const { setupPassport } = require('@config/passport');  // Notice the destructuring here
 setupPassport(app);
 
-// ------------------------
-// Swagger API Documentation
-// ------------------------
+// API Documentation
+const { setupSwagger } = require('@config/swagger');
 setupSwagger(app);
 
-// ------------------------
-// Routes
-// ------------------------
-app.use('/auth', require('@routes/authRoutes')); // Authentication routes
-app.use('/2fa', require('@routes/2faRoutes')); // Two-factor authentication routes
-app.use('/devices', require('@routes/deviceRoutes')); // Device management routes
-app.use('/notifications', require('@routes/notificationRoutes')); // Notification routes
-app.use('/password', require('@routes/passwordRoutes')); // Password management routes
+// API Routes
+app.use('/auth', require('@routes/authRoutes'));
+app.use('/2fa', require('@routes/2faRoutes'));
+app.use('/devices', require('@routes/deviceRoutes'));
+app.use('/notifications', require('@routes/notificationRoutes'));
+app.use('/password', require('@routes/passwordRoutes'));
 
-// ------------------------
-// Handle Undefined Routes
-// ------------------------
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'ok',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Handle undefined routes
+const AppError = require('@utils/AppError');
 app.all('*', (req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
 });
 
-// ------------------------
-// Global Error Handling Middleware
-// ------------------------
-app.use(errorHandlerMiddleware);
+// Global error handler
+const errorHandler = require('@middleware/errorHandler');
+app.use(errorHandler);
 
 module.exports = app;

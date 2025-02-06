@@ -16,10 +16,10 @@ const {
   Location,
   Configuration
 } = require('@models');
-const NotificationService = require('../services/notificationService');
-const AnalyticsService = require('../services/analyticsService');
-const ReportingService = require('../services/reportingService');
-const MonitoringService = require('../services/monitoringService');
+//const NotificationService = require('../services/notificationService');
+//const AnalyticsService = require('../services/analyticsService');
+//const ReportingService = require('../services/reportingService');
+//const MonitoringService = require('../services/monitoringService');
 
 const adminHandlers = {
   // Room Management

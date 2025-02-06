@@ -1,4 +1,6 @@
 require('dotenv').config();
+
+// Define environment first
 const environment = process.env.NODE_ENV || 'development';
 
 // Base configuration shared across all environments
@@ -41,7 +43,11 @@ const baseConfig = {
     password: process.env.EMAIL_PASS,
     encryption: process.env.EMAIL_ENCRYPTION
   },
-  frontendUrl: process.env.FRONTEND_URL
+  frontendUrl: process.env.FRONTEND_URL,
+  statusMonitor: {
+    username: process.env.STATUS_MONITOR_USERNAME,
+    password: process.env.STATUS_MONITOR_PASSWORD
+  }
 };
 
 // Environment-specific database configurations
@@ -120,7 +126,9 @@ if (!process.env.SKIP_CONFIG_VALIDATION) {
       'EMAIL_PASS',
       'EMAIL_ENCRYPTION',
       'JWT_ALGORITHM',
-      'JWT_DEFAULT_EXPIRATION'
+      'JWT_DEFAULT_EXPIRATION',
+      'STATUS_MONITOR_USERNAME',
+      'STATUS_MONITOR_PASSWORD'
     ];
 
     if (environment === 'test') {

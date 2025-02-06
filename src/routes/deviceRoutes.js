@@ -1,6 +1,6 @@
 const express = require('express');
 const { getUserDevices, removeDevice } = require('@services/deviceService');
-const authMiddleware = require('@middleware/authMiddleware');
+const { authenticate } = require('@middleware/authMiddleware');  // Destructure authenticate
 
 const router = express.Router();
 
