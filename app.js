@@ -41,6 +41,7 @@ app.use('/2fa', require('@routes/2faRoutes'));
 app.use('/devices', require('@routes/deviceRoutes'));
 app.use('/notifications', require('@routes/notificationRoutes'));
 app.use('/password', require('@routes/passwordRoutes'));
+app.use('/api/v1/geolocation', require('@routes/geolocationRoutes'));
 
 // Health check endpoint
 app.get('/health', (req, res) => {

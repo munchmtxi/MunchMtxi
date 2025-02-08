@@ -1,6 +1,14 @@
 'use strict';
 module.exports = {
-  async up(queryInterface, Sequelize) {
+  up: async (queryInterface, Sequelize) => {
+    // Create availability status ENUM type
+    await queryInterface.sequelize.query(`
+      CREATE TYPE enum_drivers_availability_status AS ENUM (
+        'available',
+        'unavailable'
+      );
+    `);
+
     await queryInterface.createTable('drivers', {
       id: {
         allowNull: false,
@@ -69,13 +77,35 @@ module.exports = {
         allowNull: true,
       },
       availability_status: {
-        type: Sequelize.ENUM('available', 'unavailable'),
+        type: 'enum_drivers_availability_status',
         allowNull: false,
         defaultValue: 'available',
       },
       current_location: {
-        type: Sequelize.GEOMETRY('POINT'),
+        type: Sequelize.JSONB,
+        allowNull: true
+      },
+      last_location_update: {
+        type: Sequelize.DATE,
+        allowNull: true
+      },
+      active_route_id: {
+        type: Sequelize.INTEGER,
         allowNull: true,
+        references: {
+          model: 'routes',
+          key: 'id'
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL'
+      },
+      service_area: {
+        type: Sequelize.JSONB,
+        allowNull: true
+      },
+      preferred_zones: {
+        type: Sequelize.JSONB,
+        allowNull: true
       },
       created_at: {
         allowNull: false,
@@ -91,35 +121,43 @@ module.exports = {
         type: Sequelize.DATE,
         allowNull: true
       }
-    }, { // Options for createTable
-      timestamps: true, // Ensure timestamps are enabled
-      paranoid: true,   // Enable paranoid soft-deletes
+    }, { 
+      timestamps: true,
+      paranoid: true,
     });
 
-    // Adding unique indexes
+    // Add indexes
     await queryInterface.addIndex('drivers', ['user_id'], {
       unique: true,
       name: 'drivers_user_id_unique'
     });
+
     await queryInterface.addIndex('drivers', ['phone_number'], {
       unique: true,
       name: 'drivers_phone_number_unique'
     });
+
     await queryInterface.addIndex('drivers', ['license_number'], {
       unique: true,
       name: 'drivers_license_number_unique'
     });
+
+    await queryInterface.addIndex('drivers', ['active_route_id'], {
+      name: 'drivers_active_route_id_index'
+    });
   },
-  async down(queryInterface, Sequelize) {
-    // Remove unique indexes
+
+  down: async (queryInterface, Sequelize) => {
+    // Remove indexes first
     await queryInterface.removeIndex('drivers', 'drivers_user_id_unique');
     await queryInterface.removeIndex('drivers', 'drivers_phone_number_unique');
     await queryInterface.removeIndex('drivers', 'drivers_license_number_unique');
-
-    // Drop ENUM type
-    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_drivers_availability_status";');
+    await queryInterface.removeIndex('drivers', 'drivers_active_route_id_index');
 
     // Drop the table
     await queryInterface.dropTable('drivers');
+
+    // Drop the ENUM type
+    await queryInterface.sequelize.query('DROP TYPE IF EXISTS enum_drivers_availability_status;');
   }
 };

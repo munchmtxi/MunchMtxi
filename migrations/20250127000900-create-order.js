@@ -2,6 +2,28 @@
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
+    // Create order status ENUM type
+    await queryInterface.sequelize.query(`
+      CREATE TYPE enum_orders_status AS ENUM (
+        'pending',
+        'confirmed',
+        'preparing',
+        'ready',
+        'out_for_delivery',
+        'completed',
+        'cancelled'
+      );
+    `);
+
+    // Create payment status ENUM type
+    await queryInterface.sequelize.query(`
+      CREATE TYPE enum_orders_payment_status AS ENUM (
+        'unpaid',
+        'paid',
+        'refunded'
+      );
+    `);
+
     await queryInterface.createTable('orders', {
       id: {
         allowNull: false,
@@ -60,12 +82,12 @@ module.exports = {
         allowNull: true
       },
       status: {
-        type: Sequelize.ENUM('pending', 'confirmed', 'preparing', 'ready', 'out_for_delivery', 'completed', 'cancelled'),
+        type: 'enum_orders_status',
         allowNull: false,
         defaultValue: 'pending'
       },
       payment_status: {
-        type: Sequelize.ENUM('unpaid', 'paid', 'refunded'),
+        type: 'enum_orders_payment_status',
         allowNull: false,
         defaultValue: 'unpaid'
       },
@@ -73,6 +95,32 @@ module.exports = {
         type: Sequelize.STRING,
         allowNull: false,
         defaultValue: 'MWK'
+      },
+      route_id: {
+        type: Sequelize.INTEGER,
+        allowNull: true,
+        references: {
+          model: 'routes',
+          key: 'id'
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL'
+      },
+      optimized_route_position: {
+        type: Sequelize.INTEGER,
+        allowNull: true
+      },
+      estimated_delivery_time: {
+        type: Sequelize.DATE,
+        allowNull: true
+      },
+      actual_delivery_time: {
+        type: Sequelize.DATE,
+        allowNull: true
+      },
+      delivery_distance: {
+        type: Sequelize.DECIMAL,
+        allowNull: true
       },
       created_at: {
         type: Sequelize.DATE,
@@ -87,46 +135,50 @@ module.exports = {
       deleted_at: {
         type: Sequelize.DATE,
         allowNull: true
-      },
-      createdAt: {
-        allowNull: false,
-        type: Sequelize.DATE,
-        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
-      },
-      updatedAt: {
-        allowNull: false,
-        type: Sequelize.DATE,
-        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       }
     });
 
+    // Add indexes
     await queryInterface.addIndex('orders', ['customer_id'], {
-      indicesType: Sequelize.BIGINT,
       name: 'orders_customer_id_index'
     });
 
     await queryInterface.addIndex('orders', ['merchant_id'], {
-      indicesType: Sequelize.BIGINT,
       name: 'orders_merchant_id_index'
     });
 
     await queryInterface.addIndex('orders', ['driver_id'], {
-      indicesType: Sequelize.BIGINT,
       name: 'orders_driver_id_index'
     });
 
     await queryInterface.addIndex('orders', ['order_number'], {
-      indicesType: Sequelize.UNIQUE,
-      name: 'orders_order_number_unique'
+      name: 'orders_order_number_unique',
+      unique: true
     });
 
     await queryInterface.addIndex('orders', ['currency'], {
-      indicesType: Sequelize.BIGINT,
       name: 'orders_currency_index'
+    });
+
+    await queryInterface.addIndex('orders', ['route_id'], {
+      name: 'orders_route_id_index'
     });
   },
 
   down: async (queryInterface, Sequelize) => {
+    // Remove indexes first
+    await queryInterface.removeIndex('orders', 'orders_customer_id_index');
+    await queryInterface.removeIndex('orders', 'orders_merchant_id_index');
+    await queryInterface.removeIndex('orders', 'orders_driver_id_index');
+    await queryInterface.removeIndex('orders', 'orders_order_number_unique');
+    await queryInterface.removeIndex('orders', 'orders_currency_index');
+    await queryInterface.removeIndex('orders', 'orders_route_id_index');
+
+    // Drop the table
     await queryInterface.dropTable('orders');
+
+    // Drop the ENUM types
+    await queryInterface.sequelize.query('DROP TYPE IF EXISTS enum_orders_status;');
+    await queryInterface.sequelize.query('DROP TYPE IF EXISTS enum_orders_payment_status;');
   }
 };

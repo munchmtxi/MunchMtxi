@@ -33,6 +33,11 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'user_id',
         as: 'notifications',
       });
+      // Added new association
+      this.belongsTo(models.Geofence, {
+        foreignKey: 'geofence_id',
+        as: 'geofence'
+      });
     }
 
     // Method to format phone number for WhatsApp
@@ -169,6 +174,29 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: true
+    },
+    // Added new fields
+    delivery_area: {
+      type: DataTypes.JSONB,
+      allowNull: true
+    },
+    location: {
+      type: DataTypes.JSONB,
+      allowNull: true
+    },
+    service_radius: {
+      type: DataTypes.DECIMAL,
+      allowNull: true
+    },
+    geofence_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'geofences',
+        key: 'id'
+      },
+      onUpdate: 'CASCADE',
+      onDelete: 'SET NULL'
     },
     created_at: {
       type: DataTypes.DATE,

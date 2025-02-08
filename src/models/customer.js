@@ -25,6 +25,11 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'user_id',
         as: 'notifications',
       });
+      // Added new association
+      this.belongsTo(models.Address, {
+        foreignKey: 'default_address_id',
+        as: 'defaultAddress'
+      });
     }
 
     format_phone_for_whatsapp() {
@@ -94,6 +99,25 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.JSON,
       allowNull: true,
     },
+    // Added new fields
+    saved_addresses: {
+      type: DataTypes.JSONB,
+      allowNull: true
+    },
+    default_address_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'addresses',
+        key: 'id'
+      },
+      onUpdate: 'CASCADE',
+      onDelete: 'SET NULL'
+    },
+    last_known_location: {
+      type: DataTypes.JSONB,
+      allowNull: true
+    },
     created_at: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -124,6 +148,10 @@ module.exports = (sequelize, DataTypes) => {
         unique: true,
         fields: ['phone_number'],
         name: 'customers_phone_number_unique'
+      },
+      {
+        fields: ['default_address_id'],
+        name: 'customers_default_address_id_index'
       }
     ],
   });

@@ -21,6 +21,11 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'user_id',
         as: 'notifications',
       });
+      // Added new association
+      this.belongsTo(models.Route, {
+        foreignKey: 'active_route_id',
+        as: 'activeRoute'
+      });
     }
 
     format_phone_for_whatsapp() {
@@ -106,9 +111,32 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: 'available',
     },
+    // Modified and added location tracking fields
     current_location: {
-      type: DataTypes.GEOMETRY('POINT'),
+      type: DataTypes.JSONB,
+      allowNull: true
+    },
+    last_location_update: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
+    active_route_id: {
+      type: DataTypes.INTEGER,
       allowNull: true,
+      references: {
+        model: 'routes',
+        key: 'id'
+      },
+      onUpdate: 'CASCADE',
+      onDelete: 'SET NULL'
+    },
+    service_area: {
+      type: DataTypes.JSONB,
+      allowNull: true
+    },
+    preferred_zones: {
+      type: DataTypes.JSONB,
+      allowNull: true
     },
     created_at: {
       type: DataTypes.DATE,
@@ -145,6 +173,10 @@ module.exports = (sequelize, DataTypes) => {
         unique: true,
         fields: ['license_number'],
         name: 'drivers_license_number_unique'
+      },
+      {
+        fields: ['active_route_id'],
+        name: 'drivers_active_route_id_index'
       }
     ],
   });

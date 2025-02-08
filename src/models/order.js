@@ -1,4 +1,4 @@
-// Order.js
+'use strict';
 const { Model } = require('sequelize');
 module.exports = (sequelize, DataTypes) => {
   class Order extends Model {
@@ -27,9 +27,15 @@ module.exports = (sequelize, DataTypes) => {
         through: models.OrderItems,
         foreignKey: 'order_id',
         otherKey: 'menu_item_id',
-        as: 'orderedItems', // Change 'as' to avoid collision
+        as: 'orderedItems',
+      });
+      // Added new association
+      this.belongsTo(models.Route, {
+        foreignKey: 'route_id',
+        as: 'route'
       });
     }
+
     get_whatsapp_template_for_status() {
       const templateMap = {
         'confirmed': 'order_confirmed',
@@ -41,19 +47,24 @@ module.exports = (sequelize, DataTypes) => {
       };
       return templateMap[this.status];
     }
+
     formatDate() {
       return this.created_at.toLocaleDateString();
     }
+
     formatTime() {
       return this.created_at.toLocaleTimeString();
     }
+
     formatItems() {
       return JSON.stringify(this.items);
     }
+
     formatTotal() {
       return `${this.currency} ${this.total_amount.toFixed(2)}`;
     }
   }
+
   Order.init({
     id: {
       type: DataTypes.INTEGER,
@@ -154,6 +165,33 @@ module.exports = (sequelize, DataTypes) => {
         notEmpty: { msg: 'Currency is required' },
       },
     },
+    // Added new fields
+    route_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'routes',
+        key: 'id'
+      },
+      onUpdate: 'CASCADE',
+      onDelete: 'SET NULL'
+    },
+    optimized_route_position: {
+      type: DataTypes.INTEGER,
+      allowNull: true
+    },
+    estimated_delivery_time: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
+    actual_delivery_time: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
+    delivery_distance: {
+      type: DataTypes.DECIMAL,
+      allowNull: true
+    },
     created_at: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -195,8 +233,13 @@ module.exports = (sequelize, DataTypes) => {
       {
         fields: ['currency'],
         name: 'orders_currency_index'
+      },
+      {
+        fields: ['route_id'],
+        name: 'orders_route_id_index'
       }
     ]
   });
+
   return Order;
 };

@@ -111,6 +111,25 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: 'pending',
     },
+    // Added new geo-location fields
+    pickup_location: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      comment: 'Pickup location as {lat, lng}'
+    },
+    dropoff_location: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      comment: 'Dropoff location as {lat, lng}'
+    },
+    estimated_distance: {
+      type: DataTypes.DECIMAL,
+      allowNull: true,
+    },
+    estimated_duration: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
     created_at: {
       type: DataTypes.DATE,
       allowNull: false,

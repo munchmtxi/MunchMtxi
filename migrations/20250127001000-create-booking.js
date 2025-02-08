@@ -1,6 +1,26 @@
 'use strict';
+
 module.exports = {
-  async up(queryInterface, Sequelize) {
+  up: async (queryInterface, Sequelize) => {
+    // Create booking type ENUM
+    await queryInterface.sequelize.query(`
+      CREATE TYPE enum_bookings_booking_type AS ENUM (
+        'table',
+        'taxi'
+      );
+    `);
+
+    // Create status ENUM
+    await queryInterface.sequelize.query(`
+      CREATE TYPE enum_bookings_status AS ENUM (
+        'pending',
+        'approved', 
+        'denied',
+        'seated',
+        'cancelled'
+      );
+    `);
+
     await queryInterface.createTable('bookings', {
       id: {
         allowNull: false,
@@ -53,7 +73,7 @@ module.exports = {
         allowNull: false,
       },
       booking_type: {
-        type: Sequelize.ENUM('table', 'taxi'),
+        type: 'enum_bookings_booking_type',
         allowNull: false,
         validate: {
           isIn: {
@@ -78,9 +98,27 @@ module.exports = {
         allowNull: true,
       },
       status: {
-        type: Sequelize.ENUM('pending', 'approved', 'denied', 'seated', 'cancelled'),
+        type: 'enum_bookings_status',
         allowNull: false,
         defaultValue: 'pending',
+      },
+      pickup_location: {
+        type: Sequelize.JSONB,
+        allowNull: true,
+        comment: 'Pickup location as {lat, lng}'
+      },
+      dropoff_location: {
+        type: Sequelize.JSONB,
+        allowNull: true,
+        comment: 'Dropoff location as {lat, lng}'
+      },
+      estimated_distance: {
+        type: Sequelize.DECIMAL,
+        allowNull: true,
+      },
+      estimated_duration: {
+        type: Sequelize.INTEGER,
+        allowNull: true,
       },
       created_at: {
         allowNull: false,
@@ -96,30 +134,35 @@ module.exports = {
         type: Sequelize.DATE,
         allowNull: true
       }
-    }, { // Options for createTable
-      timestamps: true, // Ensure timestamps are enabled
-      paranoid: true,   // Enable paranoid soft-deletes
+    }, {
+      timestamps: true,
+      paranoid: true,
     });
 
-    // Adding indexes
+    // Add indexes
     await queryInterface.addIndex('bookings', ['customer_id'], {
       name: 'bookings_customer_id_index'
     });
+
     await queryInterface.addIndex('bookings', ['merchant_id'], {
       name: 'bookings_merchant_id_index'
     });
+
     await queryInterface.addIndex('bookings', ['reference'], {
-      unique: true,
-      name: 'bookings_reference_unique'
+      name: 'bookings_reference_unique',
+      unique: true
     });
+
     await queryInterface.addIndex('bookings', ['guest_count'], {
       name: 'bookings_guest_count_index'
     });
+
     await queryInterface.addIndex('bookings', ['special_requests'], {
       name: 'bookings_special_requests_index'
     });
   },
-  async down(queryInterface, Sequelize) {
+
+  down: async (queryInterface, Sequelize) => {
     // Remove indexes first
     await queryInterface.removeIndex('bookings', 'bookings_customer_id_index');
     await queryInterface.removeIndex('bookings', 'bookings_merchant_id_index');
@@ -127,11 +170,11 @@ module.exports = {
     await queryInterface.removeIndex('bookings', 'bookings_guest_count_index');
     await queryInterface.removeIndex('bookings', 'bookings_special_requests_index');
 
-    // Drop ENUM types
-    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_bookings_booking_type";');
-    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_bookings_status";');
-
     // Drop the table
     await queryInterface.dropTable('bookings');
+
+    // Drop the ENUM types
+    await queryInterface.sequelize.query('DROP TYPE IF EXISTS enum_bookings_booking_type;');
+    await queryInterface.sequelize.query('DROP TYPE IF EXISTS enum_bookings_status;');
   }
 };

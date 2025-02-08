@@ -54,6 +54,26 @@ module.exports = {
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL',
       },
+      assigned_area: {
+        type: Sequelize.JSONB,
+        allowNull: true,
+        comment: 'Assigned area as a geofence'
+      },
+      work_location: {
+        type: Sequelize.JSONB,
+        allowNull: true,
+        comment: 'Work location as {lat, lng}'
+      },
+      geofence_id: {
+        type: Sequelize.INTEGER,
+        allowNull: true,
+        references: {
+          model: 'geofences',
+          key: 'id'
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL'
+      },
       created_at: {
         allowNull: false,
         type: Sequelize.DATE,
@@ -68,20 +88,26 @@ module.exports = {
         type: Sequelize.DATE,
         allowNull: true
       }
-    }, { // Options for createTable
-      timestamps: true, // Ensure timestamps are enabled
-      paranoid: true,   // Enable paranoid soft-deletes
+    }, {
+      timestamps: true,
+      paranoid: true,
     });
 
-    // Adding unique index on user_id
+    // Add indexes
     await queryInterface.addIndex('staff', ['user_id'], {
-      unique: true,
-      name: 'staff_user_id_unique'
+      name: 'staff_user_id_unique',
+      unique: true
+    });
+
+    await queryInterface.addIndex('staff', ['geofence_id'], {
+      name: 'staff_geofence_id_index'
     });
   },
+
   async down(queryInterface, Sequelize) {
-    // Remove unique index on user_id
+    // Remove indexes first
     await queryInterface.removeIndex('staff', 'staff_user_id_unique');
+    await queryInterface.removeIndex('staff', 'staff_geofence_id_index');
 
     // Drop the table
     await queryInterface.dropTable('staff');

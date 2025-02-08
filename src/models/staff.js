@@ -22,6 +22,11 @@ module.exports = (sequelize, DataTypes) => {
         otherKey: 'permission_id',
         as: 'permissions',
       });
+      // Added new association
+      this.belongsTo(models.Geofence, {
+        foreignKey: 'geofence_id',
+        as: 'geofence'
+      });
     }
   }
 
@@ -78,6 +83,27 @@ module.exports = (sequelize, DataTypes) => {
       onUpdate: 'CASCADE',
       onDelete: 'SET NULL',
     },
+    // Added new geo-location fields
+    assigned_area: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      comment: 'Assigned area as a geofence'
+    },
+    work_location: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      comment: 'Work location as {lat, lng}'
+    },
+    geofence_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'geofences',
+        key: 'id'
+      },
+      onUpdate: 'CASCADE',
+      onDelete: 'SET NULL'
+    },
     created_at: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -103,6 +129,10 @@ module.exports = (sequelize, DataTypes) => {
         unique: true,
         fields: ['user_id'],
         name: 'staff_user_id_unique'
+      },
+      {
+        fields: ['geofence_id'],
+        name: 'staff_geofence_id_index'
       }
     ]
   });
