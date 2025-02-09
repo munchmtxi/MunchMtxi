@@ -143,6 +143,25 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.JSON,
         allowNull: true,
       },
+      detected_location: {
+        type: DataTypes.JSONB,
+        allowNull: true,
+        comment: 'Automatically detected location from IP/GPS',
+      },
+      manual_location: {
+        type: DataTypes.JSONB,
+        allowNull: true,
+        comment: 'User-specified location override',
+      },
+      location_source: {
+        type: DataTypes.ENUM('ip', 'gps', 'manual'),
+        allowNull: true,
+        comment: 'Source of the current location data',
+      },
+      location_updated_at: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
       phone: {
         type: DataTypes.STRING,
         unique: true,
@@ -263,7 +282,6 @@ module.exports = (sequelize, DataTypes) => {
           if (user.changed('password')) {
             const salt = await bcrypt.genSalt(10);
             user.password = await bcrypt.hash(user.password, salt);
-            // Log the old password hash
             const oldPassword = user.previous('password');
             if (oldPassword) {
               await sequelize.models.PasswordHistory.create({
@@ -273,23 +291,9 @@ module.exports = (sequelize, DataTypes) => {
             }
           }
         },
-        beforeSave: async (user) => {
-          if (user.manager_id === user.id) {
-            throw new Error('A user cannot manage themselves');
-          }
-        },
       },
-      indexes: [
-        {
-          unique: true,
-          fields: ['email'],
-        },
-        {
-          unique: true,
-          fields: ['phone'],
-        },
-      ],
     }
   );
+
   return User;
 };

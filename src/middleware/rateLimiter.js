@@ -8,4 +8,11 @@ const rateLimiter = rateLimit({
   headers: true,
 });
 
-module.exports = { rateLimiter };
+const geoLocationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many location detection requests, please try again later',
+  keyGenerator: (req) => req.ip || req.headers['x-forwarded-for']
+});
+
+module.exports = { rateLimiter, geoLocationLimiter };

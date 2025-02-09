@@ -52,4 +52,21 @@ const resetPassword = async (token, newPassword) => {
   return user;
 };
 
-module.exports = { createPasswordResetToken, resetPassword };
+const verifyResetToken = async (token) => {
+  const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+  const user = await User.findOne({
+    where: {
+      passwordResetToken: hashedToken,
+      passwordResetExpires: { [Op.gt]: Date.now() }
+    }
+  });
+
+  if (!user) {
+    throw new AppError('Token is invalid or has expired', 400);
+  }
+
+  return true;
+};
+
+module.exports = { createPasswordResetToken, resetPassword, verifyResetToken };

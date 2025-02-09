@@ -1,12 +1,14 @@
-// C:\Users\munch\Desktop\MunchMtxi\src/routes/geolocationRoutes.js
+// src/routes/geolocationRoutes.js
 
 const express = require('express');
 const router = express.Router();
 const geolocationController = require('@controllers/geolocationController');
-const { authenticate } = require('@middleware/authMiddleware'); // Updated import: using 'authenticate'
+const { authenticate } = require('@middleware/authMiddleware');
 const validate = require('@middleware/validateRequest');
+const { validateLocationPermissions } = require('@middleware/security');
+const { geoLocationLimiter } = require('@middleware/security').rateLimiters;
 
-// Import all validators (ensure these are defined in your project)
+// Import all validators
 const {
   validateAddressRequest,
   validateMultipleAddressesRequest,
@@ -20,12 +22,53 @@ const {
   validateBatchRoutesRequest,
   validateGeofenceDetailsRequest,
   validateGeofenceUpdateRequest,
-  validateTimeframeAnalysisRequest
+  validateTimeframeAnalysisRequest,
+  validateManualLocationRequest,
+  validateGPSLocation
 } = require('@validators/geolocationValidators');
 
 // All geolocation routes require authentication
-router.use(authenticate); // Using authenticate from authMiddleware
+router.use(authenticate);
 
+// Rate limiter for specific routes
+router.use(geoLocationLimiter);
+
+// Active Routes - These have corresponding controller methods
+// --------------------------------------------------------
+
+// Location Detection endpoints
+router.get(
+  '/detect-location',
+  validateLocationPermissions,
+  geolocationController.detectCurrentLocation
+);
+
+router.post(
+  '/set-manual-location',
+  validateLocationPermissions,
+  validateManualLocationRequest,
+  validate,
+  geolocationController.setManualLocation
+);
+
+router.get(
+  '/current-location',
+  validateLocationPermissions,
+  geolocationController.getCurrentLocation
+);
+
+router.post(
+  '/gps-location',
+  validateLocationPermissions,
+  validateGPSLocation,
+  validate,
+  geolocationController.updateGPSLocation
+);
+
+// Commented Routes - To be implemented
+// ----------------------------------
+
+/*
 // Address Validation Endpoints
 router.post(
   '/validate-address',
@@ -93,10 +136,7 @@ router.post(
 );
 
 // Health Check Endpoint
-router.get(
-  '/health',
-  geolocationController.checkGeolocationHealth
-);
+router.get('/health', geolocationController.checkGeolocationHealth);
 
 // Batch Route Calculation
 router.post(
@@ -128,5 +168,6 @@ router.post(
   validate,
   geolocationController.getTimeframeAnalysis
 );
+*/
 
 module.exports = router;
