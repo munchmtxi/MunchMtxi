@@ -5,7 +5,6 @@ const countries = require('@config/countryConfigs');
 
 class Geolocation1Service {
   constructor() {
-    // Initialize with retry logic for resilience
     this.client = new Client({
       retry: {
         maxRetries: 3,
@@ -15,10 +14,10 @@ class Geolocation1Service {
   }
 
   /**
-   * Validates an address using Google Maps API.
+   * Validates an address using Google Maps API with enhanced verification.
    * @param {string} address - The address to validate.
    * @param {string} countryCode - The country code (ISO Alpha-3).
-   * @returns {Promise<Object>} - Formatted address details.
+   * @returns {Promise<Object>} - Formatted address details with validation status.
    * @throws {AppError} - Throws error if validation fails.
    */
   async validateAddress(address, countryCode) {
@@ -27,6 +26,7 @@ class Geolocation1Service {
       if (!countryConfig) {
         throw new AppError('Unsupported country code', 400);
       }
+
       const response = await this.client.geocode({
         params: {
           address,
@@ -36,10 +36,44 @@ class Geolocation1Service {
         },
         timeout: 5000,
       });
+
       if (response.data.results.length === 0) {
-        throw new AppError('Invalid address', 400);
+        // Try to find nearby valid addresses as suggestions
+        const fuzzyResponse = await this.client.geocode({
+          params: {
+            address: this._extractMainComponents(address),
+            region: countryCode,
+            components: `country:${countryCode}`,
+            key: process.env.GOOGLE_MAPS_API_KEY,
+          }
+        });
+
+        return {
+          status: 'INVALID',
+          originalAddress: address,
+          suggestions: fuzzyResponse.data.results.slice(0, 5).map(result => 
+            this._formatAddressResponse(result, countryConfig)
+          ),
+          message: 'Address not found. Consider the suggested alternatives.'
+        };
       }
-      return this._formatAddressResponse(response.data.results[0], countryConfig);
+
+      const mainResult = response.data.results[0];
+      const validationStatus = this._determineValidationStatus(mainResult);
+      const formattedResponse = this._formatAddressResponse(mainResult, countryConfig);
+
+      // If address is valid but not exact, get nearby suggestions
+      let suggestions = [];
+      if (validationStatus.confidence !== 'HIGH') {
+        suggestions = await this._getNearbyAddresses(mainResult.geometry.location, countryCode);
+      }
+
+      return {
+        ...formattedResponse,
+        validationStatus,
+        suggestions: suggestions.slice(0, 5),
+      };
+
     } catch (error) {
       logger.error('Address validation error:', { error: error.message, address, countryCode });
       if (error instanceof AppError) throw error;
@@ -48,29 +82,37 @@ class Geolocation1Service {
   }
 
   /**
-   * Validates multiple addresses.
+   * Validates multiple addresses with enhanced verification.
    * @param {string[]} addresses - Array of addresses to validate.
    * @param {string} countryCode - Country code (ISO Alpha-3).
-   * @returns {Promise<Object[]>} - Array of validation results.
+   * @returns {Promise<Object[]>} - Array of validation results with suggestions.
    */
   async validateMultipleAddresses(addresses, countryCode) {
     const results = [];
     for (const address of addresses) {
       try {
         const result = await this.validateAddress(address, countryCode);
-        results.push({ address, result, success: true });
+        results.push({ 
+          address, 
+          result, 
+          success: result.validationStatus.status === 'VALID' 
+        });
       } catch (error) {
-        results.push({ address, error: error.message, success: false });
+        results.push({ 
+          address, 
+          error: error.message, 
+          success: false 
+        });
       }
     }
     return results;
   }
 
   /**
-   * Performs reverse geocoding to retrieve address from coordinates.
+   * Enhanced reverse geocoding with accuracy assessment.
    * @param {number} latitude - Latitude coordinate.
    * @param {number} longitude - Longitude coordinate.
-   * @returns {Promise<Object>} - Reverse geocoded address details.
+   * @returns {Promise<Object>} - Reverse geocoded address details with accuracy.
    * @throws {AppError} - Throws error if lookup fails.
    */
   async reverseGeocode(latitude, longitude) {
@@ -82,23 +124,30 @@ class Geolocation1Service {
         },
         timeout: 5000,
       });
+
       if (!response.data.results.length) {
         throw new AppError('No address found for these coordinates', 400);
       }
-      return this._formatAddressResponse(response.data.results[0]);
+
+      const mainResult = response.data.results[0];
+      const validationStatus = this._determineValidationStatus(mainResult);
+      const formattedResponse = this._formatAddressResponse(mainResult);
+
+      return {
+        ...formattedResponse,
+        validationStatus,
+        alternatives: response.data.results.slice(1, 4).map(result => 
+          this._formatAddressResponse(result)
+        )
+      };
     } catch (error) {
       logger.error('Reverse geocoding error:', { error: error.message, latitude, longitude });
       throw new AppError('Reverse geocoding service unavailable', 503);
     }
   }
 
-  /**
-   * Health check for the geolocation service.
-   * @returns {Promise<string>} - Returns 'healthy' or 'unhealthy'.
-   */
   async checkHealth() {
     try {
-      // Use a test address and country code to check the health of the service
       await this.validateAddress('test', 'MWI');
       return 'healthy';
     } catch (error) {
@@ -109,9 +158,6 @@ class Geolocation1Service {
 
   /**
    * Formats Google Maps API response into a structured format.
-   * @param {Object} googleResult - Google API response.
-   * @param {Object} countryConfig - Country-specific address format.
-   * @returns {Object} - Structured address response.
    * @private
    */
   _formatAddressResponse(googleResult, countryConfig) {
@@ -124,12 +170,70 @@ class Geolocation1Service {
         }
       });
     });
+
     return {
       formattedAddress: googleResult.formatted_address,
       components,
       location: googleResult.geometry.location,
       placeId: googleResult.place_id,
+      locationType: googleResult.geometry.location_type,
+      partialMatch: googleResult.partial_match || false
     };
+  }
+
+  /**
+   * Determines the validation status and confidence level of an address.
+   * @private
+   */
+  _determineValidationStatus(googleResult) {
+    const locationType = googleResult.geometry.location_type;
+    const isPartialMatch = googleResult.partial_match || false;
+
+    if (locationType === 'ROOFTOP' && !isPartialMatch) {
+      return { status: 'VALID', confidence: 'HIGH' };
+    } else if (locationType === 'RANGE_INTERPOLATED' || locationType === 'GEOMETRIC_CENTER') {
+      return { status: 'VALID', confidence: 'MEDIUM' };
+    } else {
+      return { status: 'VALID', confidence: 'LOW' };
+    }
+  }
+
+  /**
+   * Gets nearby valid addresses for suggestions.
+   * @private
+   */
+  async _getNearbyAddresses(location, countryCode) {
+    try {
+      const response = await this.client.placesNearby({
+        params: {
+          location,
+          radius: 1000,
+          type: 'street_address',
+          key: process.env.GOOGLE_MAPS_API_KEY
+        }
+      });
+      
+      return response.data.results.map(place => ({
+        formattedAddress: place.formatted_address,
+        placeId: place.place_id,
+        location: place.geometry.location,
+        distance: place.distance
+      }));
+    } catch (error) {
+      logger.error('Nearby places error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Extracts main components from an address for fuzzy matching.
+   * @private
+   */
+  _extractMainComponents(address) {
+    // Remove apartment numbers, unit numbers, etc.
+    return address.replace(/(?:\s+)?(?:apt|unit|suite|floor|#)\s*[\w-]+/gi, '')
+                 .replace(/\s+/g, ' ')
+                 .trim();
   }
 }
 

@@ -44,6 +44,22 @@ module.exports = (sequelize, DataTypes) => {
     validatedAt: {
       type: DataTypes.DATE,
       allowNull: true
+    },
+    validationStatus: {
+      type: DataTypes.ENUM('PENDING', 'VALID', 'INVALID', 'NEEDS_CORRECTION'),
+      defaultValue: 'PENDING'
+    },
+    validationDetails: {
+      type: DataTypes.JSONB,
+      allowNull: true
+    },
+    suggestionCount: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0
+    },
+    nearbyValidAddresses: {
+      type: DataTypes.JSONB,
+      allowNull: true
     }
   }, {
     sequelize,

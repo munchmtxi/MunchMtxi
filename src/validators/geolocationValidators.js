@@ -443,3 +443,24 @@ exports.validateBatchLocationUpdate = [
     .isISO8601()
     .withMessage('Each location must have a valid timestamp')
 ];
+
+exports.validateAddressVerificationRequest = [
+  body('address')
+    .trim()
+    .notEmpty()
+    .withMessage('Address is required')
+    .isString()
+    .withMessage('Address must be a string')
+    .isLength({ min: 5, max: 200 })
+    .withMessage('Address must be between 5 and 200 characters'),
+  body('countryCode')
+    .trim()
+    .notEmpty()
+    .withMessage('Country code is required')
+    .custom(value => {
+      if (!countries[value.toUpperCase()]) {
+        throw new Error('Unsupported country code');
+      }
+      return true;
+    })
+];

@@ -195,5 +195,50 @@ exports.handleLocationError = (err, req, res, next) => {
     });
   }
 
+  exports.verifyAndSuggestAddress = catchAsync(async (req, res) => {
+    const { address, countryCode } = req.body;
+    
+    // Validate and format the address
+    const validationResult = await geolocation1Service.validateAddress(
+      address,
+      countryCode
+    );
+  
+    // If address is valid, save it to the database
+    if (validationResult.status === 'VALID') {
+      const addressRecord = await Address.create({
+        formattedAddress: validationResult.formattedAddress,
+        placeId: validationResult.placeId,
+        latitude: validationResult.location.lat,
+        longitude: validationResult.location.lng,
+        components: validationResult.components,
+        countryCode,
+        validationStatus: 'VALID',
+        validatedAt: new Date(),
+        nearbyValidAddresses: validationResult.suggestions
+      });
+  
+      res.status(200).json({
+        status: 'success',
+        data: {
+          address: addressRecord,
+          confidence: validationResult.confidence,
+          suggestions: validationResult.suggestions
+        }
+      });
+    } else {
+      // If address is invalid, return suggestions
+      res.status(200).json({
+        status: 'success',
+        data: {
+          validationStatus: 'INVALID',
+          originalAddress: address,
+          suggestions: validationResult.suggestions,
+          message: 'Address could not be verified. Please check suggestions.'
+        }
+      });
+    }
+  });
+
   next(err);
 };
