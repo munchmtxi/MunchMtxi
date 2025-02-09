@@ -7,6 +7,7 @@ module.exports = {
       `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_users_country') THEN CREATE TYPE "enum_users_country" AS ENUM ('malawi', 'zambia', 'mozambique', 'tanzania'); END IF; END $$;`,
       `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_users_merchant_type') THEN CREATE TYPE "enum_users_merchant_type" AS ENUM ('grocery', 'restaurant'); END IF; END $$;`,
       `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_users_status') THEN CREATE TYPE "enum_users_status" AS ENUM ('active', 'inactive', 'suspended'); END IF; END $$;`,
+      `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_users_location_source') THEN CREATE TYPE "enum_users_location_source" AS ENUM ('ip', 'gps', 'manual'); END IF; END $$;`
     ];
 
     for (const query of enumQueries) {
@@ -49,22 +50,6 @@ module.exports = {
       password: {
         type: Sequelize.STRING,
         allowNull: false,
-        validate: {
-          isValidPassword(value) {
-            const passwordValidator = require('password-validator');
-            const schema = new passwordValidator();
-            schema
-              .is().min(8)
-              .is().max(100)
-              .has().uppercase()
-              .has().lowercase()
-              .has().digits()
-              .has().symbols();
-            if (!schema.validate(value)) {
-              throw new Error('Password does not meet complexity requirements');
-            }
-          },
-        },
       },
       role_id: {
         type: Sequelize.INTEGER,
@@ -80,25 +65,29 @@ module.exports = {
         type: Sequelize.JSON,
         allowNull: true,
       },
+      detected_location: {
+        type: Sequelize.JSONB,
+        allowNull: true,
+        comment: 'Automatically detected location from IP/GPS',
+      },
+      manual_location: {
+        type: Sequelize.JSONB,
+        allowNull: true,
+        comment: 'User-specified location override',
+      },
+      location_source: {
+        type: Sequelize.ENUM('ip', 'gps', 'manual'),
+        allowNull: true,
+        comment: 'Source of the current location data',
+      },
+      location_updated_at: {
+        type: Sequelize.DATE,
+        allowNull: true,
+      },
       phone: {
         type: Sequelize.STRING,
         unique: true,
         allowNull: true,
-        validate: {
-          isPhoneNumber(value) {
-            if (value) {
-              const phoneUtil = require('google-libphonenumber').PhoneNumberUtil.getInstance();
-              try {
-                const number = phoneUtil.parse(value);
-                if (!phoneUtil.isValidNumber(number)) {
-                  throw new Error('Invalid phone number format');
-                }
-              } catch (error) {
-                throw new Error('Invalid phone number format');
-              }
-            }
-          },
-        },
       },
       country: {
         type: Sequelize.ENUM('malawi', 'zambia', 'mozambique', 'tanzania'),
@@ -114,12 +103,6 @@ module.exports = {
       merchant_type: {
         type: Sequelize.ENUM('grocery', 'restaurant'),
         allowNull: true,
-        validate: {
-          isIn: {
-            args: [['grocery', 'restaurant']],
-            msg: 'Merchant type must be either grocery or restaurant',
-          },
-        },
       },
       is_verified: {
         type: Sequelize.BOOLEAN,
@@ -138,13 +121,6 @@ module.exports = {
         },
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL',
-        validate: {
-          isValidManager(value) {
-            if (value && value === this.id) {
-              throw new Error('A user cannot manage themselves');
-            }
-          },
-        },
       },
       two_factor_secret: {
         type: Sequelize.STRING,
@@ -157,13 +133,6 @@ module.exports = {
       password_reset_expires: {
         type: Sequelize.DATE,
         allowNull: true,
-        validate: {
-          isFutureDate(value) {
-            if (value && new Date(value) <= new Date()) {
-              throw new Error('Password reset expiration must be in the future');
-            }
-          },
-        },
       },
       avatar_url: {
         type: Sequelize.STRING,
@@ -202,5 +171,6 @@ module.exports = {
     await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_users_country";');
     await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_users_merchant_type";');
     await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_users_status";');
+    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_users_location_source";');
   },
 };
