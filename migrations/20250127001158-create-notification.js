@@ -62,6 +62,11 @@ module.exports = {
           notEmpty: { msg: 'Notification message is required' },
         }
       },
+      priority: {
+        type: Sequelize.ENUM('CRITICAL', 'HIGH', 'MEDIUM', 'LOW'),
+        allowNull: false,
+        defaultValue: 'LOW'
+      },
       read_status: {
         type: Sequelize.BOOLEAN,
         defaultValue: false,
@@ -104,5 +109,8 @@ module.exports = {
 
     // Drop the table
     await queryInterface.dropTable('notifications');
+    
+    // Drop the ENUM type
+    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_notifications_priority";');
   }
 };

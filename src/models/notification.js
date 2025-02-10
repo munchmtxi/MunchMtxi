@@ -1,7 +1,13 @@
 'use strict';
 const { Model } = require('sequelize');
-
 module.exports = (sequelize, DataTypes) => {
+  const PRIORITY_LEVELS = {
+    CRITICAL: 1,   // Emergency alerts, system critical updates
+    HIGH: 2,       // Order status changes, driver location updates
+    MEDIUM: 3,     // Inventory updates, booking confirmations  
+    LOW: 4         // Analytics updates, promotional notifications
+  };
+
   class Notification extends Model {
     static associate(models) {
       this.belongsTo(models.User, {
@@ -79,6 +85,17 @@ module.exports = (sequelize, DataTypes) => {
       validate: {
         notEmpty: { msg: 'Notification message is required' },
       },
+    },
+    priority: {
+      type: DataTypes.ENUM(Object.keys(PRIORITY_LEVELS)),
+      allowNull: false,
+      defaultValue: 'LOW',
+      validate: {
+        isIn: {
+          args: [Object.keys(PRIORITY_LEVELS)],
+          msg: 'Priority must be one of: CRITICAL, HIGH, MEDIUM, LOW'
+        }
+      }
     },
     read_status: {
       type: DataTypes.BOOLEAN,

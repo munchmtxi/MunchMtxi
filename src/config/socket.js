@@ -38,34 +38,31 @@ const setupSocket = (server) => {
   io.use(async (socket, next) => {
     try {
       const token = socket.handshake.auth.token;
-      
+
       if (!token) {
         return next(new Error('Authentication token required'));
       }
-
       // Verify JWT token
       const decoded = jwt.verify(token, config.jwt.secret);
-      
+
       // Find user and active session
       const [user, session] = await Promise.all([
         User.findByPk(decoded.id),
-        Session.findOne({ 
-          where: { 
+        Session.findOne({
+          where: {
             userId: decoded.id,
             token: token,
             isActive: true
           }
         })
       ]);
-      
+
       if (!user) {
         return next(new Error('User not found'));
       }
-
       if (!session) {
         return next(new Error('Invalid or expired session'));
       }
-
       // Attach user and session to socket
       socket.user = user;
       socket.sessionId = session.id;
@@ -74,19 +71,18 @@ const setupSocket = (server) => {
       const clientIp = socket.handshake.address;
       const currentTime = Date.now();
       const userRequests = requestCounts.get(clientIp) || [];
-      
+
       // Clean up old requests
       const recentRequests = userRequests.filter(
         time => currentTime - time < rateLimiter.windowMs
       );
-      
+
       if (recentRequests.length >= rateLimiter.max) {
         return next(new Error('Rate limit exceeded'));
       }
-      
+
       recentRequests.push(currentTime);
       requestCounts.set(clientIp, recentRequests);
-
       next();
     } catch (error) {
       logger.error('Socket authentication error:', error);
@@ -94,21 +90,32 @@ const setupSocket = (server) => {
     }
   });
 
+  // Reconnection handling middleware
+  io.use(async (socket, next) => {
+    socket.on(EVENTS.RECONNECT_ATTEMPT, async () => {
+      try {
+        const missedEvents = await getOfflineEvents(socket.user.id);
+        if (missedEvents.length > 0) {
+          socket.emit(EVENTS.SYNC_REQUEST, missedEvents);
+        }
+      } catch (error) {
+        logger.error('Reconnection sync error:', error);
+      }
+    });
+    next();
+  });
+
   // Connection handling
   io.on(EVENTS.CONNECT, async (socket) => {
     try {
       // Join appropriate rooms based on user role
       await joinUserRooms(socket, io);
-
       // Initialize role-specific handlers
       setupRoleHandlers(socket, io);
-
       // Setup error handling
       setupErrorHandling(socket);
-
       // Setup disconnect handling
       setupDisconnectHandling(socket);
-
       // Log connection
       logger.info(`User connected: ${socket.user.id} (${socket.user.role})`, {
         userId: socket.user.id,
@@ -116,10 +123,9 @@ const setupSocket = (server) => {
         socketId: socket.id,
         sessionId: socket.sessionId
       });
-
     } catch (error) {
       logger.error('Error in socket connection:', error);
-      socket.emit(EVENTS.ERROR, { 
+      socket.emit(EVENTS.ERROR, {
         message: 'Connection error',
         code: 'CONNECTION_ERROR'
       });
@@ -133,14 +139,14 @@ const setupSocket = (server) => {
 // Helper function to join rooms
 const joinUserRooms = async (socket, io) => {
   const { user } = socket;
-  
+
   try {
     // Join role-specific room
     socket.join(`role:${user.role}`);
-    
+
     // Join user-specific room
     socket.join(`user:${user.id}`);
-    
+
     // Join additional rooms based on role
     switch (user.role.toUpperCase()) {
       case 'MERCHANT':
@@ -160,7 +166,6 @@ const joinUserRooms = async (socket, io) => {
         socket.join('system:monitoring');
         break;
     }
-
     logger.info(`Rooms joined for user ${user.id}`, {
       userId: user.id,
       socketId: socket.id,
@@ -175,7 +180,6 @@ const joinUserRooms = async (socket, io) => {
 // Helper function to setup role-specific handlers
 const setupRoleHandlers = (socket, io) => {
   const { role } = socket.user;
-
   try {
     switch (role.toUpperCase()) {
       case 'CUSTOMER':
@@ -217,7 +221,7 @@ const setupErrorHandling = (socket) => {
       next();
     } catch (error) {
       logger.error('Uncaught socket error:', error);
-      socket.emit(EVENTS.ERROR, { 
+      socket.emit(EVENTS.ERROR, {
         message: 'Internal server error',
         code: 'INTERNAL_ERROR'
       });
@@ -236,7 +240,6 @@ const setupDisconnectHandling = (socket) => {
           { where: { id: socket.user.id } }
         );
       }
-
       // Clean up any role-specific resources
       switch (socket.user?.role.toUpperCase()) {
         case 'DRIVER':
@@ -246,7 +249,6 @@ const setupDisconnectHandling = (socket) => {
           await updateMerchantAvailability(socket.user.id, false);
           break;
       }
-
       logger.info(`User disconnected: ${socket.user?.id}`, {
         userId: socket.user?.id,
         socketId: socket.id,
