@@ -23,192 +23,222 @@ module.exports = (sequelize, DataTypes) => {
     }
   }
 
-  Payment.init({
-    id: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      autoIncrement: true,
-      primaryKey: true,
-    },
-    order_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      references: {
-        model: 'orders',
-        key: 'id',
+  Payment.init(
+    {
+      id: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        autoIncrement: true,
+        primaryKey: true,
       },
-      onUpdate: 'CASCADE',
-      onDelete: 'CASCADE',
-      validate: {
-        notNull: { msg: 'Order ID is required' },
-        isInt: { msg: 'Order ID must be an integer' },
-      },
-    },
-    customer_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      references: {
-        model: 'customers',
-        key: 'id',
-      },
-      onUpdate: 'CASCADE',
-      onDelete: 'CASCADE',
-      validate: {
-        notNull: { msg: 'Customer ID is required' },
-        isInt: { msg: 'Customer ID must be an integer' },
-      },
-    },
-    merchant_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      references: {
-        model: 'merchants',
-        key: 'id',
-      },
-      onUpdate: 'CASCADE',
-      onDelete: 'CASCADE',
-      validate: {
-        notNull: { msg: 'Merchant ID is required' },
-        isInt: { msg: 'Merchant ID must be an integer' },
-      },
-    },
-    driver_id: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      references: {
-        model: 'drivers',
-        key: 'id',
-      },
-      onUpdate: 'CASCADE',
-      onDelete: 'SET NULL',
-      validate: {
-        isInt: { msg: 'Driver ID must be an integer' },
-      },
-    },
-    amount: {
-      type: DataTypes.FLOAT,
-      allowNull: false,
-      validate: {
-        min: {
-          args: [0],
-          msg: 'Amount must be positive',
+      order_id: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        references: {
+          model: 'orders',
+          key: 'id',
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'CASCADE',
+        validate: {
+          notNull: { msg: 'Order ID is required' },
+          isInt: { msg: 'Order ID must be an integer' },
         },
       },
-    },
-    payment_method: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      validate: {
-        notEmpty: { msg: 'Payment method is required' },
+      customer_id: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        references: {
+          model: 'customers',
+          key: 'id',
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'CASCADE',
+        validate: {
+          notNull: { msg: 'Customer ID is required' },
+          isInt: { msg: 'Customer ID must be an integer' },
+        },
       },
-    },
-    status: {
-      type: DataTypes.ENUM('pending', 'processing', 'completed', 'failed', 'refunded', 'cancelled', 'verified'),
-      allowNull: false,
-      defaultValue: 'pending',
-    },
-    transaction_id: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      unique: true,
-    },
-    // New risk and verification fields added for our vigilant warriors:
-    risk_score: {
-      type: DataTypes.FLOAT,
-      allowNull: true,
-      defaultValue: 0,
-      validate: {
-        min: 0,
-        max: 100,
+      merchant_id: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        references: {
+          model: 'merchants',
+          key: 'id',
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'CASCADE',
+        validate: {
+          notNull: { msg: 'Merchant ID is required' },
+          isInt: { msg: 'Merchant ID must be an integer' },
+        },
       },
-    },
-    risk_factors: {
-      type: DataTypes.JSONB,
-      allowNull: true,
-    },
-    verification_attempts: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      defaultValue: 0,
-    },
-    verification_details: {
-      type: DataTypes.JSONB,
-      allowNull: true,
-    },
-    provider: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      comment: 'Payment provider (Airtel, TNM, MTN, M-Pesa, Bank Name, etc.)',
-    },
-    payment_details: {
-      type: DataTypes.JSONB,
-      allowNull: true,
-      comment: 'Provider-specific payment details including bank reference',
-    },
-    bank_reference: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      comment: 'Bank transaction reference number',
-    },
-    daily_transaction_count: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      comment: 'Daily transaction counter for limits',
-    },
-    created_at: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: sequelize.literal('CURRENT_TIMESTAMP'),
-    },
-    updated_at: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: sequelize.literal('CURRENT_TIMESTAMP'),
-    },
-    deleted_at: {
-      type: DataTypes.DATE,
-      allowNull: true,
-    }
-  }, {
-    sequelize,
-    modelName: 'Payment',
-    tableName: 'payments',
-    underscored: true,
-    paranoid: true,
-    indexes: [
-      {
-        fields: ['order_id'],
-        name: 'payments_order_id_index',
+      driver_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+          model: 'drivers',
+          key: 'id',
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL',
+        validate: {
+          isInt: { msg: 'Driver ID must be an integer' },
+        },
       },
-      {
-        fields: ['customer_id'],
-        name: 'payments_customer_id_index',
+      amount: {
+        type: DataTypes.FLOAT,
+        allowNull: false,
+        validate: {
+          min: {
+            args: [0],
+            msg: 'Amount must be positive',
+          },
+        },
       },
-      {
-        fields: ['merchant_id'],
-        name: 'payments_merchant_id_index',
+      payment_method: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        validate: {
+          notEmpty: { msg: 'Payment method is required' },
+        },
       },
-      {
-        fields: ['driver_id'],
-        name: 'payments_driver_id_index',
+      status: {
+        type: DataTypes.ENUM(
+          'pending',
+          'processing',
+          'completed',
+          'failed',
+          'refunded', // Added 'refunded' status here
+          'cancelled',
+          'verified'
+        ),
+        allowNull: false,
+        defaultValue: 'pending',
       },
-      {
+      transaction_id: {
+        type: DataTypes.STRING,
+        allowNull: true,
         unique: true,
-        fields: ['transaction_id'],
-        name: 'payments_transaction_id_unique',
       },
-      // Adding index for bank_reference
-      {
-        fields: ['bank_reference'],
-        name: 'payments_bank_reference_index',
+      risk_score: {
+        type: DataTypes.FLOAT,
+        allowNull: true,
+        defaultValue: 0,
+        validate: {
+          min: 0,
+          max: 100,
+        },
       },
-      // Adding index for provider to improve query performance
-      {
-        fields: ['provider'],
-        name: 'payments_provider_index',
-      }
-    ]
-  });
+      risk_factors: {
+        type: DataTypes.JSONB,
+        allowNull: true,
+      },
+      verification_attempts: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+      },
+      verification_details: {
+        type: DataTypes.JSONB,
+        allowNull: true,
+      },
+      provider: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        comment: 'Payment provider (Airtel, TNM, MTN, M-Pesa, Bank Name, etc.)',
+      },
+      payment_details: {
+        type: DataTypes.JSONB,
+        allowNull: true,
+        comment: 'Provider-specific payment details including bank reference',
+      },
+      bank_reference: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        comment: 'Bank transaction reference number',
+      },
+      daily_transaction_count: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        comment: 'Daily transaction counter for limits',
+      },
+      refund_status: {
+        type: DataTypes.ENUM('pending', 'approved', 'rejected', 'processed'),
+        allowNull: true,
+      },
+      refund_details: {
+        type: DataTypes.JSONB,
+        allowNull: true,
+        comment: 'Stores refund reason, approver, timestamp, etc.',
+      },
+      tip_amount: {
+        type: DataTypes.FLOAT,
+        allowNull: true,
+        defaultValue: 0,
+        validate: {
+          min: 0,
+        },
+      },
+      tip_allocation: {
+        type: DataTypes.JSONB,
+        allowNull: true,
+        comment: 'Stores tip distribution details among staff/drivers',
+      },
+      created_at: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: sequelize.literal('CURRENT_TIMESTAMP'),
+      },
+      updated_at: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: sequelize.literal('CURRENT_TIMESTAMP'),
+      },
+      deleted_at: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
+    },
+    {
+      sequelize,
+      modelName: 'Payment',
+      tableName: 'payments',
+      underscored: true,
+      paranoid: true,
+      indexes: [
+        {
+          fields: ['order_id'],
+          name: 'payments_order_id_index',
+        },
+        {
+          fields: ['customer_id'],
+          name: 'payments_customer_id_index',
+        },
+        {
+          fields: ['merchant_id'],
+          name: 'payments_merchant_id_index',
+        },
+        {
+          fields: ['driver_id'],
+          name: 'payments_driver_id_index',
+        },
+        {
+          unique: true,
+          fields: ['transaction_id'],
+          name: 'payments_transaction_id_unique',
+        },
+        {
+          fields: ['bank_reference'],
+          name: 'payments_bank_reference_index',
+        },
+        {
+          fields: ['provider'],
+          name: 'payments_provider_index',
+        },
+      ],
+    }
+  );
 
   return Payment;
 };

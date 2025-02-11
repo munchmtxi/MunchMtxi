@@ -24,7 +24,7 @@
     "seed": "cross-env SKIP_CONFIG_VALIDATION=true yarn sequelize db:seed:all",
     "seed:undo": "cross-env SKIP_CONFIG_VALIDATION=true yarn sequelize db:seed:undo:all",
     "sequelize": "sequelize-cli",
-    "go": "node server.js",
+    "start": "node server.js",
     "test": "jest",
     "test:connections": "node scripts/testConnections.js",
     "test:coverage": "jest --coverage",

@@ -93,6 +93,38 @@ try {
         paymentController.exportTransactionReport
     );
 
+    // Refund routes
+router.post(
+    '/:paymentId/refund',
+    authenticate,
+    authorizeRoles('merchant', 'admin'),
+    validateRequest(paymentValidators.refundSchema), // Access refundSchema as a property
+    paymentController.initiateRefund
+  );
+  
+  router.post(
+    '/:paymentId/refund/:action',
+    authenticate,
+    authorizeRoles('admin'),
+    paymentController.processRefund
+  );
+  
+  // Tip routes
+  router.post(
+    '/:paymentId/tip',
+    authenticate,
+    authorizeRoles('customer'),
+    validateRequest(paymentValidators.tipSchema), // Access tipSchema as a property
+    paymentController.addTip
+  );
+  
+  router.get(
+    '/:paymentId/tip-allocation',
+    authenticate,
+    authorizeRoles('merchant', 'admin', 'driver'),
+    paymentController.getTipAllocation
+  );
+
 } catch (error) {
     console.error('[PaymentRoutes] Setup error:', error);
     throw error;

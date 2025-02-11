@@ -185,6 +185,51 @@ class PaymentController {
       }
     });
   });
+
+  initiateRefund = catchAsync(async (req, res) => {
+    const { paymentId } = req.params;
+    const refundData = { ...req.body, requested_by: req.user.id };
+    const result = await paymentService.initiateRefund(paymentId, refundData);
+    
+    res.status(200).json({
+      status: 'success',
+      data: result
+    });
+  });
+  
+  processRefund = catchAsync(async (req, res) => {
+    const { paymentId, action } = req.params;
+    const { notes } = req.body;
+    const result = await paymentService.processRefund(paymentId, req.user.id, action, notes);
+    
+    res.status(200).json({
+      status: 'success',
+      data: result
+    });
+  });
+  
+  addTip = catchAsync(async (req, res) => {
+    const { paymentId } = req.params;
+    const result = await paymentService.addTip(paymentId, req.body);
+    
+    res.status(200).json({
+      status: 'success',
+      data: result
+    });
+  });
+  
+  getTipAllocation = catchAsync(async (req, res) => {
+    const { paymentId } = req.params;
+    const payment = await paymentService.getPaymentStatus(paymentId);
+    
+    res.status(200).json({
+      status: 'success',
+      data: {
+        tip_amount: payment.tip_amount,
+        tip_allocation: payment.tip_allocation
+      }
+    });
+  });
 }
 
 module.exports = new PaymentController();
