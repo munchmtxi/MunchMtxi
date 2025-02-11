@@ -1,4 +1,3 @@
-// app.js
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
@@ -12,7 +11,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Morgan logger middleware (after logger is initialized)
+// Morgan logger middleware
 app.use(morgan('combined', { 
   stream: { 
     write: message => logger.info(message.trim()) 
@@ -28,7 +27,7 @@ const requestLogger = require('@middleware/requestLogger');
 app.use(requestLogger);  
 
 // Initialize authentication
-const { setupPassport } = require('@config/passport');  // Notice the destructuring here
+const { setupPassport } = require('@config/passport');
 setupPassport(app);
 
 // API Documentation
@@ -42,6 +41,7 @@ app.use('/devices', require('@routes/deviceRoutes'));
 app.use('/notifications', require('@routes/notificationRoutes'));
 app.use('/password', require('@routes/passwordRoutes'));
 app.use('/api/v1/geolocation', require('@routes/geolocationRoutes'));
+app.use('/api/v1/payments', require('@routes/paymentRoutes'));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -61,4 +61,53 @@ app.all('*', (req, res, next) => {
 const errorHandler = require('@middleware/errorHandler');
 app.use(errorHandler);
 
-module.exports = app;
+// Socket.io initialization and Notification Service integration
+const http = require('http');
+const server = http.createServer(app);
+const io = require('socket.io')(server);
+
+// Initialize Notification Service and attach it to our event manager
+const NotificationService = require('@services/notificationService');
+const notificationService = new NotificationService(io);
+
+// Set up Socket.IO event handlers for payments
+io.on('connection', (socket) => {
+  socket.on('subscribe:payment', async (paymentId) => {
+    socket.join(`payment:${paymentId}`);
+  });
+
+  socket.on('unsubscribe:payment', (paymentId) => {
+    socket.leave(`payment:${paymentId}`);
+  });
+});
+
+// Event manager setup
+const eventManager = require('@services/eventManager');
+eventManager.setNotificationService(notificationService);
+
+// Add payment event listeners
+eventManager.on('payment.updated', async (data) => {
+  const { payment, customerId } = data;
+  
+  // Emit to specific payment room
+  io.to(`payment:${payment.id}`).emit('payment:update', {
+    paymentId: payment.id,
+    status: payment.status,
+    updatedAt: payment.updated_at
+  });
+
+  // Emit to customer's room if they're subscribed
+  io.to(`customer:${customerId}`).emit('payment:update', {
+    paymentId: payment.id,
+    status: payment.status,
+    updatedAt: payment.updated_at
+  });
+});
+
+// Add payment webhook event handlers
+eventManager.on('payment.webhook.received', async (data) => {
+  const { provider, webhookData } = data;
+  logger.info(`Received webhook from ${provider}`, { webhookData });
+});
+
+module.exports = { app, server };

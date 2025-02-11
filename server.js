@@ -1,5 +1,5 @@
 require('module-alias/register'); // Register path aliases
-const app = require('./app');
+const { app, server } = require('./app');  // Note we're destructuring both app and server
 const { sequelize } = require('@models');
 const { logger } = require('@utils/logger');
 const config = require('@config/config');
@@ -42,12 +42,12 @@ const startServer = async () => {
     await sequelize.authenticate();
     logger.info('Database connection established successfully.');
 
-    // Start the server
-    const server = app.listen(config.port, () => {
+    // Start the server using the http.Server instance
+    server.listen(config.port, () => {
       logger.info(`Server running on port ${config.port} in ${config.nodeEnv} mode`);
     });
 
-    // Set up Socket.IO
+    // Set up Socket.IO (if not already set up in app.js)
     setupSocket(server);
 
     // Handle unhandled promise rejections

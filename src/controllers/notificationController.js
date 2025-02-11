@@ -1,6 +1,7 @@
 // src/controllers/notificationController.js
 const whatsappService = require('@services/whatsappService');
 const emailService = require('@services/emailService');
+const notificationService = require('@services/notificationService'); // New notification service
 const catchAsync = require('@utils/catchAsync');
 const AppError = require('@utils/AppError');
 const { NotificationLog, Template, User } = require('@models');
@@ -329,4 +330,22 @@ const notificationController = {
   })
 };
 
-module.exports = notificationController;
+// New method using the new notificationService
+const getNotifications = catchAsync(async (req, res) => {
+  const { page, limit } = req.query;
+  const notifications = await notificationService.getUserNotifications(
+    req.user.id,
+    { page, limit }
+  );
+  
+  res.status(200).json({
+    status: 'success',
+    data: notifications
+  });
+});
+
+// Export the merged controller with the new getNotifications method
+module.exports = {
+  ...notificationController,
+  getNotifications
+};

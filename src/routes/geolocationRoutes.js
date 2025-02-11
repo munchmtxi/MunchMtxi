@@ -4,7 +4,7 @@ const express = require('express');
 const router = express.Router();
 const geolocationController = require('@controllers/geolocationController');
 const { authenticate } = require('@middleware/authMiddleware');
-const validate = require('@middleware/validateRequest');
+const { validateRequest } = require('@middleware/validateRequest');
 const { validateLocationPermissions } = require('@middleware/security');
 const { geoLocationLimiter } = require('@middleware/security').rateLimiters;
 
@@ -33,9 +33,6 @@ router.use(authenticate);
 // Rate limiter for specific routes
 router.use(geoLocationLimiter);
 
-// Active Routes - These have corresponding controller methods
-// --------------------------------------------------------
-
 // Location Detection endpoints
 router.get(
   '/detect-location',
@@ -47,7 +44,7 @@ router.post(
   '/set-manual-location',
   validateLocationPermissions,
   validateManualLocationRequest,
-  validate,
+  validateRequest, // Changed this line
   geolocationController.setManualLocation
 );
 
@@ -61,7 +58,7 @@ router.post(
   '/gps-location',
   validateLocationPermissions,
   validateGPSLocation,
-  validate,
+  validateRequest, // Changed this line
   geolocationController.updateGPSLocation
 );
 

@@ -1,13 +1,16 @@
 // src/routes/passwordRoutes.js
-
 const express = require('express');
 const router = express.Router();
 const rateLimit = require('express-rate-limit');
 
 // Import using module aliases
 const passwordController = require('@controllers/passwordController');
-const passwordValidators = require('@validators/passwordValidators');
-const validateRequest = require('@middleware/validateRequest');
+const {
+  validateForgotPassword,
+  validateResetPassword,
+  verifyTokenValidator
+} = require('@validators/passwordValidators');
+const { validateRequest } = require('@middleware/validateRequest');
 
 // Rate limiter for password routes
 const passwordLimiter = rateLimit({
@@ -22,19 +25,12 @@ const passwordLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Debug logging
-console.log('Route components:', {
-  validateRequest: typeof validateRequest === 'function' ? 'function' : typeof validateRequest,
-  controllerMethods: Object.keys(passwordController),
-  validators: Object.keys(passwordValidators)
-});
-
 // Route for initiating password reset
 router.post(
   '/forgot-password', 
   passwordLimiter,
-  [...passwordValidators.validateForgotPassword],
-  validateRequest,
+  validateForgotPassword,
+  validateRequest,  // No need to pass schema since we're using express-validator
   passwordController.forgotPassword
 );
 
@@ -42,7 +38,7 @@ router.post(
 router.post(
   '/reset-password/:token', 
   passwordLimiter,
-  [...passwordValidators.validateResetPassword],
+  validateResetPassword,
   validateRequest,
   passwordController.resetPassword
 );
@@ -51,7 +47,7 @@ router.post(
 router.get(
   '/verify-token/:token',
   passwordLimiter,
-  [...passwordValidators.verifyTokenValidator],
+  verifyTokenValidator,
   validateRequest,
   passwordController.verifyResetToken
 );

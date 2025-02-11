@@ -103,7 +103,7 @@ module.exports = (sequelize, DataTypes) => {
       },
     },
     status: {
-      type: DataTypes.ENUM('pending', 'completed', 'failed', 'refunded'),
+      type: DataTypes.ENUM('pending', 'processing', 'completed', 'failed', 'refunded', 'cancelled', 'verified'),
       allowNull: false,
       defaultValue: 'pending',
     },
@@ -111,6 +111,27 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: true,
       unique: true,
+    },
+    // New fields added
+    provider: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Payment provider (Airtel, TNM, MTN, M-Pesa, Bank Name, etc.)'
+    },
+    payment_details: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      comment: 'Provider-specific payment details including bank reference'
+    },
+    bank_reference: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Bank transaction reference number'
+    },
+    daily_transaction_count: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      comment: 'Daily transaction counter for limits'
     },
     created_at: {
       type: DataTypes.DATE,
@@ -153,6 +174,16 @@ module.exports = (sequelize, DataTypes) => {
         unique: true,
         fields: ['transaction_id'],
         name: 'payments_transaction_id_unique'
+      },
+      // Adding index for bank_reference
+      {
+        fields: ['bank_reference'],
+        name: 'payments_bank_reference_index'
+      },
+      // Adding index for provider to improve query performance
+      {
+        fields: ['provider'],
+        name: 'payments_provider_index'
       }
     ]
   });

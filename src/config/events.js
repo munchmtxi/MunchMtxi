@@ -112,7 +112,6 @@ const EVENTS = {
     
     // Permissions
     PERMISSIONS_UPDATED: 'staff:permissionsUpdated'
-
   },
 
   // Taxi Events
@@ -206,6 +205,42 @@ const EVENTS = {
     // Monitoring
     METRICS_UPDATED: 'admin:metricsUpdated',
     LOG_ALERT: 'admin:logAlert'
+  },
+
+  // Room Events
+  ROOM: {
+    // Room Management
+    CREATED: 'room:created',
+    DELETED: 'room:deleted',
+    UPDATED: 'room:updated',
+    
+    // Membership
+    MEMBER_JOINED: 'room:memberJoined',
+    MEMBER_LEFT: 'room:memberLeft',
+    MEMBER_KICKED: 'room:memberKicked',
+    
+    // Permissions
+    PERMISSIONS_UPDATED: 'room:permissionsUpdated',
+    
+    // Messages
+    MESSAGE: 'room:message',
+    BROADCAST: 'room:broadcast',
+    
+    // Status
+    STATUS_CHANGED: 'room:statusChanged'
+  },
+
+  // Table Room Events
+  TABLE_ROOM: {
+    GROUP_CREATED: 'tableRoom:groupCreated',
+    AREA_UPDATED: 'tableRoom:areaUpdated',
+    EVENT_CREATED: 'tableRoom:eventCreated'
+  },
+
+  // Taxi Room Events
+  TAXI_ROOM: {
+    ZONE_UPDATED: 'taxiRoom:zoneUpdated',
+    RIDE_UPDATED: 'taxiRoom:rideUpdated'
   }
 };
 
