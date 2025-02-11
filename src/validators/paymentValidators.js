@@ -117,7 +117,7 @@ const webhookSchema = Joi.object({
   metadata: Joi.object()
 }).unknown(true); // Allow unknown fields for provider-specific data
 
-// Helper validation middleware
+// Helper validation middleware for Joi schemas
 const validatePayment = (schema) => {
   return (req, res, next) => {
     const { error } = schema.validate(req.body, { abortEarly: false });
@@ -139,9 +139,49 @@ const validatePayment = (schema) => {
   };
 };
 
+// Import express-validator functions for route-specific validations
+const { body, query, param } = require('express-validator');
+
+const paymentValidators = {
+  verifyPayment: [
+    param('paymentId').isInt().withMessage('Valid payment ID is required')
+  ],
+
+  transactionReport: [
+    query('startDate')
+      .isISO8601()
+      .withMessage('Valid start date is required'),
+    query('endDate')
+      .isISO8601()
+      .withMessage('Valid end date is required')
+      .custom((endDate, { req }) => {
+        if (new Date(endDate) < new Date(req.query.startDate)) {
+          throw new Error('End date must be after start date');
+        }
+        return true;
+      })
+  ],
+
+  reviewDecision: [
+    param('paymentId').isInt().withMessage('Valid payment ID is required'),
+    body('reason').isString().notEmpty().withMessage('Review reason is required'),
+    body('notes').optional().isString()
+  ],
+
+  anomalyReport: [
+    query('startDate').optional().isISO8601(),
+    query('endDate').optional().isISO8601(),
+    query('threshold')
+      .optional()
+      .isFloat({ min: 0, max: 100 })
+      .withMessage('Threshold must be between 0 and 100')
+  ]
+};
+
 module.exports = {
   mobileMoneySchema,
   bankCardSchema,
   webhookSchema,
-  validatePayment
+  validatePayment,
+  paymentValidators
 };

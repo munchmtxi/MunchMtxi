@@ -1,74 +1,101 @@
-// src/routes/paymentRoutes.js
 const express = require('express');
 const router = express.Router();
 
-// Import all dependencies with correct paths
-const { authenticate, authorizeRoles } = require('../middleware/authMiddleware'); // Fixed path
-const {
-  mobileMoneySchema,
-  bankCardSchema,
-  webhookSchema,
-  validatePayment
-} = require('../validators/paymentValidators');
-const PaymentService = require('../services/paymentService');
-const catchAsync = require('../utils/catchAsync');
+// Import middleware and controllers
+try {
+    const { authenticate, authorizeRoles } = require('../middleware/authMiddleware');
+    const { validateRequest } = require('../middleware/validateRequest');
+    const {
+        mobileMoneySchema,
+        bankCardSchema,
+        webhookSchema,
+        paymentValidators
+    } = require('../validators/paymentValidators');
+    const paymentController = require('../controllers/paymentController');
 
-// Debug imports
-console.log('Checking dependencies:', {
-  authenticate: typeof authenticate,
-  validatePayment: typeof validatePayment,
-  PaymentService: typeof PaymentService,
-  catchAsync: typeof catchAsync
-});
+    // Debug logging middleware - keeping this as it's useful for request tracking
+    const debugLogger = (routeName) => (req, res, next) => {
+        console.log(`[${routeName}] ${req.method} ${req.originalUrl}`);
+        next();
+    };
 
-// Define routes with authentication and authorization
-router.post('/mobile-money/initiate', 
-  authenticate,
-  authorizeRoles('customer', 'merchant'), // Add appropriate roles
-  validatePayment(mobileMoneySchema),
-  catchAsync(async (req, res) => {
-    const payment = await PaymentService.initiateMobileMoneyPayment(req.body);
-    res.status(201).json({
-      status: 'success',
-      data: payment
-    });
-  })
-);
+    // Mobile Money Route
+    router.post(
+        '/mobile-money/initiate',
+        debugLogger('MobileMoney'),
+        authenticate,
+        authorizeRoles('customer', 'merchant'),
+        validateRequest(mobileMoneySchema),
+        paymentController.initiateMobileMoneyPayment
+    );
 
-router.post('/bank-card/initiate',
-  authenticate,
-  authorizeRoles('customer', 'merchant'), // Add appropriate roles
-  validatePayment(bankCardSchema),
-  catchAsync(async (req, res) => {
-    const payment = await PaymentService.initiateBankCardPayment(req.body);
-    res.status(201).json({
-      status: 'success',
-      data: payment
-    });
-  })
-);
+    // Bank Card Route
+    router.post(
+        '/bank-card/initiate',
+        debugLogger('BankCard'),
+        authenticate,
+        authorizeRoles('customer', 'merchant'),
+        validateRequest(bankCardSchema),
+        paymentController.initiateBankCardPayment
+    );
 
-router.get('/:paymentId/status',
-  authenticate,
-  catchAsync(async (req, res) => {
-    const payment = await PaymentService.getPaymentStatus(req.params.paymentId);
-    res.json({
-      status: 'success',
-      data: payment
-    });
-  })
-);
+    // Payment Status Route
+    router.get(
+        '/:paymentId/status',
+        debugLogger('PaymentStatus'),
+        authenticate,
+        paymentController.getPaymentStatus
+    );
 
-// Webhook route without authentication
-router.post('/webhook/:provider',
-  validatePayment(webhookSchema),
-  catchAsync(async (req, res) => {
-    const { provider } = req.params;
-    await PaymentService.handleWebhook(provider, req.body);
-    res.status(200).json({ 
-      status: 'success' 
-    });
-  })
-);
+    // Webhook Route
+    router.post(
+        '/webhook/:provider',
+        debugLogger('Webhook'),
+        validateRequest(webhookSchema),
+        paymentController.handleWebhook
+    );
+
+    // Verification Route
+    router.post(
+        '/verify/:paymentId',
+        debugLogger('Verification'),
+        authenticate,
+        validateRequest(paymentValidators.verifyPayment),
+        paymentController.verifyPayment
+    );
+
+    // Review Routes
+    router.post(
+        '/review/:paymentId/approve',
+        debugLogger('ReviewApprove'),
+        authenticate,
+        authorizeRoles('admin'),
+        validateRequest(paymentValidators.reviewDecision),
+        paymentController.approveHighRiskPayment
+    );
+    
+    router.post(
+        '/review/:paymentId/reject',
+        debugLogger('ReviewReject'),
+        authenticate,
+        authorizeRoles('admin'),
+        validateRequest(paymentValidators.reviewDecision),
+        paymentController.rejectHighRiskPayment
+    );
+
+    // Transaction Report Route
+    router.get(
+        '/reports/transactions',
+        debugLogger('TransactionReport'),
+        authenticate,
+        authorizeRoles('admin'),
+        validateRequest(paymentValidators.transactionReport),
+        paymentController.exportTransactionReport
+    );
+
+} catch (error) {
+    console.error('[PaymentRoutes] Setup error:', error);
+    throw error;
+}
 
 module.exports = router;

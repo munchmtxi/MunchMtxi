@@ -112,40 +112,62 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
       unique: true,
     },
-    // New fields added
+    // New risk and verification fields added for our vigilant warriors:
+    risk_score: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+      defaultValue: 0,
+      validate: {
+        min: 0,
+        max: 100,
+      },
+    },
+    risk_factors: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+    },
+    verification_attempts: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    verification_details: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+    },
     provider: {
       type: DataTypes.STRING,
       allowNull: true,
-      comment: 'Payment provider (Airtel, TNM, MTN, M-Pesa, Bank Name, etc.)'
+      comment: 'Payment provider (Airtel, TNM, MTN, M-Pesa, Bank Name, etc.)',
     },
     payment_details: {
       type: DataTypes.JSONB,
       allowNull: true,
-      comment: 'Provider-specific payment details including bank reference'
+      comment: 'Provider-specific payment details including bank reference',
     },
     bank_reference: {
       type: DataTypes.STRING,
       allowNull: true,
-      comment: 'Bank transaction reference number'
+      comment: 'Bank transaction reference number',
     },
     daily_transaction_count: {
       type: DataTypes.INTEGER,
       allowNull: true,
-      comment: 'Daily transaction counter for limits'
+      comment: 'Daily transaction counter for limits',
     },
     created_at: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: sequelize.literal('CURRENT_TIMESTAMP')
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP'),
     },
     updated_at: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: sequelize.literal('CURRENT_TIMESTAMP')
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP'),
     },
     deleted_at: {
       type: DataTypes.DATE,
-      allowNull: true
+      allowNull: true,
     }
   }, {
     sequelize,
@@ -156,34 +178,34 @@ module.exports = (sequelize, DataTypes) => {
     indexes: [
       {
         fields: ['order_id'],
-        name: 'payments_order_id_index'
+        name: 'payments_order_id_index',
       },
       {
         fields: ['customer_id'],
-        name: 'payments_customer_id_index'
+        name: 'payments_customer_id_index',
       },
       {
         fields: ['merchant_id'],
-        name: 'payments_merchant_id_index'
+        name: 'payments_merchant_id_index',
       },
       {
         fields: ['driver_id'],
-        name: 'payments_driver_id_index'
+        name: 'payments_driver_id_index',
       },
       {
         unique: true,
         fields: ['transaction_id'],
-        name: 'payments_transaction_id_unique'
+        name: 'payments_transaction_id_unique',
       },
       // Adding index for bank_reference
       {
         fields: ['bank_reference'],
-        name: 'payments_bank_reference_index'
+        name: 'payments_bank_reference_index',
       },
       // Adding index for provider to improve query performance
       {
         fields: ['provider'],
-        name: 'payments_provider_index'
+        name: 'payments_provider_index',
       }
     ]
   });
