@@ -3,10 +3,12 @@ module.exports = {
   up: async (queryInterface, Sequelize) => {
     // Create availability status ENUM type
     await queryInterface.sequelize.query(`
-      CREATE TYPE enum_drivers_availability_status AS ENUM (
-        'available',
-        'unavailable'
-      );
+      DO $$ 
+      BEGIN 
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_drivers_availability_status') THEN
+          CREATE TYPE enum_drivers_availability_status AS ENUM ('available', 'unavailable');
+        END IF;
+      END $$;
     `);
 
     await queryInterface.createTable('drivers', {

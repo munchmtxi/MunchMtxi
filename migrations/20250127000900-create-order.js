@@ -4,25 +4,35 @@ module.exports = {
   up: async (queryInterface, Sequelize) => {
     // Create order status ENUM type
     await queryInterface.sequelize.query(`
-      CREATE TYPE enum_orders_status AS ENUM (
-        'pending',
-        'confirmed',
-        'preparing',
-        'ready',
-        'out_for_delivery',
-        'completed',
-        'cancelled'
-      );
+      DO $$ 
+      BEGIN 
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_orders_status') THEN
+          CREATE TYPE enum_orders_status AS ENUM (
+            'pending',
+            'confirmed',
+            'preparing',
+            'ready',
+            'out_for_delivery',
+            'completed',
+            'cancelled'
+          );
+        END IF;
+      END $$;
     `);
-
-    // Create payment status ENUM type
+    
     await queryInterface.sequelize.query(`
-      CREATE TYPE enum_orders_payment_status AS ENUM (
-        'unpaid',
-        'paid',
-        'refunded'
-      );
+      DO $$ 
+      BEGIN 
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_orders_payment_status') THEN
+          CREATE TYPE enum_orders_payment_status AS ENUM (
+            'unpaid',
+            'paid',
+            'refunded'
+          );
+        END IF;
+      END $$;
     `);
+    
 
     await queryInterface.createTable('orders', {
       id: {

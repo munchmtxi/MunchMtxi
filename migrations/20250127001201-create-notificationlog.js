@@ -20,7 +20,7 @@ module.exports = {
         onDelete: 'SET NULL'
       },
       type: {
-        type: Sequelize.ENUM('WHATSAPP', 'WHATSAPP_CUSTOM', 'EMAIL'),
+        type: Sequelize.ENUM('WHATSAPP', 'WHATSAPP_CUSTOM', 'EMAIL', 'SMS'),
         allowNull: false
       },
       recipient: {
@@ -37,7 +37,7 @@ module.exports = {
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL'
       },
-      templateName: {
+      template_name: {  // Changed from templateName to template_name
         type: Sequelize.STRING,
         allowNull: true
       },
@@ -50,7 +50,7 @@ module.exports = {
         allowNull: true
       },
       status: {
-        type: Sequelize.ENUM('SENT', 'FAILED'),
+        type: Sequelize.ENUM('SENT', 'FAILED', 'PERMANENTLY_FAILED'),
         allowNull: false
       },
       message_id: {
@@ -59,6 +59,24 @@ module.exports = {
       },
       error: {
         type: Sequelize.TEXT,
+        allowNull: true
+      },
+      // New delivery tracking fields
+      retry_count: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        defaultValue: 0
+      },
+      next_retry_at: {
+        type: Sequelize.DATE,
+        allowNull: true
+      },
+      delivery_provider: {
+        type: Sequelize.STRING,
+        allowNull: true
+      },
+      delivery_metadata: {
+        type: Sequelize.JSON,
         allowNull: true
       },
       created_at: {
@@ -71,9 +89,6 @@ module.exports = {
         allowNull: false,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       }
-    }, { // Options for createTable
-      timestamps: true, // Ensure timestamps are enabled
-      paranoid: true,   // Enable paranoid soft-deletes
     });
 
     // Adding indexes for optimized query performance
@@ -89,17 +104,37 @@ module.exports = {
     await queryInterface.addIndex('notification_logs', ['created_at'], {
       name: 'notification_logs_created_at'
     });
-    await queryInterface.addIndex('notification_logs', ['templateName'], {
+    await queryInterface.addIndex('notification_logs', ['template_name'], {  // Changed from templateName
       name: 'notification_logs_template_name'
     });
+    // New indexes for delivery tracking
+    await queryInterface.addIndex('notification_logs', ['status', 'retry_count'], {
+      name: 'notification_logs_retry_status'
+    });
+    await queryInterface.addIndex('notification_logs', ['next_retry_at'], {
+      name: 'notification_logs_next_retry'
+    });
   },
+
   async down(queryInterface, Sequelize) {
     // Remove indexes first
-    await queryInterface.removeIndex('notification_logs', 'notification_logs_message_id');
-    await queryInterface.removeIndex('notification_logs', 'notification_logs_recipient');
-    await queryInterface.removeIndex('notification_logs', 'notification_logs_status');
-    await queryInterface.removeIndex('notification_logs', 'notification_logs_created_at');
-    await queryInterface.removeIndex('notification_logs', 'notification_logs_template_name');
+    const indexes = [
+      'notification_logs_message_id',
+      'notification_logs_recipient',
+      'notification_logs_status',
+      'notification_logs_created_at',
+      'notification_logs_template_name',
+      'notification_logs_retry_status',
+      'notification_logs_next_retry'
+    ];
+
+    for (const indexName of indexes) {
+      try {
+        await queryInterface.removeIndex('notification_logs', indexName);
+      } catch (error) {
+        console.log(`Index ${indexName} might not exist:`, error.message);
+      }
+    }
 
     // Drop ENUM types
     await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_notification_logs_type";');

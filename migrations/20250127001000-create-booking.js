@@ -4,22 +4,29 @@ module.exports = {
   up: async (queryInterface, Sequelize) => {
     // Create booking type ENUM
     await queryInterface.sequelize.query(`
-      CREATE TYPE enum_bookings_booking_type AS ENUM (
-        'table',
-        'taxi'
-      );
+      DO $$ 
+      BEGIN 
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_bookings_booking_type') THEN
+          CREATE TYPE enum_bookings_booking_type AS ENUM ('table', 'taxi');
+        END IF;
+      END $$;
     `);
-
-    // Create status ENUM
+    
     await queryInterface.sequelize.query(`
-      CREATE TYPE enum_bookings_status AS ENUM (
-        'pending',
-        'approved', 
-        'denied',
-        'seated',
-        'cancelled'
-      );
+      DO $$ 
+      BEGIN 
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_bookings_status') THEN
+          CREATE TYPE enum_bookings_status AS ENUM (
+            'pending',
+            'approved', 
+            'denied',
+            'seated',
+            'cancelled'
+          );
+        END IF;
+      END $$;
     `);
+    
 
     await queryInterface.createTable('bookings', {
       id: {

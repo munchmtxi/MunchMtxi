@@ -1,4 +1,5 @@
 const { Model, DataTypes } = require('sequelize');
+
 module.exports = (sequelize) => {
   class NotificationLog extends Model {
     static associate(models) {
@@ -8,6 +9,7 @@ module.exports = (sequelize) => {
       });
     }
   }
+
   NotificationLog.init({
     id: {
       type: DataTypes.UUID,
@@ -43,7 +45,7 @@ module.exports = (sequelize) => {
       onUpdate: 'CASCADE',
       onDelete: 'SET NULL'
     },
-    templateName: {
+    template_name: {
       type: DataTypes.STRING,
       allowNull: true
     },
@@ -55,8 +57,9 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: true
     },
+    // Merged status field now includes PERMANENTLY_FAILED as well.
     status: {
-      type: DataTypes.ENUM('SENT', 'FAILED'),
+      type: DataTypes.ENUM('SENT', 'FAILED', 'PERMANENTLY_FAILED'),
       allowNull: false
     },
     message_id: {
@@ -65,6 +68,24 @@ module.exports = (sequelize) => {
     },
     error: {
       type: DataTypes.TEXT,
+      allowNull: true
+    },
+    // Additional fields from the first snippet:
+    retry_count: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0
+    },
+    next_retry_at: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
+    delivery_provider: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    delivery_metadata: {
+      type: DataTypes.JSON,
       allowNull: true
     },
     created_at: {
@@ -103,8 +124,18 @@ module.exports = (sequelize) => {
       {
         fields: ['templateName'],
         name: 'notification_logs_template_name'
+      },
+      // New indexes from the first snippet:
+      {
+        fields: ['status', 'retry_count'],
+        name: 'notification_logs_retry_status'
+      },
+      {
+        fields: ['next_retry_at'],
+        name: 'notification_logs_next_retry'
       }
     ]
   });
+
   return NotificationLog;
 };

@@ -60,6 +60,16 @@ module.exports = (sequelize, DataTypes) => {
     nearbyValidAddresses: {
       type: DataTypes.JSONB,
       allowNull: true
+    },
+    // Added fields to match the migration file:
+    locationType: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Google Maps location type (ROOFTOP, RANGE_INTERPOLATED, etc.)'
+    },
+    confidenceLevel: {
+      type: DataTypes.ENUM('HIGH', 'MEDIUM', 'LOW'),
+      allowNull: true
     }
   }, {
     sequelize,
@@ -68,10 +78,20 @@ module.exports = (sequelize, DataTypes) => {
     underscored: true,
     indexes: [
       {
-        fields: ['placeId']
+        fields: ['placeId'],
+        name: 'addresses_place_id_index'
       },
       {
-        fields: ['latitude', 'longitude']
+        fields: ['latitude', 'longitude'],
+        name: 'addresses_coordinates_index'
+      },
+      {
+        fields: ['validationStatus'],
+        name: 'addresses_validation_status_index'
+      },
+      {
+        fields: ['confidenceLevel'],
+        name: 'addresses_confidence_level_index'
       }
     ],
     scopes: {
