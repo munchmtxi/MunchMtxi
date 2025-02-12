@@ -13,8 +13,16 @@ class SystemHealthMonitor {
       metrics: {},
       predictions: {}
     };
+    // Initialize API Metrics tracking for our battle strategy
+    this.apiMetrics = {
+      usage: new Map(),
+      quotas: new Map(),
+      trends: new Map()
+    };
+    this.usageHistory = []; // Store historical data for trend analysis
   }
 
+  // System Health Monitoring Methods
   async checkSystemHealth() {
     const metrics = {
       memory: this._checkMemoryUsage(),
@@ -41,7 +49,7 @@ class SystemHealthMonitor {
 
   _checkCPUUsage() {
     const startUsage = process.cpuUsage();
-    // Wait for 100ms to get a sample
+    // Wait for 100ms to sample CPU usage
     const now = performance.now();
     while (performance.now() - now < 100) {}
     const endUsage = process.cpuUsage(startUsage);
@@ -101,6 +109,93 @@ class SystemHealthMonitor {
   _predictPerformanceDegradation() {
     // A simple stub – always returns low risk for now.
     return { risk: 'low' };
+  }
+
+  // API Metrics Tracking Methods
+  trackApiCall(endpoint, method, userId) {
+    const key = `${method}:${endpoint}`;
+    const current = this.apiMetrics.usage.get(key) || {
+      count: 0,
+      byUser: new Map(),
+      lastReset: new Date()
+    };
+
+    current.count++;
+    const userCount = current.byUser.get(userId) || 0;
+    current.byUser.set(userId, userCount + 1);
+
+    this.apiMetrics.usage.set(key, current);
+    this._updateTrends(key);
+  }
+
+  _updateTrends(key) {
+    const usage = this.apiMetrics.usage.get(key);
+    const now = new Date();
+
+    this.usageHistory.push({
+      key,
+      count: usage.count,
+      timestamp: now
+    });
+
+    // Keep only the last 30 days of history
+    const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
+    this.usageHistory = this.usageHistory.filter(h => h.timestamp > thirtyDaysAgo);
+
+    // Calculate trend using our warrior's strategy
+    const trend = this._calculateTrend(key);
+    this.apiMetrics.trends.set(key, trend);
+  }
+
+  _calculateTrend(key) {
+    const relevantHistory = this.usageHistory.filter(h => h.key === key);
+    if (relevantHistory.length < 2) return { slope: 0, forecast: null };
+
+    // Simple linear regression
+    const xValues = relevantHistory.map(h => h.timestamp.getTime());
+    const yValues = relevantHistory.map(h => h.count);
+
+    const xMean = xValues.reduce((a, b) => a + b, 0) / xValues.length;
+    const yMean = yValues.reduce((a, b) => a + b, 0) / yValues.length;
+
+    const slope = this._calculateSlope(xValues, yValues, xMean, yMean);
+
+    // Forecast for the next 24 hours (in milliseconds)
+    const forecast = yMean + slope * (24 * 60 * 60 * 1000);
+
+    return {
+      slope,
+      forecast,
+      trend: slope > 0 ? 'increasing' : slope < 0 ? 'decreasing' : 'stable'
+    };
+  }
+
+  _calculateSlope(xValues, yValues, xMean, yMean) {
+    let numerator = 0;
+    let denominator = 0;
+
+    for (let i = 0; i < xValues.length; i++) {
+      numerator += (xValues[i] - xMean) * (yValues[i] - yMean);
+      denominator += Math.pow(xValues[i] - xMean, 2);
+    }
+
+    return denominator !== 0 ? numerator / denominator : 0;
+  }
+
+  setQuota(endpoint, method, limit) {
+    const key = `${method}:${endpoint}`;
+    this.apiMetrics.quotas.set(key, limit);
+  }
+
+  checkQuota(endpoint, method, userId) {
+    const key = `${method}:${endpoint}`;
+    const usage = this.apiMetrics.usage.get(key);
+    const quota = this.apiMetrics.quotas.get(key);
+
+    if (!quota) return true; // No quota set
+
+    const userUsage = usage?.byUser.get(userId) || 0;
+    return userUsage < quota;
   }
 }
 
@@ -168,7 +263,7 @@ module.exports = function initMonitoring(app) {
     const authMiddleware = (req, res, next) => {
       const username = process.env.STATUS_MONITOR_USERNAME;
       const password = process.env.STATUS_MONITOR_PASSWORD;
-      
+
       if (!username || !password) {
         logger.error('[Monitoring] Status monitor credentials not configured');
         return res.status(500).json({ error: 'Monitor configuration error' });
@@ -199,7 +294,7 @@ module.exports = function initMonitoring(app) {
 
   // Initialize the custom System Health Monitor
   const healthMonitor = new SystemHealthMonitor(app, logger);
-  
+
   // Add health check endpoint at "/health"
   app.get('/health', async (req, res) => {
     try {
@@ -215,8 +310,10 @@ module.exports = function initMonitoring(app) {
   setInterval(async () => {
     try {
       const health = await healthMonitor.checkSystemHealth();
-      if (health.predictions.memoryExhaustion.risk === 'high' || 
-          health.predictions.diskSpaceExhaustion.risk === 'high') {
+      if (
+        health.predictions.memoryExhaustion.risk === 'high' || 
+        health.predictions.diskSpaceExhaustion.risk === 'high'
+      ) {
         logger.warn('System health risk detected', health);
       }
     } catch (error) {

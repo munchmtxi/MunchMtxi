@@ -6,6 +6,10 @@ const { logger } = require('@utils/logger');
 // Create Express app
 const app = express();
 
+// Initialize monitoring system
+const initMonitoring = require('@config/monitoring');
+const { healthMonitor } = initMonitoring(app);
+
 // Basic middleware
 app.use(cors());
 app.use(express.json());
@@ -26,9 +30,10 @@ securityMiddleware(app);
 const requestLogger = require('@middleware/requestLogger');
 app.use(requestLogger);
 
-// Performance monitoring middleware
-const performanceMiddleware = require('@middleware/performanceMiddleware');
-app.use(performanceMiddleware);  
+// Performance monitoring and API usage middleware
+const { performanceMiddleware, apiUsageMiddleware } = require('@middleware/performanceMiddleware');
+app.use(performanceMiddleware);  // Use the base performance middleware
+app.use(apiUsageMiddleware(healthMonitor));  // Use the API usage monitoring middleware 
 
 // Initialize authentication
 const { setupPassport } = require('@config/passport');
@@ -37,6 +42,9 @@ setupPassport(app);
 // API Documentation
 const { setupSwagger } = require('@config/swagger');
 setupSwagger(app);
+
+// Monitoring routes should be before other API routes
+app.use('/monitoring', require('@routes/monitoringRoutes'));
 
 // API Routes
 app.use('/auth', require('@routes/authRoutes'));
@@ -47,12 +55,22 @@ app.use('/password', require('@routes/passwordRoutes'));
 app.use('/api/v1/geolocation', require('@routes/geolocationRoutes'));
 app.use('/api/v1/payments', require('@routes/paymentRoutes'));
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'ok',
-    timestamp: new Date().toISOString()
-  });
+// Enhanced health check endpoint using healthMonitor
+app.get('/health', async (req, res) => {
+  try {
+    const health = await healthMonitor.checkSystemHealth();
+    res.status(200).json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      metrics: health
+    });
+  } catch (error) {
+    logger.error('Health check failed', error);
+    res.status(500).json({ 
+      status: 'error',
+      message: 'Health check failed'
+    });
+  }
 });
 
 // Handle undefined routes
@@ -116,5 +134,8 @@ eventManager.on('payment.webhook.received', async (data) => {
   const { provider, webhookData } = data;
   logger.info(`Received webhook from ${provider}`, { webhookData });
 });
+
+// Store healthMonitor in app.locals for access in routes
+app.locals.healthMonitor = healthMonitor;
 
 module.exports = { app, server };

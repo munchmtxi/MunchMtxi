@@ -1,17 +1,16 @@
-// src/middleware/performanceMiddleware.js
-const { PerformanceMonitor } = require('../utils/logger');
+const { performance } = require('perf_hooks');
+const logger = require('@utils/logger');
 
+// Base performance middleware
 const performanceMiddleware = (req, res, next) => {
-  const start = process.hrtime();
+  const start = performance.now();
   
-  // Add response listener
   res.on('finish', () => {
-    const [seconds, nanoseconds] = process.hrtime(start);
-    const duration = seconds * 1000 + nanoseconds / 1000000;
-    
-    PerformanceMonitor.recordMetric('http_response_time', duration, {
-      path: req.path,
+    const duration = performance.now() - start;
+    logger.info('Request performance', {
       method: req.method,
+      url: req.originalUrl,
+      duration: `${duration.toFixed(2)}ms`,
       status: res.statusCode
     });
   });
@@ -19,4 +18,29 @@ const performanceMiddleware = (req, res, next) => {
   next();
 };
 
-module.exports = performanceMiddleware;
+// API usage monitoring middleware
+const apiUsageMiddleware = (healthMonitor) => {
+  return (req, res, next) => {
+    const endpoint = req.route?.path || req.path;
+    const method = req.method;
+    const userId = req.user?.id || 'anonymous';
+
+    // Check quota before proceeding
+    if (!healthMonitor.checkQuota(endpoint, method, userId)) {
+      return res.status(429).json({
+        error: 'Rate limit exceeded',
+        message: 'You have exceeded your API quota for this endpoint'
+      });
+    }
+
+    // Track the API call
+    healthMonitor.trackApiCall(endpoint, method, userId);
+
+    next();
+  };
+};
+
+module.exports = {
+  performanceMiddleware,
+  apiUsageMiddleware
+};
