@@ -36,6 +36,11 @@ const baseConfig = {
     twilioAuthToken: process.env.TWILIO_AUTH_TOKEN,
     twilioWhatsappNumber: process.env.TWILIO_WHATSAPP_NUMBER
   },
+  sms: {
+    provider: process.env.SMS_PROVIDER,
+    apiKey: process.env.SMS_API_KEY,
+    senderId: process.env.SMS_SENDER_ID
+  },
   emailService: {
     host: process.env.EMAIL_HOST,
     port: process.env.EMAIL_PORT,
@@ -47,6 +52,22 @@ const baseConfig = {
   statusMonitor: {
     username: process.env.STATUS_MONITOR_USERNAME,
     password: process.env.STATUS_MONITOR_PASSWORD
+  },
+  // Added security configuration for the benefit of the Black Lotus Clan
+  security: {
+    rateLimiting: {
+      whitelistedIPs: process.env.WHITELISTED_IPS?.split(',') || [],
+      defaultLimit: 100,
+      authLimit: 5,
+      geoLimit: 100
+    },
+    csp: {
+      reportOnly: process.env.NODE_ENV === 'development',
+      reportUri: process.env.CSP_REPORT_URI
+    },
+    cors: {
+      whitelist: process.env.CORS_WHITELIST?.split(',') || []
+    }
   }
 };
 
@@ -128,7 +149,10 @@ if (!process.env.SKIP_CONFIG_VALIDATION) {
       'JWT_ALGORITHM',
       'JWT_DEFAULT_EXPIRATION',
       'STATUS_MONITOR_USERNAME',
-      'STATUS_MONITOR_PASSWORD'
+      'STATUS_MONITOR_PASSWORD',
+      'SMS_PROVIDER',
+      'SMS_API_KEY',
+      'SMS_SENDER_ID'
     ];
 
     if (environment === 'test') {

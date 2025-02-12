@@ -6,10 +6,11 @@ const catchAsync = require('@utils/catchAsync');
 const AppError = require('@utils/AppError');
 const { NotificationLog, Template, User } = require('@models');
 const logger = require('@utils/logger');
+const { Op, sequelize } = require('sequelize'); // Ensure Sequelize operators are imported if needed
 
 /**
  * Notification Controller
- * Handles different types of notifications (WhatsApp, Email)
+ * Handles different types of notifications (WhatsApp, Email, SMS)
  */
 const notificationController = {
   /**
@@ -327,10 +328,41 @@ const notificationController = {
       message: 'Retry process completed',
       data: results
     });
+  }),
+
+  /**
+   * Send SMS notification using the notificationService.
+   * Example usage of sending an SMS notification.
+   */
+  sendSMSNotification: catchAsync(async (req, res) => {
+    const { customerId, customerPhone, message, templateName } = req.body;
+    
+    if (!customerId || !customerPhone) {
+      throw new AppError('Customer ID and phone number are required', 400);
+    }
+    
+    const notificationData = {
+      type: 'SMS',
+      recipient: {
+        customer_id: customerId,
+        phone: customerPhone
+      },
+      data: {
+        message: message || 'Your order #123 has been confirmed',
+        templateName: templateName || 'order_confirmation'
+      }
+    };
+
+    const result = await notificationService.sendNotification(notificationData);
+    res.status(200).json({
+      status: 'success',
+      message: 'SMS notification sent successfully',
+      data: result
+    });
   })
 };
 
-// New method using the new notificationService
+// New method using the new notificationService for fetching user notifications
 const getNotifications = catchAsync(async (req, res) => {
   const { page, limit } = req.query;
   const notifications = await notificationService.getUserNotifications(

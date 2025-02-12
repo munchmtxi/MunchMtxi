@@ -66,9 +66,12 @@ const http = require('http');
 const server = http.createServer(app);
 const io = require('socket.io')(server);
 
-// Initialize Notification Service and attach it to our event manager
+// Initialize SMS and Notification Services
+const SMSService = require('@services/smsService');
 const NotificationService = require('@services/notificationService');
-const notificationService = new NotificationService(io);
+
+const smsService = new SMSService();
+const notificationService = new NotificationService(io, smsService);
 
 // Set up Socket.IO event handlers for payments
 io.on('connection', (socket) => {

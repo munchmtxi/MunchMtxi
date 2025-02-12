@@ -1,11 +1,13 @@
-// seeders/YYYYMMDDHHMMSS-add-email-templates.js
 'use strict';
+
+const { v4: uuidv4 } = require('uuid');
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
     return queryInterface.bulkInsert('templates', [
       // Account Management
       {
+        id: uuidv4(),
         name: 'welcome_email',
         type: 'EMAIL',
         subject: 'Welcome to MunchMtxi!',
@@ -16,12 +18,15 @@ module.exports = {
           <p>Get started by completing your profile and exploring our services.</p>
         `,
         status: 'ACTIVE',
+        language: 'en',
+        merchant_id: null,
         created_at: new Date(),
         updated_at: new Date()
       },
 
       // Order Management
       {
+        id: uuidv4(),
         name: 'order_confirmation',
         type: 'EMAIL',
         subject: 'Order Confirmation #{{orderNumber}}',
@@ -35,12 +40,15 @@ module.exports = {
           <p>Delivery Address: {{deliveryAddress}}</p>
         `,
         status: 'ACTIVE',
+        language: 'en',
+        merchant_id: null,
         created_at: new Date(),
         updated_at: new Date()
       },
 
       // Booking Management
       {
+        id: uuidv4(),
         name: 'booking_confirmation',
         type: 'EMAIL',
         subject: 'Table Booking Confirmation',
@@ -55,12 +63,15 @@ module.exports = {
           <p>Special Requests: {{specialRequests}}</p>
         `,
         status: 'ACTIVE',
+        language: 'en',
+        merchant_id: null,
         created_at: new Date(),
         updated_at: new Date()
       },
 
       // Security
       {
+        id: uuidv4(),
         name: 'password_reset',
         type: 'EMAIL',
         subject: 'Reset Your Password',
@@ -73,12 +84,15 @@ module.exports = {
           <p>If you didn't request this, please ignore this email.</p>
         `,
         status: 'ACTIVE',
+        language: 'en',
+        merchant_id: null,
         created_at: new Date(),
         updated_at: new Date()
       },
 
       // Driver Notifications
       {
+        id: uuidv4(),
         name: 'new_delivery_request',
         type: 'EMAIL',
         subject: 'New Delivery Request',
@@ -93,12 +107,15 @@ module.exports = {
           <p>Estimated Earnings: {{currency}} {{earnings}}</p>
         `,
         status: 'ACTIVE',
+        language: 'en',
+        merchant_id: null,
         created_at: new Date(),
         updated_at: new Date()
       },
 
       // Merchant Notifications
       {
+        id: uuidv4(),
         name: 'new_order_merchant',
         type: 'EMAIL',
         subject: 'New Order Received #{{orderNumber}}',
@@ -113,12 +130,15 @@ module.exports = {
           <p>Please confirm this order within {{confirmationTimeLimit}}.</p>
         `,
         status: 'ACTIVE',
+        language: 'en',
+        merchant_id: null,
         created_at: new Date(),
         updated_at: new Date()
       },
 
       // Updates & Maintenance
       {
+        id: uuidv4(),
         name: 'system_maintenance',
         type: 'EMAIL',
         subject: 'Scheduled Maintenance Notice',
@@ -130,12 +150,15 @@ module.exports = {
           <p>We apologize for any inconvenience.</p>
         `,
         status: 'ACTIVE',
+        language: 'en',
+        merchant_id: null,
         created_at: new Date(),
         updated_at: new Date()
       },
 
       // Marketing (Optional)
       {
+        id: uuidv4(),
         name: 'special_offer',
         type: 'EMAIL',
         subject: 'Special Offer Just for You!',
@@ -148,6 +171,8 @@ module.exports = {
           <p>Use code: {{promoCode}}</p>
         `,
         status: 'ACTIVE',
+        language: 'en',
+        merchant_id: null,
         created_at: new Date(),
         updated_at: new Date()
       }

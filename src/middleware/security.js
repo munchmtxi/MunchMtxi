@@ -1,7 +1,8 @@
 const express = require('express');
-
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const Redis = require('redis');
+const { RateLimiterRedis } = require('rate-limiter-flexible');
 const { AppError } = require('../utils/AppError');
 
 // Rate limiters for different endpoints
@@ -34,7 +35,7 @@ const geoLocationLimiter = createRateLimiter(
 // Permission validator
 const validatePermissions = (requiredPermission) => async (req, res, next) => {
   const { user } = req;
-  
+
   if (!user) {
     return next(new AppError('Authentication required', 401));
   }
@@ -50,21 +51,81 @@ const validatePermissions = (requiredPermission) => async (req, res, next) => {
 const validateLocationPermissions = async (req, res, next) => {
   const { user } = req;
   const action = req.method === 'POST' ? 'update' : 'read';
-  
+
   if (!user.hasPermission(`location.${action}`)) {
     return next(new AppError('Insufficient permissions', 403));
   }
-  
+
   next();
 };
 
+// Dynamic rate limiting middleware
+const dynamicRateLimiter = (redisClient) => {
+  const rateLimiter = new RateLimiterRedis({
+    storeClient: redisClient,
+    points: 100, // Number of points
+    duration: 60, // Per 60 seconds
+    blockDuration: 60 * 15, // Block for 15 minutes
+    keyPrefix: 'rl_',
+  });
+
+  return async (req, res, next) => {
+    try {
+      const pointsToConsume = await calculatePointsForRequest(req);
+      await rateLimiter.consume(req.ip, pointsToConsume);
+      next();
+    } catch (error) {
+      res.status(429).json({
+        error: 'Too Many Requests',
+        retryAfter: Math.ceil(error.msBeforeNext / 1000),
+      });
+    }
+  };
+};
+
+// XSS Middleware
+const xssMiddleware = (req, res, next) => {
+  const sanitizeString = (str) => {
+    return str.replace(/<script[^>]*?>.*?<\/script>/gi, ''); // Remove script tags
+  };
+
+  const sanitizeObject = (obj) => {
+    for (let key in obj) {
+      if (typeof obj[key] === 'string') {
+        obj[key] = sanitizeString(obj[key]);
+      } else if (typeof obj[key] === 'object') {
+        sanitizeObject(obj[key]);
+      }
+    }
+  };
+
+  if (req.body) sanitizeObject(req.body);
+  if (req.query) sanitizeObject(req.query);
+  if (req.params) sanitizeObject(req.params);
+
+  next();
+};
+
+// Security middleware setup
 module.exports = function securityMiddleware(app) {
+  // Initialize Redis client for dynamic rate limiting
+  const redisClient = Redis.createClient({
+    url: process.env.REDIS_URL || 'redis://localhost:6379',
+  });
+
+  redisClient.on('error', (err) => {
+    console.error('Redis Client Error:', err);
+  });
+
   // Security headers with enhanced CSP
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: [
+          "'self'",
+          (req, res) => `'nonce-${res.locals.nonce}'` // Dynamically add nonce for inline scripts
+        ],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", "data:", "https:"],
         connectSrc: ["'self'"],
@@ -73,9 +134,9 @@ module.exports = function securityMiddleware(app) {
         mediaSrc: ["'self'"],
         frameSrc: ["'none'"],
         sandbox: ['allow-forms', 'allow-scripts', 'allow-same-origin'],
-        reportUri: '/report-violation',
-        frameAncestors: ["'none'"]
-      }
+        reportUri: '/api/csp-report', // Updated to use the new CSP reporting endpoint
+        frameAncestors: ["'none'"],
+      },
     },
     crossOriginEmbedderPolicy: true,
     crossOriginOpenerPolicy: true,
@@ -87,23 +148,34 @@ module.exports = function securityMiddleware(app) {
     hsts: {
       maxAge: 31536000,
       includeSubDomains: true,
-      preload: true
+      preload: true,
     },
     ieNoOpen: true,
     noSniff: true,
     originAgentCluster: true,
     permittedCrossDomainPolicies: { permittedPolicies: "none" },
     referrerPolicy: { policy: "strict-origin-when-cross-origin" },
-    xssFilter: true
+    xssFilter: true,
   }));
 
-  // Apply rate limiters
+  // Apply default rate limiter
   app.use(defaultLimiter);
+
+  // Apply endpoint-specific rate limiters
   app.use('/api/auth/login', authLimiter);
   app.use('/api/location', geoLocationLimiter);
 
+  // Add IP whitelist middleware
+  const whitelistedIPs = new Set(process.env.WHITELISTED_IPS?.split(',') || []);
+  app.use((req, res, next) => {
+    if (whitelistedIPs.has(req.ip)) {
+      return next(); // Whitelisted IPs bypass all rate limits
+    }
+    dynamicRateLimiter(redisClient)(req, res, next); // Fallback to dynamic rate limiting
+  });
+
   // JSON body parser with size limits
-  app.use(express.json({ 
+  app.use(express.json({
     limit: '10kb',
     verify: (req, res, buf) => {
       try {
@@ -111,12 +183,14 @@ module.exports = function securityMiddleware(app) {
       } catch (e) {
         throw new AppError('Invalid JSON payload', 400);
       }
-    }
+    },
   }));
+
+  // XSS Middleware
+  app.use(xssMiddleware);
 
   // Request validation middleware
   app.use((req, res, next) => {
-    // Sanitize query parameters
     if (req.query) {
       Object.keys(req.query).forEach(key => {
         if (typeof req.query[key] === 'string') {
@@ -125,7 +199,6 @@ module.exports = function securityMiddleware(app) {
       });
     }
 
-    // Validate content type for POST/PUT/PATCH requests
     if (['POST', 'PUT', 'PATCH'].includes(req.method) && req.headers['content-type'] !== 'application/json') {
       return next(new AppError('Content-Type must be application/json', 415));
     }
@@ -142,10 +215,17 @@ module.exports = function securityMiddleware(app) {
     next();
   });
 
+  // CSP Reporting Endpoint
+  app.post('/api/csp-report', (req, res) => {
+    const report = req.body;
+    console.warn('CSP Violation:', report); // Log the violation
+    res.status(204).end();
+  });
+
   // Error handler for security violations
   app.post('/report-violation', (req, res) => {
     if (req.body) {
-      console.log('CSP Violation:', req.body);
+      console.log('CSP Violation (Legacy):', req.body);
     }
     res.status(204).end();
   });
@@ -157,5 +237,5 @@ module.exports.validateLocationPermissions = validateLocationPermissions;
 module.exports.rateLimiters = {
   defaultLimiter,
   authLimiter,
-  geoLocationLimiter
+  geoLocationLimiter,
 };

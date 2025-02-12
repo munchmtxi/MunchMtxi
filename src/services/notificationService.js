@@ -1,16 +1,23 @@
-// Combined NotificationService for the Black Lotus Clan
-const { Notification, User, NotificationLog } = require('@models');
+const { Notification, User, NotificationLog, Template } = require('@models');
 const { EVENTS } = require('@config/events');
 const logger = require('@utils/logger');
 const eventManager = require('./eventManager');
 const whatsappService = require('./whatsappService');
+const smsService = require('./smsService');
+const emailService = require('./emailService');
+const TemplateProcessor = require('../utils/templateProcessor');
+const AppError = require('../utils/appError');
 
 class NotificationService {
   /**
    * @param {Object} io - Socket.io instance for real-time events (optional)
+   * @param {Object} smsService - SMS service instance for sending SMS notifications
    */
-  constructor(io) {
+  constructor(io, smsService) {
     this.io = io;
+    this.smsService = smsService;
+    this.whatsappService = whatsappService;
+    this.emailService = emailService;
   }
 
   /**
@@ -82,6 +89,11 @@ class NotificationService {
         await this.sendPaymentWhatsAppNotification(newNotification);
       }
 
+      // If SMS notification type or channel is specified, send an SMS notification.
+      if (notificationData.type === 'SMS' || notificationData.channels?.includes('SMS')) {
+        await this.sendSMSNotification(newNotification);
+      }
+
       return newNotification;
     } catch (error) {
       logger.error('Error sending notification:', error);
@@ -96,7 +108,6 @@ class NotificationService {
    * @param {Object} notification - The notification record.
    */
   async sendPaymentWhatsAppNotification(notification) {
-    // Use notification.data if available, otherwise fallback to an empty object
     const data = notification.data || {};
     const message = this.generatePaymentMessage(data);
 
@@ -130,10 +141,44 @@ class NotificationService {
       completed: `Payment of ${data.amount} has been successfully processed.`,
       failed: `Payment of ${data.amount} has failed. Please try again.`,
       processing: `Your payment of ${data.amount} is being processed.`
-      // Extend with more templates as needed.
     };
 
     return messages[data.status] || 'Your payment status has been updated.';
+  }
+
+  /**
+   * Sends an SMS notification.
+   *
+   * @param {Object} notification - The notification record.
+   */
+  async sendSMSNotification(notification) {
+    const data = notification.data || {};
+    const message = this.generateSMSMessage(data);
+
+    try {
+      await this.smsService.sendSMS(
+        notification.recipient_id || notification.user_id,
+        message,
+        data.templateName
+      );
+
+      await notification.update({ sms_sent: true });
+    } catch (error) {
+      logger.error('SMS notification failed:', error);
+      // Don't throw to prevent disrupting the main flow
+    }
+  }
+
+  /**
+   * Generates an SMS message based on the provided data.
+   * (Placeholder implementation - extend as needed.)
+   *
+   * @param {Object} data - Data for the SMS message.
+   * @returns {string} - The generated SMS message.
+   */
+  generateSMSMessage(data) {
+    // Customize this method for the Black Lotus Clan's requirements
+    return data.message || 'You have a new notification.';
   }
 
   /**
@@ -198,6 +243,92 @@ class NotificationService {
       limit,
       offset: (page - 1) * limit
     });
+  }
+
+  /**
+   * Sends a templated notification by processing the template with provided variables,
+   * creating a notification record, logging it, and dispatching it through the appropriate channel.
+   *
+   * @param {string} templateName - The name of the template.
+   * @param {number|string} recipientId - The ID of the recipient.
+   * @param {Object} variables - Variables to replace in the template.
+   * @param {Object} options - Additional options such as merchantId, priority, orderId, bookingId.
+   * @returns {Promise<Object>} - The created notification record.
+   */
+  async sendTemplatedNotification(templateName, recipientId, variables, options = {}) {
+    try {
+      // Fetch template
+      const template = await Template.findOne({
+        where: {
+          name: templateName,
+          status: 'ACTIVE',
+          merchant_id: options.merchantId || null
+        }
+      });
+
+      if (!template) {
+        throw new AppError(`Template not found: ${templateName}`, 404);
+      }
+
+      // Process template with variables
+      const processedContent = TemplateProcessor.process(template, variables);
+
+      // Create notification record
+      const notification = await Notification.create({
+        user_id: recipientId,
+        type: template.type,
+        template_id: template.id,
+        message: processedContent,
+        priority: options.priority || 'LOW',
+        order_id: options.orderId,
+        booking_id: options.bookingId
+      });
+
+      // Log the notification
+      await NotificationLog.create({
+        notification_id: notification.id,
+        type: template.type,
+        recipient: recipientId,
+        template_id: template.id,
+        templateName: template.name,
+        parameters: variables,
+        content: processedContent,
+        status: 'SENT'
+      });
+
+      // Send through appropriate channel
+      await this.sendThroughChannel(template.type, {
+        notification,
+        content: processedContent,
+        recipient: recipientId
+      });
+
+      return notification;
+    } catch (error) {
+      logger.error('Error sending templated notification:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Dispatches the notification through the appropriate channel based on its type.
+   *
+   * @param {string} type - The type of the notification (e.g., SMS, EMAIL, WHATSAPP).
+   * @param {Object} param0 - Object containing notification, content, and recipient.
+   */
+  async sendThroughChannel(type, { notification, content, recipient }) {
+    const senders = {
+      SMS: () => this.smsService.sendSMS(recipient, content),
+      EMAIL: () => this.emailService.sendEmail(recipient, content),
+      WHATSAPP: () => this.whatsappService.sendMessage(recipient, content)
+    };
+
+    const sender = senders[type];
+    if (!sender) {
+      throw new AppError(`Unsupported notification type: ${type}`, 400);
+    }
+
+    await sender();
   }
 }
 
