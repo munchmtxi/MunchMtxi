@@ -24,7 +24,11 @@ securityMiddleware(app);
 
 // Custom request logger
 const requestLogger = require('@middleware/requestLogger');
-app.use(requestLogger);  
+app.use(requestLogger);
+
+// Performance monitoring middleware
+const performanceMiddleware = require('@middleware/performanceMiddleware');
+app.use(performanceMiddleware);  
 
 // Initialize authentication
 const { setupPassport } = require('@config/passport');

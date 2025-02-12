@@ -2,6 +2,107 @@ const winston = require('winston');
 const statusMonitor = require('express-status-monitor');
 const path = require('path');
 const fs = require('fs');
+const { performance } = require('perf_hooks');
+
+class SystemHealthMonitor {
+  constructor(app, logger) {
+    this.app = app;
+    this.logger = logger;
+    this.healthMetrics = {
+      lastCheck: null,
+      metrics: {},
+      predictions: {}
+    };
+  }
+
+  async checkSystemHealth() {
+    const metrics = {
+      memory: this._checkMemoryUsage(),
+      cpu: this._checkCPUUsage(),
+      disk: await this._checkDiskSpace(),
+      processUptime: process.uptime(),
+      lastChecked: new Date()
+    };
+
+    this.healthMetrics.metrics = metrics;
+    this._analyzePredictiveHealth(metrics);
+    return metrics;
+  }
+
+  _checkMemoryUsage() {
+    const used = process.memoryUsage();
+    return {
+      heapUsed: used.heapUsed / 1024 / 1024,
+      heapTotal: used.heapTotal / 1024 / 1024,
+      external: used.external / 1024 / 1024,
+      rss: used.rss / 1024 / 1024
+    };
+  }
+
+  _checkCPUUsage() {
+    const startUsage = process.cpuUsage();
+    // Wait for 100ms to get a sample
+    const now = performance.now();
+    while (performance.now() - now < 100) {}
+    const endUsage = process.cpuUsage(startUsage);
+    return {
+      user: endUsage.user / 1000000,
+      system: endUsage.system / 1000000
+    };
+  }
+
+  async _checkDiskSpace() {
+    // Implement disk space check using fs.statfs (ensure your environment supports it)
+    return new Promise((resolve) => {
+      fs.statfs('/', (err, stats) => {
+        if (err) {
+          this.logger.error('Error checking disk space', err);
+          resolve(null);
+        } else {
+          resolve({
+            free: stats.bfree * stats.bsize,
+            total: stats.blocks * stats.bsize
+          });
+        }
+      });
+    });
+  }
+
+  _analyzePredictiveHealth(metrics) {
+    const predictions = {
+      memoryExhaustion: this._predictMemoryExhaustion(metrics.memory),
+      diskSpaceExhaustion: this._predictDiskSpaceExhaustion(metrics.disk),
+      performanceDegradation: this._predictPerformanceDegradation()
+    };
+
+    this.healthMetrics.predictions = predictions;
+    return predictions;
+  }
+
+  _predictMemoryExhaustion(memory) {
+    // If heapUsed exceeds 80% of heapTotal, flag as high risk
+    if (memory.heapUsed / memory.heapTotal > 0.8) {
+      return { risk: 'high' };
+    }
+    return { risk: 'low' };
+  }
+
+  _predictDiskSpaceExhaustion(disk) {
+    if (!disk) {
+      return { risk: 'unknown' };
+    }
+    // If free disk space is less than 10% of total, flag as high risk
+    if (disk.free / disk.total < 0.1) {
+      return { risk: 'high' };
+    }
+    return { risk: 'low' };
+  }
+
+  _predictPerformanceDegradation() {
+    // A simple stub – always returns low risk for now.
+    return { risk: 'low' };
+  }
+}
 
 module.exports = function initMonitoring(app) {
   if (!app) {
@@ -96,5 +197,34 @@ module.exports = function initMonitoring(app) {
     logger.error('[Monitoring] ❌ Failed to initialize status monitor:', error);
   }
 
-  return { logger };
+  // Initialize the custom System Health Monitor
+  const healthMonitor = new SystemHealthMonitor(app, logger);
+  
+  // Add health check endpoint at "/health"
+  app.get('/health', async (req, res) => {
+    try {
+      const health = await healthMonitor.checkSystemHealth();
+      res.json(health);
+    } catch (error) {
+      logger.error('Health check endpoint error', error);
+      res.status(500).json({ error: 'Health check failed' });
+    }
+  });
+
+  // Schedule regular health checks every 5 minutes
+  setInterval(async () => {
+    try {
+      const health = await healthMonitor.checkSystemHealth();
+      if (health.predictions.memoryExhaustion.risk === 'high' || 
+          health.predictions.diskSpaceExhaustion.risk === 'high') {
+        logger.warn('System health risk detected', health);
+      }
+    } catch (error) {
+      logger.error('Health check failed', error);
+    }
+  }, 5 * 60 * 1000); // 5 minutes interval
+
+  console.log('[Monitoring] 🔄 Health monitoring initialized.');
+
+  return { logger, healthMonitor };
 };

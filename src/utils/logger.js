@@ -107,9 +107,51 @@ function logApiEvent(message, metadata = {}) {
   logger.info({ message, ...metadata, type: 'api' });
 }
 
+// PerformanceMonitor utility for tracking metrics
+const PerformanceMonitor = {
+  metrics: new Map(),
+  
+  recordMetric(name, value, tags = {}) {
+    const key = `${name}:${JSON.stringify(tags)}`;
+    if (!this.metrics.has(key)) {
+      this.metrics.set(key, []);
+    }
+    this.metrics.get(key).push({
+      value,
+      timestamp: Date.now()
+    });
+    
+    // Keep only last hour of metrics
+    const oneHourAgo = Date.now() - 3600000;
+    this.metrics.set(
+      key,
+      this.metrics.get(key).filter(m => m.timestamp > oneHourAgo)
+    );
+  },
+
+  getMetricsSummary() {
+    const summary = {};
+    for (const [key, values] of this.metrics.entries()) {
+      const [name, tagsStr] = key.split(':');
+      const tags = JSON.parse(tagsStr);
+      
+      const numericValues = values.map(v => v.value);
+      summary[key] = {
+        avg: numericValues.reduce((a, b) => a + b, 0) / numericValues.length,
+        min: Math.min(...numericValues),
+        max: Math.max(...numericValues),
+        count: numericValues.length,
+        tags
+      };
+    }
+    return summary;
+  }
+};
+
 module.exports = {
   logger,
   logSecurityEvent,
   logTransactionEvent,
-  logApiEvent
+  logApiEvent,
+  PerformanceMonitor
 };
