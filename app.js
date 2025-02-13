@@ -16,6 +16,8 @@ const { performanceMiddleware: PerformanceMiddleware, apiUsageMiddleware: ApiUsa
 const { setupPassport: SetupPassport } = require('@config/passport');
 const { setupSwagger: SetupSwagger } = require('@config/swagger');
 const ErrorHandler = require('@middleware/errorHandler');
+const deviceMiddleware = require('@middleware/deviceDetectionMiddleware');
+const responseOptimizer = require('@middleware/responseOptimizerMiddleware');
 
 const MonitoringRoutes = require('@routes/monitoringRoutes');
 const AuthRoutes = require('@routes/authRoutes');
@@ -60,6 +62,7 @@ app.use(RequestLogger);
 // Performance monitoring and API usage middleware
 app.use(PerformanceMiddleware);
 app.use(ApiUsageMiddleware(healthMonitor));
+app.use(responseOptimizer());
 
 // Initialize authentication
 SetupPassport(app);
@@ -107,6 +110,9 @@ app.all('*', (req, res, next) => {
 
 // Global error handler
 app.use(ErrorHandler);
+
+// Device detection middleware
+app.use(deviceMiddleware);
 
 // Socket.io initialization and Notification Service integration
 const server = Http.createServer(app);

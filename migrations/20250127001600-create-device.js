@@ -37,6 +37,112 @@ module.exports = {
           notEmpty: { msg: 'Device type is required' },
         }
       },
+      os: {
+        type: Sequelize.STRING,
+        allowNull: true,
+        validate: {
+          notEmpty: { msg: 'OS cannot be empty if provided' },
+        }
+      },
+      os_version: {
+        type: Sequelize.STRING,
+        allowNull: true,
+        validate: {
+          notEmpty: { msg: 'OS version cannot be empty if provided' },
+        }
+      },
+      browser: {
+        type: Sequelize.STRING,
+        allowNull: true,
+        validate: {
+          notEmpty: { msg: 'Browser cannot be empty if provided' },
+        }
+      },
+      browser_version: {
+        type: Sequelize.STRING,
+        allowNull: true,
+        validate: {
+          notEmpty: { msg: 'Browser version cannot be empty if provided' },
+        }
+      },
+      screen_resolution: {
+        type: Sequelize.STRING,
+        allowNull: true,
+        validate: {
+          notEmpty: { msg: 'Screen resolution cannot be empty if provided' },
+        }
+      },
+      preferred_language: {
+        type: Sequelize.STRING,
+        allowNull: true,
+        validate: {
+          notEmpty: { msg: 'Preferred language cannot be empty if provided' },
+        }
+      },
+      network_type: {
+        type: Sequelize.STRING,
+        allowNull: true,
+        comment: 'wifi, cellular, etc.'
+      },
+      network_speed: {
+        type: Sequelize.STRING,
+        allowNull: true,
+        comment: '4g, 5g, etc.'
+      },
+      connection_quality: {
+        type: Sequelize.STRING,
+        allowNull: true,
+        comment: 'excellent, good, fair, poor'
+      },
+      supports_webp: {
+        type: Sequelize.BOOLEAN,
+        allowNull: true,
+        defaultValue: false
+      },
+      preferred_response_format: {
+        type: Sequelize.STRING,
+        allowNull: true,
+        defaultValue: 'json'
+      },
+      max_payload_size: {
+        type: Sequelize.INTEGER,
+        allowNull: true,
+        comment: 'Maximum preferred response size in bytes'
+      },
+      platform: {
+        type: Sequelize.STRING,
+        allowNull: false,
+        comment: 'ios, android, or web'
+      },
+      platform_version: {
+        type: Sequelize.STRING,
+        allowNull: true
+      },
+      is_pwa: {
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue: false
+      },
+      platform_features: {
+        type: Sequelize.JSONB,
+        allowNull: true,
+        comment: 'Platform-specific feature support'
+      },
+      device_memory: {
+        type: Sequelize.FLOAT,
+        allowNull: true,
+        comment: 'Available device memory in GB'
+      },
+      hardware_concurrency: {
+        type: Sequelize.INTEGER,
+        allowNull: true,
+        comment: 'Number of logical processors'
+      },
+      supported_apis: {
+        type: Sequelize.JSONB,
+        allowNull: true,
+        comment: 'Available Web APIs support'
+      },
       last_used_at: {
         allowNull: false,
         type: Sequelize.DATE,
@@ -56,23 +162,35 @@ module.exports = {
         type: Sequelize.DATE,
         allowNull: true
       }
-    }, { // Options for createTable
-      timestamps: true, // Ensure timestamps are enabled
-      paranoid: true,   // Enable paranoid soft-deletes
+    }, {
+      timestamps: true,
+      paranoid: true,
     });
 
-    // Adding unique constraint on user_id and device_id
     await queryInterface.addConstraint('devices', {
       fields: ['user_id', 'device_id'],
       type: 'unique',
       name: 'unique_user_device'
     });
-  },
-  async down(queryInterface, Sequelize) {
-    // Remove unique constraint on user_id and device_id
-    await queryInterface.removeConstraint('devices', 'unique_user_device');
 
-    // Drop the table
+    await queryInterface.addIndex('devices', ['os'], {
+      name: 'idx_devices_os'
+    });
+
+    await queryInterface.addIndex('devices', ['browser'], {
+      name: 'idx_devices_browser'
+    });
+
+    await queryInterface.addIndex('devices', ['device_type'], {
+      name: 'idx_devices_type'
+    });
+  },
+
+  async down(queryInterface, Sequelize) {
+    await queryInterface.removeIndex('devices', 'idx_devices_os');
+    await queryInterface.removeIndex('devices', 'idx_devices_browser');
+    await queryInterface.removeIndex('devices', 'idx_devices_type');
+    await queryInterface.removeConstraint('devices', 'unique_user_device');
     await queryInterface.dropTable('devices');
   }
 };
