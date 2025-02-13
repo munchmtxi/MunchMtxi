@@ -195,6 +195,35 @@ class EventManager {
     // Implement notification-specific logic
   }
 
+  // New event handler: handleResourceEvent
+  async handleResourceEvent(eventName, payload) {
+    const resourceMetrics = {
+      timestamp: Date.now(),
+      metrics: payload
+    };
+
+    // Store metrics for trend analysis
+    if (!this.resourceMetrics) {
+      this.resourceMetrics = [];
+    }
+    this.resourceMetrics.push(resourceMetrics);
+
+    // Keep only last 24 hours of data
+    const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
+    this.resourceMetrics = this.resourceMetrics.filter(
+      metric => metric.timestamp > twentyFourHoursAgo
+    );
+
+    // Emit alerts if thresholds are exceeded
+    if (payload.cpu > 80 || payload.memory > 85) {
+      this.emit('RESOURCE_ALERT', {
+        type: 'high_utilization',
+        metrics: payload,
+        timestamp: Date.now()
+      });
+    }
+  }
+
   getEventStatus(eventId) {
     return this.eventQueue.get(eventId);
   }

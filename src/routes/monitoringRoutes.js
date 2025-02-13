@@ -125,6 +125,22 @@ router.post('/api-quotas', authenticate, authorizeRoles('ADMIN'), async (req, re
   }
 });
 
+// Resource Utilization Analysis
+router.get('/resource-analysis', authenticate, authorizeRoles('ADMIN'), async (req, res) => {
+  try {
+    const analysis = await req.app.locals.healthMonitor.analyzeResourceUtilization();
+    
+    res.json({
+      status: 'success',
+      timestamp: new Date(),
+      data: analysis
+    });
+  } catch (error) {
+    logger.error('Error analyzing resource utilization', error);
+    res.status(500).json({ error: 'Failed to analyze resource utilization' });
+  }
+});
+
 // Helper Functions
 async function getErrorStats(timeframe) {
   // Use the actual metrics from PerformanceMonitor

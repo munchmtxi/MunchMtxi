@@ -111,6 +111,149 @@ class SystemHealthMonitor {
     return { risk: 'low' };
   }
 
+  // Advanced Resource Utilization Analysis Methods
+  async analyzeResourceUtilization() {
+    const currentMetrics = await this.checkSystemHealth();
+    const utilizationHistory = this.usageHistory.slice(-24); // Last 24 data points
+
+    const analysis = {
+      current: this._getCurrentUtilization(currentMetrics),
+      trends: this._analyzeTrends(utilizationHistory),
+      recommendations: this._generateRecommendations(currentMetrics),
+      scalingNeeded: false
+    };
+
+    // Determine if scaling is needed
+    if (analysis.current.cpu > 70 || analysis.current.memory > 80) {
+      analysis.scalingNeeded = true;
+      analysis.scalingRecommendations = this._getScalingRecommendations(analysis);
+    }
+
+    return analysis;
+  }
+
+  _getCurrentUtilization(metrics) {
+    return {
+      cpu: (metrics.cpu.user + metrics.cpu.system) * 100, // Convert to percentage
+      memory: (metrics.memory.heapUsed / metrics.memory.heapTotal) * 100,
+      disk: metrics.disk ? ((metrics.disk.total - metrics.disk.free) / metrics.disk.total) * 100 : null
+    };
+  }
+
+  _analyzeTrends(history) {
+    if (history.length < 2) return null;
+
+    const trends = {
+      cpu: this._calculateGrowthRate(history.map(h => h.cpu)),
+      memory: this._calculateGrowthRate(history.map(h => h.memory)),
+      requests: this._calculateGrowthRate(history.map(h => h.requestCount))
+    };
+
+    return {
+      ...trends,
+      pattern: this._detectUsagePattern(history)
+    };
+  }
+
+  _calculateGrowthRate(values) {
+    const first = values[0];
+    const last = values[values.length - 1];
+    return {
+      rate: ((last - first) / first) * 100,
+      direction: last > first ? 'increasing' : 'decreasing'
+    };
+  }
+
+  _detectUsagePattern(history) {
+    // Implement pattern detection (e.g., spikes during certain hours)
+    const hourlyAverages = new Array(24).fill(0);
+    history.forEach(record => {
+      const hour = new Date(record.timestamp).getHours();
+      hourlyAverages[hour] += record.cpu;
+    });
+
+    return {
+      peakHours: hourlyAverages
+        .map((avg, hour) => ({ hour, avg }))
+        .sort((a, b) => b.avg - a.avg)
+        .slice(0, 3)
+        .map(x => x.hour)
+    };
+  }
+
+  _generateRecommendations(metrics) {
+    const recommendations = [];
+
+    // CPU Recommendations
+    if ((metrics.cpu.user + metrics.cpu.system) > 70) {
+      recommendations.push({
+        type: 'cpu',
+        severity: 'high',
+        message: 'High CPU utilization detected',
+        action: 'Consider upgrading CPU capacity or optimizing CPU-intensive operations'
+      });
+    }
+
+    // Memory Recommendations
+    const memoryUtilization = (metrics.memory.heapUsed / metrics.memory.heapTotal) * 100;
+    if (memoryUtilization > 80) {
+      recommendations.push({
+        type: 'memory',
+        severity: 'high',
+        message: 'High memory utilization detected',
+        action: 'Consider increasing memory allocation or investigating memory leaks'
+      });
+    }
+
+    // Disk Space Recommendations
+    if (metrics.disk && (metrics.disk.free / metrics.disk.total) < 0.2) {
+      recommendations.push({
+        type: 'disk',
+        severity: 'medium',
+        message: 'Low disk space warning',
+        action: 'Consider cleaning up temporary files or increasing disk space'
+      });
+    }
+
+    return recommendations;
+  }
+
+  _getScalingRecommendations(analysis) {
+    const recommendations = {
+      immediate: [],
+      scheduled: []
+    };
+
+    // Immediate scaling recommendations
+    if (analysis.current.cpu > 85) {
+      recommendations.immediate.push({
+        resource: 'cpu',
+        action: 'scale_up',
+        suggestion: 'Increase CPU allocation by 50%'
+      });
+    }
+
+    if (analysis.current.memory > 90) {
+      recommendations.immediate.push({
+        resource: 'memory',
+        action: 'scale_up',
+        suggestion: 'Double the memory allocation'
+      });
+    }
+
+    // Scheduled scaling based on patterns
+    if (analysis.trends?.pattern?.peakHours) {
+      recommendations.scheduled.push({
+        resource: 'all',
+        action: 'scale_up',
+        schedule: `Before peak hours (${analysis.trends.pattern.peakHours.join(', ')})`,
+        suggestion: 'Increase resources by 30% during peak hours'
+      });
+    }
+
+    return recommendations;
+  }
+
   // API Metrics Tracking Methods
   trackApiCall(endpoint, method, userId) {
     const key = `${method}:${endpoint}`;
