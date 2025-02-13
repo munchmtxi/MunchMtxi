@@ -1,5 +1,4 @@
 'use strict';
-
 const { v4: uuidv4 } = require('uuid');
 
 module.exports = {
@@ -23,7 +22,6 @@ module.exports = {
         created_at: new Date(),
         updated_at: new Date()
       },
-
       // Order Management
       {
         id: uuidv4(),
@@ -45,7 +43,6 @@ module.exports = {
         created_at: new Date(),
         updated_at: new Date()
       },
-
       // Booking Management
       {
         id: uuidv4(),
@@ -68,7 +65,6 @@ module.exports = {
         created_at: new Date(),
         updated_at: new Date()
       },
-
       // Security
       {
         id: uuidv4(),
@@ -89,7 +85,6 @@ module.exports = {
         created_at: new Date(),
         updated_at: new Date()
       },
-
       // Driver Notifications
       {
         id: uuidv4(),
@@ -112,7 +107,6 @@ module.exports = {
         created_at: new Date(),
         updated_at: new Date()
       },
-
       // Merchant Notifications
       {
         id: uuidv4(),
@@ -135,7 +129,6 @@ module.exports = {
         created_at: new Date(),
         updated_at: new Date()
       },
-
       // Updates & Maintenance
       {
         id: uuidv4(),
@@ -155,7 +148,6 @@ module.exports = {
         created_at: new Date(),
         updated_at: new Date()
       },
-
       // Marketing (Optional)
       {
         id: uuidv4(),
@@ -175,10 +167,25 @@ module.exports = {
         merchant_id: null,
         created_at: new Date(),
         updated_at: new Date()
+      },
+      // Invoice Template
+      {
+        id: uuidv4(),
+        name: 'invoice-template',
+        type: 'PDF',
+        content: JSON.stringify({
+          title: 'Invoice #{{invoiceNumber}}',
+          body: 'Dear {{customerName}},\n\nHere are your order details...',
+          footer: 'Thank you for your business!'
+        }),
+        status: 'ACTIVE',
+        language: 'en',
+        merchant_id: null,
+        created_at: new Date(),
+        updated_at: new Date()
       }
     ], {});
   },
-
   down: async (queryInterface, Sequelize) => {
     return queryInterface.bulkDelete('templates', {
       name: {
@@ -190,7 +197,8 @@ module.exports = {
           'new_delivery_request',
           'new_order_merchant',
           'system_maintenance',
-          'special_offer'
+          'special_offer',
+          'invoice-template' // Added here to ensure it's deleted in rollback
         ]
       }
     }, {});

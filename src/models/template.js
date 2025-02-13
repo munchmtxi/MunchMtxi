@@ -26,7 +26,7 @@ module.exports = (sequelize) => {
       unique: true
     },
     type: {
-      type: DataTypes.ENUM('WHATSAPP', 'SMS', 'EMAIL'),
+      type: DataTypes.ENUM('WHATSAPP', 'SMS', 'EMAIL', 'PDF'),
       allowNull: false
     },
     content: {

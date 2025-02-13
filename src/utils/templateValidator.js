@@ -21,7 +21,8 @@ class TemplateValidator {
     const validators = {
       EMAIL: () => this.validateEmailTemplate(template),
       SMS: () => this.validateSMSTemplate(template),
-      WHATSAPP: () => this.validateWhatsAppTemplate(template)
+      WHATSAPP: () => this.validateWhatsAppTemplate(template),
+      PDF: () => this.validatePDFTemplate(template)
     };
 
     const validator = validators[template.type];
@@ -49,6 +50,24 @@ class TemplateValidator {
     const maxLength = 4096;
     if (template.content.length > maxLength) {
       throw new AppError(`WhatsApp template content exceeds ${maxLength} characters`, 400);
+    }
+  }
+  
+  static validatePDFTemplate(template) {
+    const requiredSections = ['title', 'body'];
+    const contentObj = typeof template.content === 'string'
+      ? JSON.parse(template.content)
+      : template.content;
+
+    const missingSections = requiredSections.filter(
+      section => !contentObj[section]
+    );
+
+    if (missingSections.length > 0) {
+      throw new AppError(
+        `PDF template missing required sections: ${missingSections.join(', ')}`,
+        400
+      );
     }
   }
 }

@@ -1,59 +1,86 @@
-const express = require('express');
-const cors = require('cors');
-const morgan = require('morgan');
+// app.js
+
+// External Modules
+const Express = require('express');
+const Cors = require('cors');
+const Morgan = require('morgan');
+const Http = require('http');
+const SocketIO = require('socket.io');
+
+// Aliased Internal Modules
 const { logger } = require('@utils/logger');
+const AppError = require('@utils/AppError');
+const SecurityMiddleware = require('@middleware/security');
+const RequestLogger = require('@middleware/requestLogger');
+const { performanceMiddleware: PerformanceMiddleware, apiUsageMiddleware: ApiUsageMiddleware } = require('@middleware/performanceMiddleware');
+const { setupPassport: SetupPassport } = require('@config/passport');
+const { setupSwagger: SetupSwagger } = require('@config/swagger');
+const ErrorHandler = require('@middleware/errorHandler');
+
+const MonitoringRoutes = require('@routes/monitoringRoutes');
+const AuthRoutes = require('@routes/authRoutes');
+const TwoFaRoutes = require('@routes/2faRoutes');
+const DeviceRoutes = require('@routes/deviceRoutes');
+const NotificationRoutes = require('@routes/notificationRoutes');
+const PasswordRoutes = require('@routes/passwordRoutes');
+const GeolocationRoutes = require('@routes/geolocationRoutes');
+const PaymentRoutes = require('@routes/paymentRoutes');
+const PdfRoutes = require('@routes/pdfRoutes');
+
+const InitMonitoring = require('@config/monitoring');
+
+const SMSService = require('@services/smsService');
+const NotificationService = require('@services/notificationService');
+const EventManager = require('@services/eventManager');
 
 // Create Express app
-const app = express();
+const app = Express();
 
 // Initialize monitoring system
-const initMonitoring = require('@config/monitoring');
-const { healthMonitor } = initMonitoring(app);
+const { healthMonitor } = InitMonitoring(app);
 
 // Basic middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(Cors());
+app.use(Express.json());
+app.use(Express.urlencoded({ extended: true }));
 
 // Morgan logger middleware
-app.use(morgan('combined', { 
+app.use(Morgan('combined', { 
   stream: { 
-    write: message => logger.info(message.trim()) 
+    write: message => logger.info(message.trim())
   }
 }));
 
 // Apply security middleware
-const securityMiddleware = require('@middleware/security');
-securityMiddleware(app);
+SecurityMiddleware(app);
 
 // Custom request logger
-const requestLogger = require('@middleware/requestLogger');
-app.use(requestLogger);
+app.use(RequestLogger);
 
 // Performance monitoring and API usage middleware
-const { performanceMiddleware, apiUsageMiddleware } = require('@middleware/performanceMiddleware');
-app.use(performanceMiddleware);  // Use the base performance middleware
-app.use(apiUsageMiddleware(healthMonitor));  // Use the API usage monitoring middleware 
+app.use(PerformanceMiddleware);
+app.use(ApiUsageMiddleware(healthMonitor));
 
 // Initialize authentication
-const { setupPassport } = require('@config/passport');
-setupPassport(app);
+SetupPassport(app);
 
 // API Documentation
-const { setupSwagger } = require('@config/swagger');
-setupSwagger(app);
+SetupSwagger(app);
 
-// Monitoring routes should be before other API routes
-app.use('/monitoring', require('@routes/monitoringRoutes'));
+// Monitoring routes (should be declared before other API routes)
+app.use('/monitoring', MonitoringRoutes);
 
 // API Routes
-app.use('/auth', require('@routes/authRoutes'));
-app.use('/2fa', require('@routes/2faRoutes'));
-app.use('/devices', require('@routes/deviceRoutes'));
-app.use('/notifications', require('@routes/notificationRoutes'));
-app.use('/password', require('@routes/passwordRoutes'));
-app.use('/api/v1/geolocation', require('@routes/geolocationRoutes'));
-app.use('/api/v1/payments', require('@routes/paymentRoutes'));
+app.use('/auth', AuthRoutes);
+app.use('/2fa', TwoFaRoutes);
+app.use('/devices', DeviceRoutes);
+app.use('/notifications', NotificationRoutes);
+app.use('/password', PasswordRoutes);
+app.use('/api/v1/geolocation', GeolocationRoutes);
+app.use('/api/v1/payments', PaymentRoutes);
+
+// Add PDF routes for the Black Lotus Clan
+app.use('/api/pdf', PdfRoutes);
 
 // Enhanced health check endpoint using healthMonitor
 app.get('/health', async (req, res) => {
@@ -74,24 +101,18 @@ app.get('/health', async (req, res) => {
 });
 
 // Handle undefined routes
-const AppError = require('@utils/AppError');
 app.all('*', (req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
 });
 
 // Global error handler
-const errorHandler = require('@middleware/errorHandler');
-app.use(errorHandler);
+app.use(ErrorHandler);
 
 // Socket.io initialization and Notification Service integration
-const http = require('http');
-const server = http.createServer(app);
-const io = require('socket.io')(server);
+const server = Http.createServer(app);
+const io = SocketIO(server);
 
 // Initialize SMS and Notification Services
-const SMSService = require('@services/smsService');
-const NotificationService = require('@services/notificationService');
-
 const smsService = new SMSService();
 const notificationService = new NotificationService(io, smsService);
 
@@ -107,11 +128,10 @@ io.on('connection', (socket) => {
 });
 
 // Event manager setup
-const eventManager = require('@services/eventManager');
-eventManager.setNotificationService(notificationService);
+EventManager.setNotificationService(notificationService);
 
 // Add payment event listeners
-eventManager.on('payment.updated', async (data) => {
+EventManager.on('payment.updated', async (data) => {
   const { payment, customerId } = data;
   
   // Emit to specific payment room
@@ -130,7 +150,7 @@ eventManager.on('payment.updated', async (data) => {
 });
 
 // Add payment webhook event handlers
-eventManager.on('payment.webhook.received', async (data) => {
+EventManager.on('payment.webhook.received', async (data) => {
   const { provider, webhookData } = data;
   logger.info(`Received webhook from ${provider}`, { webhookData });
 });

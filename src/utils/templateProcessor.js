@@ -41,7 +41,8 @@ class TemplateProcessor {
     const formatters = {
       SMS: () => this.formatSMS(content),
       EMAIL: () => this.formatEmail(content, subject, variables),
-      WHATSAPP: () => this.formatWhatsApp(content)
+      WHATSAPP: () => this.formatWhatsApp(content),
+      PDF: () => this.formatPDF(content, variables)
     };
 
     const formatter = formatters[type];
@@ -74,6 +75,38 @@ class TemplateProcessor {
   static formatWhatsApp(content) {
     // WhatsApp-specific formatting - handle markdown and line breaks
     return content.replace(/\n/g, '\n\n');
+  }
+
+  static formatPDF(content, variables) {
+    const contentObj = typeof content === 'string' 
+      ? JSON.parse(content) 
+      : content;
+
+    // Process each section of the PDF template
+    return Object.entries(contentObj).reduce((acc, [key, value]) => {
+      acc[key] = this.processSection(value, variables);
+      return acc;
+    }, {});
+  }
+
+  static processSection(section, variables) {
+    if (typeof section === 'string') {
+      return this.replaceVariables(section, variables);
+    }
+    if (Array.isArray(section)) {
+      return section.map(item => this.processSection(item, variables));
+    }
+    if (typeof section === 'object' && section !== null) {
+      return Object.entries(section).reduce((acc, [key, value]) => {
+        acc[key] = this.processSection(value, variables);
+        return acc;
+      }, {});
+    }
+    return section;
+  }
+
+  static replaceVariables(text, variables) {
+    return text.replace(/\{\{([\w.-]+)\}\}/g, (_, key) => variables[key] || '');
   }
 }
 
