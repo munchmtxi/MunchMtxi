@@ -42,6 +42,19 @@ module.exports = (sequelize, DataTypes) => {
         notEmpty: { msg: 'Device type is required' },
       },
     },
+    remember_token: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    remember_token_expires_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    last_active_at: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
+    },
     os: {
       type: DataTypes.STRING,
       allowNull: true,

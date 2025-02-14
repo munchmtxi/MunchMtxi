@@ -106,4 +106,92 @@ const verifyRefreshToken = (token) => {
   return jwt.verify(token, config.jwt.refreshSecret);
 };
 
-module.exports = { registerUser, loginUser, generateToken, verifyToken, generateRefreshToken, verifyRefreshToken };
+const loginMerchant = async (email, password, deviceInfo, rememberMe = false) => {
+  try {
+    const user = await User.scope(null).findOne({
+      where: { email, role: 'Merchant' },
+      include: [{
+        model: Merchant,
+        as: 'merchant',
+        required: true
+      }]
+    });
+
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      throw new AppError('Invalid merchant credentials', 401);
+    }
+
+    if (!user.isVerified) {
+      throw new AppError('Please verify your account first', 403);
+    }
+
+    // Generate tokens
+    const { accessToken, refreshToken } = TokenService.generateTokens(user);
+
+    // Handle device tracking and remember me
+    const device = await Device.findOrCreate({
+      where: { device_id: deviceInfo.deviceId },
+      defaults: {
+        user_id: user.id,
+        device_type: deviceInfo.deviceType
+      }
+    });
+
+    let rememberTokenData = null;
+    if (rememberMe) {
+      rememberTokenData = await TokenService.generateRememberToken(
+        user.id,
+        deviceInfo.deviceId
+      );
+    }
+
+    // Update last active
+    await device[0].update({ last_active_at: new Date() });
+
+    return {
+      user: {
+        ...user.toJSON(),
+        merchant: user.merchant
+      },
+      accessToken,
+      refreshToken,
+      rememberToken: rememberTokenData?.rememberToken,
+      rememberTokenExpiry: rememberTokenData?.expiresAt
+    };
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError('Failed to login merchant', 500);
+  }
+};
+
+const logoutMerchant = async (userId, deviceId = null, clearAllDevices = false) => {
+  try {
+    // Invalidate current tokens
+    await TokenService.logoutUser(userId);
+    
+    if (clearAllDevices) {
+      // Clear all remember tokens
+      await TokenService.clearAllRememberTokens(userId);
+    } else if (deviceId) {
+      // Clear specific device remember token
+      await TokenService.clearRememberToken(userId, deviceId);
+    }
+    
+    // Log the logout event
+    await userActivityLogger.log({
+      userId,
+      action: 'LOGOUT',
+      role: 'Merchant',
+      status: 'SUCCESS',
+      metadata: {
+        deviceId,
+        clearAllDevices
+      }
+    });
+
+  } catch (error) {
+    throw new AppError('Failed to logout merchant', 500);
+  }
+};
+
+module.exports = { registerUser, loginUser, generateToken, verifyToken, generateRefreshToken, verifyRefreshToken, loginMerchant, logoutMerchant };

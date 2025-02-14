@@ -3,18 +3,22 @@ const {
   register, 
   login, 
   refreshToken, 
-  registerNonCustomer 
+  registerNonCustomer,
+  merchantLogin // Add this
 } = require('@controllers/authController');
 const { 
   validateRegister, 
   validateLogin,
-  validateRegisterNonCustomer  // Add this import
+  validateRegisterNonCustomer,
+  validateMerchantLogin // Add this
 } = require('@validators/authValidators');
 const rateLimit = require('express-rate-limit');
 const { 
   authenticate, 
   authorizeRoles 
 } = require('@middleware/authMiddleware');
+const { validateMerchantLogout } = require('@validators/authValidators');
+const { logout } = require('@controllers/authController');
 
 const router = express.Router();
 
@@ -31,6 +35,7 @@ const authLimiter = rateLimit({
   max: 100, // limit each IP to 100 requests per windowMs
   message: 'Too many requests from this IP, please try again later.',
 });
+
 router.use(authLimiter);
 
 /**
@@ -349,6 +354,161 @@ router.post('/register-role',
   authorizeRoles('Admin'), 
   validateRegisterNonCustomer, 
   registerNonCustomer
+);
+
+/**
+ * @swagger
+ * /auth/merchant/login:
+ *   post:
+ *     summary: Log in a merchant
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: merchant@example.com
+ *               password:
+ *                 type: string
+ *                 example: Password123!
+ *             required:
+ *               - email
+ *               - password
+ *     responses:
+ *       200:
+ *         description: Merchant login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: integer
+ *                         email:
+ *                           type: string
+ *                         role:
+ *                           type: string
+ *                         merchant:
+ *                           type: object
+ *                           properties:
+ *                             id:
+ *                               type: integer
+ *                             business_name:
+ *                               type: string
+ *                             business_type:
+ *                               type: string
+ *                             phone_number:
+ *                               type: string
+ *                             currency:
+ *                               type: string
+ *                             time_zone:
+ *                               type: string
+ *                     token:
+ *                       type: string
+ *                     refreshToken:
+ *                       type: string
+ *       401:
+ *         description: Invalid credentials
+ *       403:
+ *         description: Account not verified
+ */
+router.post(
+  '/merchant/login',
+  validateMerchantLogin,
+  authLimiter,
+  merchantLogin
+);
+
+/**
+ * @swagger
+ * /auth/merchant/logout:
+ *   post:
+ *     summary: Logout merchant
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               deviceId:
+ *                 type: string
+ *                 description: Optional device ID for "Remember Me" cleanup
+ *     responses:
+ *       200:
+ *         description: Successfully logged out
+ *       401:
+ *         description: Unauthorized
+ */
+/**
+ * @swagger
+ * /auth/merchant/logout:
+ *   post:
+ *     summary: Logout merchant and invalidate sessions
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               deviceId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: Device ID for "Remember Me" token cleanup
+ *               clearAllDevices:
+ *                 type: boolean
+ *                 description: Whether to logout from all devices
+ *                 default: false
+ *             example:
+ *               deviceId: "123e4567-e89b-12d3-a456-426614174000"
+ *               clearAllDevices: false
+ *     responses:
+ *       200:
+ *         description: Successfully logged out
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 message:
+ *                   type: string
+ *                   example: Successfully logged out
+ *       400:
+ *         description: Invalid request parameters
+ *       401:
+ *         description: Unauthorized - Invalid or expired token
+ *       403:
+ *         description: Forbidden - Not a merchant account
+ *       500:
+ *         description: Internal server error
+ */
+router.post(
+  '/merchant/logout',
+  authenticate,
+  authorizeRoles('Merchant'),
+  validateMerchantLogout,
+  logout
 );
 
 module.exports = router;

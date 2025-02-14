@@ -37,6 +37,19 @@ module.exports = {
           notEmpty: { msg: 'Device type is required' },
         }
       },
+      remember_token: {
+        type: Sequelize.STRING,
+        allowNull: true,
+      },
+      remember_token_expires_at: {
+        type: Sequelize.DATE,
+        allowNull: true,
+      },
+      last_active_at: {
+        type: Sequelize.DATE,
+        allowNull: false,
+        defaultValue: Sequelize.NOW
+      },
       os: {
         type: Sequelize.STRING,
         allowNull: true,

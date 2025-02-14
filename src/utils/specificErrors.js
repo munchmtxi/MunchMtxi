@@ -25,9 +25,25 @@ class NotFoundError extends AppError {
   }
 }
 
+class MerchantAuthenticationError extends AuthenticationError {
+  constructor(message = 'Merchant authentication failed') {
+    super(message);
+    this.errorType = 'MERCHANT_AUTHENTICATION_ERROR';
+  }
+}
+
+class MerchantAuthorizationError extends AuthorizationError {
+  constructor(message = 'Merchant not authorized') {
+    super(message);
+    this.errorType = 'MERCHANT_AUTHORIZATION_ERROR';
+  }
+}
+
 module.exports = {
   ValidationError,
   AuthenticationError,
   AuthorizationError,
-  NotFoundError
+  NotFoundError,
+  MerchantAuthenticationError,
+  MerchantAuthorizationError
 };

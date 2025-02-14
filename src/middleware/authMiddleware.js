@@ -1,8 +1,8 @@
-// middleware/authMiddleware.js
 const passport = require('passport');
 const AppError = require('@utils/AppError');
 const roleService = require('@services/roleService');
 const { trackDevice } = require('@services/deviceService');
+const TokenService = require('@services/tokenService'); // Newly added import
 
 /**
  * Middleware to authenticate users using JWT.
@@ -11,6 +11,12 @@ const authenticate = async (req, res, next) => {
   passport.authenticate('jwt', async (err, user, info) => {
     if (err) return next(err);
     if (!user) return next(new AppError('Authentication failed', 401));
+
+    // Check if token is blacklisted
+    const isBlacklisted = await TokenService.isTokenBlacklisted(user.id);
+    if (isBlacklisted) {
+      return next(new AppError('Token is no longer valid', 401));
+    }
 
     req.user = user;
 

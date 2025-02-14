@@ -118,4 +118,32 @@ const registerNonCustomer = catchAsync(async (req, res, next) => {
   });
 });
 
-module.exports = { register, login, refreshToken: refreshTokenController, registerNonCustomer };
+// Add this new controller
+const merchantLogin = catchAsync(async (req, res) => {
+  const { email, password, deviceId, deviceType, rememberMe } = req.body;
+  
+  const result = await authService.loginMerchant(
+    email,
+    password,
+    { deviceId, deviceType },
+    rememberMe
+  );
+
+  res.status(200).json({
+    status: 'success',
+    data: result
+  });
+});
+
+const logout = catchAsync(async (req, res) => {
+  const { deviceId, clearAllDevices } = req.body;
+  
+  await authService.logoutMerchant(req.user.id, deviceId, clearAllDevices);
+  
+  res.status(200).json({
+    status: 'success',
+    message: 'Successfully logged out'
+  });
+});
+
+module.exports = { register, login, refreshToken: refreshTokenController, registerNonCustomer, merchantLogin, logout };
