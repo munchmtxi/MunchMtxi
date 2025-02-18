@@ -1,4 +1,7 @@
-require('module-alias/register');
+// Register module aliases first
+require('./src/config/registerAliases');
+
+// Then require all other modules
 const { app, server } = require('./app');
 const { sequelize } = require('@models');
 const { logger } = require('@utils/logger');

@@ -188,7 +188,7 @@ class SecurityAuditLogger {
       timestamp: entry.timestamp,
       event: entry.event,
       severity: entry.metadata?.severity || 'info',
-      category: this.categorizeAuditEvent(entry.event),
+      category: this.#categorizeAuditEvent(entry.event),
       hash: entry.hash,
       metadata: entry.metadata
     }));
@@ -200,7 +200,7 @@ class SecurityAuditLogger {
     const summary = {};
     
     entries.forEach(entry => {
-      const category = this.categorizeAuditEvent(entry.event);
+      const category = this.#categorizeAuditEvent(entry.event);
       if (!summary[category]) {
         summary[category] = {
           count: 0,
@@ -234,7 +234,7 @@ class SecurityAuditLogger {
     };
 
     entries.forEach(entry => {
-      const category = this.categorizeAuditEvent(entry.event);
+      const category = this.#categorizeAuditEvent(entry.event);
       
       if (!metrics.byCategory[category]) {
         metrics.byCategory[category] = {
@@ -244,7 +244,7 @@ class SecurityAuditLogger {
         };
       }
 
-      const isCompliant = this.checkEventCompliance(entry);
+      const isCompliant = this.#checkEventCompliance(entry);
       if (isCompliant) {
         metrics.overall.compliant++;
         metrics.byCategory[category].compliant++;
@@ -255,13 +255,13 @@ class SecurityAuditLogger {
     });
 
     // Calculate scores
-    metrics.overall.score = this.calculateComplianceScore(
+    metrics.overall.score = this.#calculateComplianceScore(
       metrics.overall.compliant,
       metrics.overall.nonCompliant
     );
 
     Object.keys(metrics.byCategory).forEach(category => {
-      metrics.byCategory[category].score = this.calculateComplianceScore(
+      metrics.byCategory[category].score = this.#calculateComplianceScore(
         metrics.byCategory[category].compliant,
         metrics.byCategory[category].nonCompliant
       );
@@ -293,9 +293,8 @@ class SecurityAuditLogger {
     return indicators.sort((a, b) => b.severity - a.severity);
   }
 
-  // Private helper methods
-  private categorizeAuditEvent(event) {
-    // Implement your categorization logic
+  // Private methods using # prefix for true privacy
+  #categorizeAuditEvent(event) {
     if (event.includes('auth')) return 'authentication';
     if (event.includes('permission')) return 'authorization';
     if (event.includes('data')) return 'data_access';
@@ -303,12 +302,11 @@ class SecurityAuditLogger {
     return 'general';
   }
 
-  private checkEventCompliance(entry) {
-    // Implement your compliance checking logic
+  #checkEventCompliance(entry) {
     return !entry.metadata?.compliance?.violations;
   }
 
-  private calculateComplianceScore(compliant, nonCompliant) {
+  #calculateComplianceScore(compliant, nonCompliant) {
     const total = compliant + nonCompliant;
     return total === 0 ? 100 : Math.round((compliant / total) * 100);
   }
