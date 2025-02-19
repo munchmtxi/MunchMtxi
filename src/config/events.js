@@ -75,7 +75,33 @@ const EVENTS = {
     PROFILE_UPDATED: 'merchant:profileUpdated',
     SETTINGS_UPDATED: 'merchant:settingsUpdated',
     STATUS_CHANGED: 'merchant:statusChanged',
-    
+
+    // Detailed Profile Events
+    PROFILE: {
+      UPDATE_REQUESTED: 'merchant:profile:updateRequested',
+      UPDATE_SUCCEEDED: 'merchant:profile:updateSucceeded',
+      UPDATE_FAILED: 'merchant:profile:updateFailed',
+      VALIDATION_ERROR: 'merchant:profile:validationError',
+      
+      // Business Details
+      BUSINESS_NAME_UPDATED: 'merchant:profile:businessNameUpdated',
+      ADDRESS_UPDATED: 'merchant:profile:addressUpdated',
+      PHONE_UPDATED: 'merchant:profile:phoneUpdated',
+      HOURS_UPDATED: 'merchant:profile:hoursUpdated',
+      
+      // Preferences
+      CURRENCY_UPDATED: 'merchant:profile:currencyUpdated',
+      TIMEZONE_UPDATED: 'merchant:profile:timezoneUpdated',
+      NOTIFICATION_PREFS_UPDATED: 'merchant:profile:notificationPrefsUpdated',
+      WHATSAPP_STATUS_UPDATED: 'merchant:profile:whatsappStatusUpdated',
+      
+      // Location and Service Area
+      LOCATION_UPDATED: 'merchant:profile:locationUpdated',
+      SERVICE_RADIUS_UPDATED: 'merchant:profile:serviceRadiusUpdated',
+      DELIVERY_AREA_UPDATED: 'merchant:profile:deliveryAreaUpdated',
+      GEOFENCE_UPDATED: 'merchant:profile:geofenceUpdated'
+    },
+
     // Inventory and Menu
     INVENTORY_UPDATED: 'merchant:inventoryUpdated',
     MENU_UPDATED: 'merchant:menuUpdated',
