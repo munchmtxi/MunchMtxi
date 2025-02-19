@@ -60,7 +60,7 @@ const authorizeRoles = (...roles) => {
 const authorize = (action, resource) => {
   return async (req, res, next) => {
     try {
-      const userPermissions = await getRolePermissions(req.user.roleId);
+      const userPermissions = await roleService.getRolePermissions(req.user.roleId);
       const hasPermission = userPermissions.some(
         perm => perm.action === action && perm.resource === resource
       );
@@ -74,4 +74,36 @@ const authorize = (action, resource) => {
   };
 };
 
-module.exports = { authenticate, authorizeRoles, authorize };
+/**
+ * Middleware to validate JWT token.
+ */
+const validateToken = async (req, res, next) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      return next(new AppError('Token is required', 401));
+    }
+    
+    const decoded = await TokenService.verifyToken(token);
+    if (!decoded) {
+      return next(new AppError('Invalid token', 401));
+    }
+
+    req.user = decoded;
+    next();
+  } catch (error) {
+    next(new AppError('Token validation failed', 401));
+  }
+};
+
+/**
+ * Middleware to ensure authentication is required.
+ */
+const requireAuth = async (req, res, next) => {
+  if (!req.user) {
+    return next(new AppError('Authentication required', 401));
+  }
+  next();
+};
+
+module.exports = { authenticate, authorizeRoles, authorize, validateToken, requireAuth };

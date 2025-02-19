@@ -59,6 +59,12 @@ const validateLocationPermissions = async (req, res, next) => {
   next();
 };
 
+// Helper function for dynamic rate limiting (if not defined elsewhere)
+const calculatePointsForRequest = async (req) => {
+  // For example, return 1 point per request
+  return 1;
+};
+
 // Dynamic rate limiting middleware
 const dynamicRateLimiter = (redisClient) => {
   const rateLimiter = new RateLimiterRedis({
@@ -93,7 +99,7 @@ const xssMiddleware = (req, res, next) => {
     for (let key in obj) {
       if (typeof obj[key] === 'string') {
         obj[key] = sanitizeString(obj[key]);
-      } else if (typeof obj[key] === 'object') {
+      } else if (typeof obj[key] === 'object' && obj[key] !== null) {
         sanitizeObject(obj[key]);
       }
     }
@@ -106,8 +112,8 @@ const xssMiddleware = (req, res, next) => {
   next();
 };
 
-// Security middleware setup
-module.exports = function securityMiddleware(app) {
+// Change the function name from setupSecurity to securityMiddleware
+function securityMiddleware(app) {
   // Initialize Redis client for dynamic rate limiting
   const redisClient = Redis.createClient({
     url: process.env.REDIS_URL || 'redis://localhost:6379',
@@ -124,7 +130,7 @@ module.exports = function securityMiddleware(app) {
         defaultSrc: ["'self'"],
         scriptSrc: [
           "'self'",
-          (req, res) => `'nonce-${res.locals.nonce}'` // Dynamically add nonce for inline scripts
+          (req, res) => `nonce-${res.locals.nonce}` // Dynamically add nonce for inline scripts
         ],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", "data:", "https:"],
@@ -229,13 +235,16 @@ module.exports = function securityMiddleware(app) {
     }
     res.status(204).end();
   });
-};
+}
 
-// Export individual components for use in other parts of the application
-module.exports.validatePermissions = validatePermissions;
-module.exports.validateLocationPermissions = validateLocationPermissions;
-module.exports.rateLimiters = {
-  defaultLimiter,
-  authLimiter,
-  geoLocationLimiter,
+module.exports = {
+
+  securityMiddleware,
+  validatePermissions,
+  validateLocationPermissions,
+  rateLimiters: {
+    defaultLimiter,
+    authLimiter,
+    geoLocationLimiter
+  }
 };

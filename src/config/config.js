@@ -46,7 +46,8 @@ const baseConfig = {
     port: process.env.EMAIL_PORT,
     username: process.env.EMAIL_USER,
     password: process.env.EMAIL_PASS,
-    encryption: process.env.EMAIL_ENCRYPTION
+    encryption: process.env.EMAIL_ENCRYPTION,
+    service: process.env.EMAIL_SERVICE
   },
   frontendUrl: process.env.FRONTEND_URL,
   statusMonitor: {

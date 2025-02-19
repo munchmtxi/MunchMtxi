@@ -1,8 +1,7 @@
-// middleware/requestLogger.js
 const logger = require('@utils/logger');
 
-// Define the middleware function
-const requestLogger = (req, res, next) => {
+// Define the middleware function logRequest
+const logRequest = (req, res, next) => {
   logger.info(`Incoming Request: ${req.method} ${req.originalUrl}`, {
     method: req.method,
     url: req.originalUrl,
@@ -13,5 +12,5 @@ const requestLogger = (req, res, next) => {
   next();
 };
 
-// Export the middleware function
-module.exports = requestLogger;
+// Export the logRequest function
+module.exports = { logRequest };

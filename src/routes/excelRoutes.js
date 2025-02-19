@@ -1,43 +1,38 @@
 // src/routes/excelRoutes.js
 const express = require('express');
 const router = express.Router();
+const excelController = require('../controllers/excelController');
 const { authenticate, authorizeRoles } = require('../middleware/authMiddleware');
-const excelService = require('../services/excelService');
-const emailService = require('../services/emailService');
 const catchAsync = require('../utils/catchAsync');
 
 router.post('/export', 
   authenticate, 
   authorizeRoles('admin', 'merchant'),
-  catchAsync(async (req, res) => {
-    const { reportType, dateRange, filters } = req.body;
-    
-    const filePath = await excelService.generateScheduledReport({
-      reportType,
-      dateRange,
-      filters
-    });
-    
-    res.download(filePath, `${reportType}_report.xlsx`, async (err) => {
-      if (err) {
-        logger.error(`Error sending Excel file: ${err.message}`);
-      }
-      await excelService.cleanup(filePath);
-    });
-  })
+  catchAsync(excelController.exportReport.bind(excelController))
 );
 
 router.post('/schedule',
   authenticate,
   authorizeRoles('admin', 'merchant'),
-  catchAsync(async (req, res) => {
-    const { reportType, frequency, email, filters } = req.body;
-    
-    // Store schedule in database and set up cron job
-    // Implementation depends on your scheduling system
-    
-    res.status(200).json({ message: 'Report scheduled successfully' });
-  })
+  catchAsync(excelController.scheduleReport.bind(excelController))
+);
+
+router.get('/schedules',
+  authenticate,
+  authorizeRoles('admin', 'merchant'),
+  catchAsync(excelController.getSchedules.bind(excelController))
+);
+
+router.patch('/schedules/:scheduleId',
+  authenticate,
+  authorizeRoles('admin', 'merchant'),
+  catchAsync(excelController.updateSchedule.bind(excelController))
+);
+
+router.delete('/schedules/:scheduleId',
+  authenticate,
+  authorizeRoles('admin', 'merchant'),
+  catchAsync(excelController.deleteSchedule.bind(excelController))
 );
 
 module.exports = router;

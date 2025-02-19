@@ -58,4 +58,13 @@ const sendErrorProd = (err, res) => {
   });
 };
 
-module.exports = errorHandler;
+// The missing handleError function
+const handleError = (err, req, res, next) => {
+  logger.error('Unhandled Error:', err);
+  res.status(err.statusCode || 500).json({
+    status: 'error',
+    message: err.message || 'Internal Server Error'
+  });
+};
+
+module.exports = { errorHandler, handleError };

@@ -10,12 +10,12 @@ const SocketIO = require('socket.io');
 // Aliased Internal Modules
 const { logger } = require('@utils/logger');
 const AppError = require('@utils/AppError');
-const SecurityMiddleware = require('@middleware/security');
-const RequestLogger = require('@middleware/requestLogger');
+const { securityMiddleware } = require('@middleware/security');
+const { logRequest } = require('@middleware/requestLogger');
 const { performanceMiddleware: PerformanceMiddleware, apiUsageMiddleware: ApiUsageMiddleware } = require('@middleware/performanceMiddleware');
 const { setupPassport: SetupPassport } = require('@config/passport');
 const { setupSwagger: SetupSwagger } = require('@config/swagger');
-const ErrorHandler = require('@middleware/errorHandler');
+const { handleError } = require('@middleware/errorHandler');
 const deviceMiddleware = require('@middleware/deviceDetectionMiddleware');
 const responseOptimizer = require('@middleware/responseOptimizerMiddleware');
 
@@ -54,10 +54,10 @@ app.use(Morgan('combined', {
 }));
 
 // Apply security middleware
-SecurityMiddleware(app);
+securityMiddleware(app);
 
 // Custom request logger
-app.use(RequestLogger);
+app.use(logRequest);
 
 // Performance monitoring and API usage middleware
 app.use(PerformanceMiddleware);
@@ -109,7 +109,7 @@ app.all('*', (req, res, next) => {
 });
 
 // Global error handler
-app.use(ErrorHandler);
+app.use(handleError);
 
 // Device detection middleware
 app.use(deviceMiddleware);

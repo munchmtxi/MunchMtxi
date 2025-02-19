@@ -554,28 +554,29 @@ class StartupValidator {
     console.log('\n🔌 Validating integrations...');
     
     // Required external services
-    const requiredIntegrations = {
-      'Google Maps': {
-        envVars: ['GOOGLE_MAPS_API_KEY'],
-        files: ['src/services/geoLocation/locationDetectionService.js']
-      },
-      'WhatsApp': {
-        envVars: ['WHATSAPP_API_KEY', 'WHATSAPP_API_URL'],
-        files: ['src/services/whatsappService.js']
-      },
-      'SMS': {
-        envVars: ['SMS_API_KEY', 'SMS_SENDER_ID'],
-        files: ['src/services/smsService.js']
-      },
-      'Email': {
-        envVars: ['EMAIL_SERVICE', 'EMAIL_USER', 'EMAIL_PASS'],
-        files: ['src/services/emailService.js']
-      },
-      'Redis': {
-        envVars: ['REDIS_URL'],
-        files: ['src/config/redis.js']
-      }
-    };
+const requiredIntegrations = {
+  'Google Maps': {
+    envVars: ['GOOGLE_MAPS_API_KEY'],
+    files: ['src/services/geoLocation/locationDetectionService.js']
+  },
+  'Twilio': {
+    envVars: ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_WHATSAPP_NUMBER'],
+    files: ['src/services/whatsappService.js']
+  },
+  'SMS': {
+    envVars: ['SMS_API_KEY', 'SMS_SENDER_ID'],
+    files: ['src/services/smsService.js']
+  },
+  'Email': {
+    envVars: ['EMAIL_SERVICE', 'EMAIL_USER', 'EMAIL_PASS'],
+    files: ['src/services/emailService.js']
+  },
+  'Redis': {
+    envVars: ['REDIS_URL'],
+    files: ['src/config/redis.js']
+  }
+};
+
 
     for (const [integration, config] of Object.entries(requiredIntegrations)) {
       let isConfigured = true;
