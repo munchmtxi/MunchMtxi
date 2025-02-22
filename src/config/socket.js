@@ -217,6 +217,12 @@ const setupRoleHandlers = (socket, io) => {
         break;
       case 'MERCHANT':
         merchantHandlers.initialize(socket, io);
+        // Initialize profile handlers
+        const profileHandlers = require('@handlers/merchantHandlers/profileHandlers/profileHandlers');
+        const imageUploadHandler = require('@handlers/merchantHandlers/profileHandlers/imageUploadHandler');
+        
+        profileHandlers.initialize(socket, io);
+        imageUploadHandler.initialize(socket, io);
         break;
       case 'DRIVER':
         driverHandlers.initialize(socket, io);

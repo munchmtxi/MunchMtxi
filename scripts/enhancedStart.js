@@ -1,73 +1,68 @@
 // scripts/enhancedStart.js
 const path = require('path');
 const moduleAlias = require('module-alias');
+const colors = require('colors/safe');
 
-// Reset any existing aliases
-moduleAlias.reset();
+// First, create the aliases configuration
+const aliases = {
+  '@config': path.join(__dirname, '..', 'src', 'config'),
+  '@controllers': path.join(__dirname, '..', 'src', 'controllers'),
+  '@models': path.join(__dirname, '..', 'src', 'models'),
+  '@routes': path.join(__dirname, '..', 'src', 'routes'),
+  '@utils': path.join(__dirname, '..', 'src', 'utils'),
+  '@services': path.join(__dirname, '..', 'src', 'services'),
+  '@middleware': path.join(__dirname, '..', 'src', 'middleware'),
+  '@validators': path.join(__dirname, '..', 'src', 'validators'),
+  '@handlers': path.join(__dirname, '..', 'src', 'handlers')
+};
 
-// Define the base directory for your source code
-const baseDir = path.join(__dirname, '..');
+// Register aliases
+moduleAlias.addAliases(aliases);
 
-// Register module aliases with absolute paths
-moduleAlias.addAliases({
-  '@config': path.join(baseDir, 'src', 'config'),
-  '@controllers': path.join(baseDir, 'src', 'controllers'),
-  '@models': path.join(baseDir, 'src', 'models'),
-  '@routes': path.join(baseDir, 'src', 'routes'),
-  '@utils': path.join(baseDir, 'src', 'utils'),
-  '@services': path.join(baseDir, 'src', 'services'),
-  '@middleware': path.join(baseDir, 'src', 'middleware'),
-  '@validators': path.join(baseDir, 'src', 'validators'),
-  '@handlers': path.join(baseDir, 'src', 'handlers')
-});
-
-console.log('\n🔗 Module aliases registered successfully.');
-
-// Load environment variables after aliases are set up
+// Load environment variables
 require('dotenv').config();
-console.log('\n🌱 Environment variables loaded.');
 
-// Now require the validator and other dependencies
+// Now require the validator
 const validator = require('./validateStartup');
-const { logger } = require('@utils/logger');
 
 async function start() {
-  console.log('\n🔍 Validating application modules...');
-
   try {
-    // Run the connection tests
-    console.log('\n⚡ Running connection tests...');
-    require('./testConnections');
+    // Display registered aliases
+    console.log('\n🔗 Module aliases registered:');
+    Object.entries(aliases).forEach(([alias, pathValue]) => {
+      console.log(`   ${colors.green('✓')} ${alias} → ${pathValue}`);
+    });
 
-    // Validate all modules, including new validations for database, migrations, integrations, etc.
+    console.log('\n🌱 Environment variables loaded');
+
+    // Run core validations
     const isValid = await validator.validateAll();
 
     if (!isValid) {
-      console.error('\n❌ Application failed to validate. Please fix the errors above.');
+      console.error(colors.red('\n❌ Application failed validation. Please fix the errors above.'));
       process.exit(1);
     }
 
-    // If everything is valid, start the server
-    console.log('\n🚀 All modules validated. Starting server...');
+    // Start the server if all validations pass
+    console.log(colors.green('\n✨ All validations passed. Starting server...'));
     require('../server');
 
   } catch (error) {
-    logger.error('Failed to start server:', error);
-    console.error('\n❌ Failed to start server:', error.message);
+    console.error(colors.red('\n❌ Failed to start server:'), error.message);
     process.exit(1);
   }
 }
 
-// Handle unhandled rejections
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('\n❌ Unhandled Rejection:', reason);
+// Enhanced error handling
+process.on('unhandledRejection', (reason) => {
+  console.error(colors.red('\n❌ Unhandled Rejection:'), reason);
   process.exit(1);
 });
 
-// Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
-  console.error('\n❌ Uncaught Exception:', error);
+  console.error(colors.red('\n❌ Uncaught Exception:'), error);
   process.exit(1);
 });
 
+// Start the application
 start();

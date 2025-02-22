@@ -1,7 +1,7 @@
+// src/middleware/performanceMiddleware.js
 const { performance } = require('perf_hooks');
-const logger = require('@utils/logger');
+const { logger } = require('@utils/logger');  // Change to destructure logger
 
-// Base performance middleware
 const performanceMiddleware = (req, res, next) => {
   const start = performance.now();
   
@@ -18,14 +18,12 @@ const performanceMiddleware = (req, res, next) => {
   next();
 };
 
-// API usage monitoring middleware
 const apiUsageMiddleware = (healthMonitor) => {
   return (req, res, next) => {
     const endpoint = req.route?.path || req.path;
     const method = req.method;
     const userId = req.user?.id || 'anonymous';
 
-    // Check quota before proceeding
     if (!healthMonitor.checkQuota(endpoint, method, userId)) {
       return res.status(429).json({
         error: 'Rate limit exceeded',
@@ -33,9 +31,7 @@ const apiUsageMiddleware = (healthMonitor) => {
       });
     }
 
-    // Track the API call
     healthMonitor.trackApiCall(endpoint, method, userId);
-
     next();
   };
 };

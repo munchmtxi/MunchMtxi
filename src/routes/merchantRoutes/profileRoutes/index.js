@@ -1,17 +1,34 @@
 // src/routes/merchantRoutes/profileRoutes/index.js
-const { Router } = require('express');
-const { updateProfile } = require('@controllers/merchantControllers/profileControllers/profileController');
-const { authenticate, authorize } = require('@middleware/authMiddleware');
+const express = require('express');
+const router = express.Router();
 
-const router = Router();
+// Import route modules
+const routes = {
+  activity: require('./activityRoutes'),
+  address: require('./addressRoutes'),
+  banner: require('./bannerRoutes'),
+  businessType: require('./businessTypeRoutes'),
+  draft: require('./draftRoutes'),
+  getProfile: require('./getProfileRoute'),
+  image: require('./imageRoutes'),
+  merchant2FA: require('./merchant2FARoutes'),
+  password: require('./passwordRoutes'),
+  metrics: require('./merchantMetricsRoutes'),
+  preview: require('./previewRoutes'),
+  analytics: require('./profileAnalyticsRoutes'),
+  profile: require('./profileRoutes')
+};
 
-// Profile management routes
-router.patch(
-  '/',
-  authenticate,
-  authorize('update', 'merchant_profile'),
-  updateProfile
-);
+// Mount routes with validation
+Object.entries(routes).forEach(([name, module]) => {
+  if (module && (typeof module === 'function' || module.router)) {
+    const path = name
+      .replace(/([A-Z])/g, '-$1')
+      .toLowerCase();
+    router.use(`/${path}`, module);
+  } else {
+    console.warn(`Skipping invalid route module: ${name}`);
+  }
+});
 
-// Export profile routes
 module.exports = router;

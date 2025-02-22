@@ -1,6 +1,7 @@
 'use strict';
 const { Model } = require('sequelize');
 const libphonenumber = require('google-libphonenumber');
+const { BUSINESS_TYPES } = require('@config/constants/businessTypes');
 
 module.exports = (sequelize, DataTypes) => {
   class Merchant extends Model {
@@ -33,14 +34,28 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'user_id',
         as: 'notifications',
       });
-      // Added new association
       this.belongsTo(models.Geofence, {
         foreignKey: 'geofence_id',
         as: 'geofence'
       });
+      
+      // Password management associations
+      this.hasMany(models.PasswordHistory, {
+        foreignKey: 'user_id',
+        constraints: false,
+        scope: {
+          user_type: 'merchant'
+        }
+      });
+      this.hasMany(models.PasswordResetLog, {
+        foreignKey: 'user_id',
+        constraints: false,
+        scope: {
+          user_type: 'merchant'
+        }
+      });
     }
 
-    // Method to format phone number for WhatsApp
     format_phone_for_whatsapp() {
       const phoneUtil = libphonenumber.PhoneNumberUtil.getInstance();
       try {
@@ -51,7 +66,6 @@ module.exports = (sequelize, DataTypes) => {
       }
     }
 
-    // Method to format business hours according to timezone
     format_business_hours() {
       return {
         open: this.business_hours?.open?.toLocaleTimeString('en-US', { 
@@ -65,6 +79,34 @@ module.exports = (sequelize, DataTypes) => {
           minute: '2-digit'
         })
       };
+    }
+
+    getBusinessTypeConfig() {
+      return BUSINESS_TYPES[this.business_type.toUpperCase()];
+    }
+
+    validateBusinessTypeDetails() {
+      const typeConfig = this.getBusinessTypeConfig();
+      if (!typeConfig) return false;
+
+      const details = this.business_type_details || {};
+      
+      // Check required fields
+      const hasAllRequired = typeConfig.requiredFields.every(field => 
+        details[field] !== undefined && details[field] !== null
+      );
+
+      // Check service types
+      const hasValidServices = details.service_types?.every(service =>
+        typeConfig.allowedServiceTypes.includes(service)
+      );
+
+      // Check licenses
+      const hasRequiredLicenses = typeConfig.requiredLicenses.every(license =>
+        details.licenses?.includes(license)
+      );
+
+      return hasAllRequired && hasValidServices && hasRequiredLicenses;
     }
   }
 
@@ -98,14 +140,62 @@ module.exports = (sequelize, DataTypes) => {
       },
     },
     business_type: {
-      type: DataTypes.ENUM('grocery', 'restaurant'),
+      type: DataTypes.ENUM('grocery', 'restaurant', 'cafe', 'bakery', 'butcher'),
       allowNull: false,
       validate: {
         isIn: {
-          args: [['grocery', 'restaurant']],
-          msg: 'Business type must be either grocery or restaurant',
-        },
-      },
+          args: [['grocery', 'restaurant', 'cafe', 'bakery', 'butcher']],
+          msg: 'Invalid business type'
+        }
+      }
+    },
+    business_type_details: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      validate: {
+        isValidForType(value) {
+          if (!value) return;
+
+          try {
+            const { BUSINESS_TYPES } = require('../config/constants/businessTypes');
+            const typeConfig = BUSINESS_TYPES[this.business_type.toUpperCase()];
+            
+            if (!typeConfig) return;  // Skip validation if type config not found
+
+            // Validate required fields
+            const missingFields = typeConfig.requiredFields.filter(field => !value[field]);
+            if (missingFields.length > 0) {
+              throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+            }
+
+            // Validate service types if present
+            if (value.service_types) {
+              const invalidServices = value.service_types.filter(
+                service => !typeConfig.allowedServiceTypes.includes(service)
+              );
+              if (invalidServices.length > 0) {
+                throw new Error(`Invalid service types: ${invalidServices.join(', ')}`);
+              }
+            }
+
+            // Validate licenses if present
+            if (value.licenses) {
+              const missingLicenses = typeConfig.requiredLicenses.filter(
+                license => !value.licenses.includes(license)
+              );
+              if (missingLicenses.length > 0) {
+                throw new Error(`Missing required licenses: ${missingLicenses.join(', ')}`);
+              }
+            }
+          } catch (error) {
+            if (error.code === 'MODULE_NOT_FOUND') {
+              // Skip validation if constants file not found
+              return;
+            }
+            throw error;
+          }
+        }
+      }
     },
     address: {
       type: DataTypes.STRING,
@@ -132,6 +222,29 @@ module.exports = (sequelize, DataTypes) => {
           }
         },
       },
+    },
+    // Password management fields
+    last_password_update: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW
+    },
+    password_strength: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+      validate: {
+        min: 0,
+        max: 100
+      }
+    },
+    failed_password_attempts: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0
+    },
+    password_lock_until: {
+      type: DataTypes.DATE,
+      allowNull: true
     },
     currency: {
       type: DataTypes.STRING,
@@ -175,7 +288,18 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: true
     },
-    // Added new fields
+    logoUrl: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    bannerUrl: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    storefrontUrl: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
     delivery_area: {
       type: DataTypes.JSONB,
       allowNull: true
@@ -183,7 +307,7 @@ module.exports = (sequelize, DataTypes) => {
     location: {
       type: DataTypes.JSONB,
       allowNull: true
-    },
+    }, 
     service_radius: {
       type: DataTypes.DECIMAL,
       allowNull: true
@@ -230,6 +354,17 @@ module.exports = (sequelize, DataTypes) => {
         name: 'merchants_phone_number_unique'
       }
     ],
+    hooks: {
+      beforeValidate: async (merchant) => {
+        if (merchant.changed('business_type') && merchant.business_type_details) {
+          // Revalidate business type details when type changes
+          const isValid = merchant.validateBusinessTypeDetails();
+          if (!isValid) {
+            throw new Error('Business type details invalid for new business type');
+          }
+        }
+      }
+    }
   });
 
   return Merchant;

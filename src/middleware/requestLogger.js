@@ -1,6 +1,6 @@
-const logger = require('@utils/logger');
+// src/middleware/requestLogger.js
+const { logger } = require('@utils/logger');  // Change to destructure logger
 
-// Define the middleware function logRequest
 const logRequest = (req, res, next) => {
   logger.info(`Incoming Request: ${req.method} ${req.originalUrl}`, {
     method: req.method,
@@ -12,5 +12,4 @@ const logRequest = (req, res, next) => {
   next();
 };
 
-// Export the logRequest function
 module.exports = { logRequest };

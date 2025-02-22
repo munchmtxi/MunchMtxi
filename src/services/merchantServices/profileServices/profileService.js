@@ -4,14 +4,8 @@ const AppError = require('@utils/AppError');
 const securityAuditLogger = require('@services/securityAuditLogger');
 const TokenService = require('@services/tokenService');
 
-class MerchantProfileService {
-  async updateProfile(merchantId, updateData, authToken) {
-    // Verify token is still valid
-    const isBlacklisted = await TokenService.isTokenBlacklisted(merchantId);
-    if (isBlacklisted) {
-      throw new AppError('Session expired', 401, 'TOKEN_BLACKLISTED');
-    }
-
+const merchantProfileService = {
+  async getProfile(merchantId) {
     const merchant = await Merchant.findByPk(merchantId, {
       include: [{
         model: User,
@@ -23,6 +17,18 @@ class MerchantProfileService {
     if (!merchant) {
       throw new AppError('Merchant not found', 404, 'MERCHANT_NOT_FOUND');
     }
+
+    return merchant;
+  },
+
+  async updateProfile(merchantId, updateData, authToken) {
+    // Verify token is still valid
+    const isBlacklisted = await TokenService.isTokenBlacklisted(merchantId);
+    if (isBlacklisted) {
+      throw new AppError('Session expired', 401, 'TOKEN_BLACKLISTED');
+    }
+
+    const merchant = await this.getProfile(merchantId);
 
     // Log the update attempt with enhanced security audit
     await securityAuditLogger.logSecurityAudit('MERCHANT_PROFILE_UPDATE', {
@@ -59,7 +65,19 @@ class MerchantProfileService {
     await merchant.update(updateData);
 
     return merchant;
-  }
-}
+  },
 
-module.exports = new MerchantProfileService();
+  async updateBusinessHours(merchantId, businessHours) {
+    const merchant = await this.getProfile(merchantId);
+    await merchant.update({ business_hours: businessHours });
+    return merchant;
+  },
+
+  async updateDeliverySettings(merchantId, deliverySettings) {
+    const merchant = await this.getProfile(merchantId);
+    await merchant.update({ delivery_settings: deliverySettings });
+    return merchant;
+  }
+};
+
+module.exports = merchantProfileService;
