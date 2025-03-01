@@ -3,37 +3,71 @@ const { Model } = require('sequelize');
 module.exports = (sequelize, DataTypes) => {
   class Order extends Model {
     static associate(models) {
-      this.belongsTo(models.Customer, {
-        foreignKey: 'customer_id',
-        as: 'customer',
-      });
-      this.belongsTo(models.Merchant, {
-        foreignKey: 'merchant_id',
-        as: 'merchant',
-      });
-      this.belongsTo(models.Driver, {
-        foreignKey: 'driver_id',
-        as: 'driver',
-      });
-      this.hasMany(models.Payment, {
-        foreignKey: 'order_id',
-        as: 'payments',
-      });
-      this.hasMany(models.Notification, {
-        foreignKey: 'order_id',
-        as: 'notifications',
-      });
-      this.belongsToMany(models.MenuInventory, {
-        through: models.OrderItems,
-        foreignKey: 'order_id',
-        otherKey: 'menu_item_id',
-        as: 'orderedItems',
-      });
-      // Added new association
-      this.belongsTo(models.Route, {
-        foreignKey: 'route_id',
-        as: 'route'
-      });
+      // Customer relationship
+      if (models.Customer) {
+        this.belongsTo(models.Customer, {
+          foreignKey: 'customer_id',
+          as: 'customer',
+        });
+      }
+      
+      // Merchant relationship
+      if (models.Merchant) {
+        this.belongsTo(models.Merchant, {
+          foreignKey: 'merchant_id',
+          as: 'merchant',
+        });
+      }
+      
+      // Driver relationship
+      if (models.Driver) {
+        this.belongsTo(models.Driver, {
+          foreignKey: 'driver_id',
+          as: 'driver',
+        });
+      }
+      
+      // Payment relationship
+      if (models.Payment) {
+        this.hasMany(models.Payment, {
+          foreignKey: 'order_id',
+          as: 'payments',
+        });
+      }
+      
+      // Notification relationship
+      if (models.Notification) {
+        this.hasMany(models.Notification, {
+          foreignKey: 'order_id',
+          as: 'notifications',
+        });
+      }
+      
+      // MenuInventory relationship through OrderItems
+      if (models.MenuInventory && models.OrderItems) {
+        this.belongsToMany(models.MenuInventory, {
+          through: models.OrderItems,
+          foreignKey: 'order_id',
+          otherKey: 'menu_item_id',
+          as: 'orderedItems',
+        });
+      }
+      
+      // Route relationship
+      if (models.Route) {
+        this.belongsTo(models.Route, {
+          foreignKey: 'route_id',
+          as: 'route'
+        });
+      }
+      
+      // PromotionRedemption relationship - with safety check
+      if (models.PromotionRedemption) {
+        this.hasMany(models.PromotionRedemption, {
+          foreignKey: 'order_id',
+          as: 'promotionRedemptions'
+        });
+      }
     }
 
     get_whatsapp_template_for_status() {
@@ -205,6 +239,40 @@ module.exports = (sequelize, DataTypes) => {
     deleted_at: {
       type: DataTypes.DATE,
       allowNull: true
+    },
+    applied_promotions: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      comment: 'JSON array of applied promotion details'
+    },
+    total_discount: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: false,
+      defaultValue: 0,
+      validate: {
+        min: 0
+      }
+    },
+    // New routing fields
+    routing_info: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      defaultValue: {
+        original_branch_id: null,
+        routed_branch_id: null,
+        routing_timestamp: null,
+        routing_reason: null,
+        routing_metrics: {
+          distance: null,
+          estimated_time: null,
+          branch_load: null
+        }
+      }
+    },
+    routing_history: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      defaultValue: []
     }
   }, {
     sequelize,

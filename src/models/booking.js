@@ -3,6 +3,7 @@ const { Model } = require('sequelize');
 module.exports = (sequelize, DataTypes) => {
   class Booking extends Model {
     static associate(models) {
+      // Existing associations
       this.belongsTo(models.Customer, {
         foreignKey: 'customer_id',
         as: 'customer',
@@ -14,6 +15,16 @@ module.exports = (sequelize, DataTypes) => {
       this.hasMany(models.Notification, {
         foreignKey: 'booking_id',
         as: 'notifications',
+      });
+      
+      // New associations for Table and MerchantBranch
+      this.belongsTo(models.Table, {
+        foreignKey: 'table_id',
+        as: 'table',
+      });
+      this.belongsTo(models.MerchantBranch, {
+        foreignKey: 'branch_id',
+        as: 'branch',
       });
     }
 
@@ -111,7 +122,108 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: 'pending',
     },
-    // Added new geo-location fields
+    // New additional fields for extended functionality
+    branch_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true, // Allow null initially for backward compatibility
+      references: {
+        model: 'merchant_branches',
+        key: 'id',
+      },
+      onUpdate: 'CASCADE',
+      onDelete: 'CASCADE',
+    },
+    table_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'tables',
+        key: 'id',
+      },
+      onUpdate: 'CASCADE',
+      onDelete: 'SET NULL',
+    },
+    waitlist_position: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    waitlisted_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    approval_reason: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: 'Reason for approval or denial'
+    },
+    notification_status: {
+      type: DataTypes.ENUM('not_sent', 'sent', 'failed', 'received', 'confirmed'),
+      defaultValue: 'not_sent',
+      allowNull: false
+    },
+    last_notification_sent: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    estimated_arrival: {
+      type: DataTypes.TIME,
+      allowNull: true,
+      comment: 'For tracking customers who are running late'
+    },
+    arrived_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    seated_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    departed_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    seating_preference: {
+      type: DataTypes.ENUM('no_preference', 'indoor', 'outdoor', 'rooftop', 'balcony', 'window', 'booth', 'high_top', 'bar', 'lounge', 'private'),
+      allowNull: false,
+      defaultValue: 'no_preference',
+    },
+    party_notes: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: 'Staff notes about the reservation/party'
+    },
+    check_in_code: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Unique code for self check-in'
+    },
+    source: {
+      type: DataTypes.ENUM('app', 'website', 'phone', 'walk_in', 'third_party', 'staff'),
+      allowNull: false,
+      defaultValue: 'app',
+    },
+    occasion: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Special occasion like birthday, anniversary, etc.'
+    },
+    booking_modified_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'When the booking was last modified'
+    },
+    booking_modified_by: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      comment: 'User ID of who modified the booking'
+    },
+    booking_metadata: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      defaultValue: {},
+      comment: 'Additional booking data like promotional info, device info, etc.'
+    },
+    // Existing geo-location fields
     pickup_location: {
       type: DataTypes.JSONB,
       allowNull: true,
