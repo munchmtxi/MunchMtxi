@@ -1,0 +1,520 @@
+=== Database Model Summary ===
+
+Table: address
+  Columns:
+    - validatedAt: { [Op.ne]: null }
+  Associations:
+    - hasMany models
+
+Table: booking
+  Columns:
+    - notNull: { msg: 'Customer ID is required' }
+    - isInt: { msg: 'Customer ID must be an integer' }
+    - notNull: { msg: 'Merchant ID is required' }
+    - isInt: { msg: 'Merchant ID must be an integer' }
+    - min: { args: [1], msg: 'Guest count must be at least 1' }
+    - defaultValue: {  }
+  Associations:
+    - belongsTo models
+    - belongsTo models
+    - hasMany models
+    - belongsTo models
+    - belongsTo models
+
+Table: bookingBlackoutDate
+  Columns:
+  Associations:
+    - belongsTo models
+
+Table: bookingTimeSlot
+  Columns:
+    - notNull: { msg: 'Branch ID is required' }
+    - isInt: { msg: 'Branch ID must be an integer' }
+  Associations:
+    - belongsTo models
+
+Table: branchActivity
+  Columns:
+  Associations:
+    - belongsTo models
+    - belongsTo models
+
+Table: branchInsights
+  Columns:
+    - defaultValue: {  }
+  Associations:
+    - belongsTo models
+    - belongsTo models
+
+Table: branchMetrics
+  Columns:
+    - stock_levels: {  }
+  Associations:
+    - belongsTo models
+
+Table: branchPermission
+  Columns:
+  Associations:
+    - belongsTo models
+    - belongsTo models
+
+Table: branchRole
+  Columns:
+  Associations:
+    - hasMany models
+    - belongsTo models
+
+Table: branchStaffRole
+  Columns:
+  Associations:
+    - belongsTo models
+    - belongsTo models
+    - belongsTo models
+
+Table: customer
+  Columns:
+    - notNull: { msg: 'User ID is required' }
+    - isInt: { msg: 'User ID must be an integer' }
+    - notEmpty: { msg: 'Phone number is required' }
+    - notEmpty: { msg: 'Address is required' }
+  Associations:
+    - belongsTo models
+    - hasMany models
+    - hasMany models
+    - hasMany models
+    - hasMany models
+    - belongsTo models
+
+Table: deliveryHotspot
+  Columns:
+    - totalDeliveries: { [Op.gt]: 0 }
+  Associations:
+
+Table: device
+  Columns:
+    - notEmpty: { msg: 'Device ID is required' }
+    - notEmpty: { msg: 'Device type is required' }
+  Associations:
+    - belongsTo models
+
+Table: driver
+  Columns:
+    - notNull: { msg: 'User ID is required' }
+    - isInt: { msg: 'User ID must be an integer' }
+    - notEmpty: { msg: 'Name is required' }
+    - notEmpty: { msg: 'Phone number is required' }
+    - notEmpty: { msg: 'Vehicle information is required' }
+    - notEmpty: { msg: 'License number is required' }
+  Associations:
+    - belongsTo models
+    - hasMany models
+    - hasMany models
+    - hasMany models
+    - belongsTo models
+
+Table: geofence
+  Columns:
+    - where: { active: true }
+  Associations:
+    - hasMany models
+    - hasMany models
+    - hasMany models
+
+Table: geofenceEvent
+  Columns:
+  Associations:
+    - belongsTo models
+
+Table: inventoryAdjustmentLog
+  Columns:
+  Associations:
+    - belongsTo models
+    - belongsTo models
+    - belongsTo models
+    - belongsTo models
+
+Table: inventoryAlert
+  Columns:
+  Associations:
+    - belongsTo models
+    - belongsTo models
+    - belongsTo models
+    - belongsTo models
+
+Table: inventoryBulkUpdate
+  Columns:
+  Associations:
+    - belongsTo models
+    - belongsTo models
+    - belongsTo models
+
+Table: menuInventory
+  Columns:
+  Associations:
+    - belongsTo models
+    - belongsTo models
+    - belongsTo models
+    - hasMany models
+    - hasMany models
+    - hasMany models
+    - hasOne models
+    - hasMany models
+    - hasMany models
+    - belongsTo models
+    - belongsTo models
+
+Table: merchant
+  Columns:
+    - notNull: { msg: 'User ID is required' }
+    - isInt: { msg: 'User ID must be an integer' }
+    - notEmpty: { msg: 'Business name is required' }
+    - notEmpty: { msg: 'Address is required' }
+    - notEmpty: { msg: 'Phone number is required' }
+    - notEmpty: { msg: 'Currency is required' }
+    - notEmpty: { msg: 'Time zone is required' }
+  Associations:
+    - belongsTo models
+    - hasMany models
+    - hasMany models
+    - hasMany models
+    - hasMany models
+    - hasMany models
+    - hasMany models
+    - belongsTo models
+    - hasMany models
+    - hasMany models
+
+Table: merchant2FA
+  Columns:
+  Associations:
+    - belongsTo models
+    - hasMany models
+
+Table: merchant2FABackupCode
+  Columns:
+  Associations:
+    - belongsTo models
+
+Table: merchantActiveViewer
+  Columns:
+  Associations:
+    - belongsTo models
+    - belongsTo models
+
+Table: merchantActivityLog
+  Columns:
+  Associations:
+    - belongsTo models
+    - belongsTo models
+    - belongsTo models
+
+Table: merchantBanner
+  Columns:
+  Associations:
+    - belongsTo models
+    - belongsTo models
+
+Table: merchantBranch
+  Columns:
+    - notEmpty: { msg: 'Branch name is required' }
+    - notEmpty: { msg: 'Branch code is required' }
+    - isEmail: { msg: 'Invalid email format' }
+    - defaultValue: {  }
+  Associations:
+    - hasMany models
+    - hasMany models
+    - belongsTo models
+    - hasMany models
+    - hasMany models
+    - hasMany models
+    - belongsTo models
+    - hasMany models
+    - hasMany models
+
+Table: merchantDraft
+  Columns:
+  Associations:
+    - belongsTo models
+    - belongsTo models
+
+Table: merchantPerformanceMetrics
+  Columns:
+  Associations:
+    - belongsTo models
+
+Table: merchantProfileAnalytics
+  Columns:
+  Associations:
+    - belongsTo models
+    - belongsTo models
+
+Table: notification
+  Columns:
+    - notNull: { msg: 'User ID is required' }
+    - isInt: { msg: 'User ID must be an integer' }
+    - isInt: { msg: 'Order ID must be an integer' }
+    - isInt: { msg: 'Booking ID must be an integer' }
+    - notEmpty: { msg: 'Notification type is required' }
+    - notEmpty: { msg: 'Notification message is required' }
+  Associations:
+    - belongsTo models
+    - belongsTo models
+    - belongsTo models
+
+Table: notificationLog
+  Columns:
+  Associations:
+    - belongsTo models
+
+Table: order
+  Columns:
+    - notNull: { msg: 'Customer ID is required' }
+    - isInt: { msg: 'Customer ID must be an integer' }
+    - notNull: { msg: 'Merchant ID is required' }
+    - isInt: { msg: 'Merchant ID must be an integer' }
+    - isInt: { msg: 'Driver ID must be an integer' }
+    - notEmpty: { msg: 'Items are required' }
+    - notEmpty: { msg: 'Currency is required' }
+  Associations:
+    - belongsTo models
+    - belongsTo models
+    - belongsTo models
+    - hasMany models
+    - hasMany models
+    - belongsToMany models
+    - belongsTo models
+    - hasMany models
+
+Table: orderitems
+  Columns:
+  Associations:
+
+Table: passwordhistory
+  Columns:
+    - notEmpty: { msg: 'Password hash is required' }
+  Associations:
+    - belongsTo models
+
+Table: passwordresetlog
+  Columns:
+    - notEmpty: { msg: 'Status is required' }
+    - notEmpty: { msg: 'IP address is required' }
+  Associations:
+    - belongsTo models
+
+Table: payment
+  Columns:
+    - notNull: { msg: 'Order ID is required' }
+    - isInt: { msg: 'Order ID must be an integer' }
+    - notNull: { msg: 'Customer ID is required' }
+    - isInt: { msg: 'Customer ID must be an integer' }
+    - notNull: { msg: 'Merchant ID is required' }
+    - isInt: { msg: 'Merchant ID must be an integer' }
+    - isInt: { msg: 'Driver ID must be an integer' }
+    - notEmpty: { msg: 'Payment method is required' }
+  Associations:
+    - belongsTo models
+    - belongsTo models
+    - belongsTo models
+    - belongsTo models
+
+Table: permissions
+  Columns:
+    - notEmpty: { msg: 'Action is required' }
+    - notEmpty: { msg: 'Resource is required' }
+  Associations:
+    - belongsTo models
+    - belongsToMany models
+
+Table: productActivityLog
+  Columns:
+  Associations:
+    - belongsTo models
+    - belongsTo models
+    - belongsTo models
+    - belongsTo models
+
+Table: productAttribute
+  Columns:
+  Associations:
+    - belongsTo models
+
+Table: productAuditLog
+  Columns:
+  Associations:
+    - belongsTo models
+    - belongsTo models
+
+Table: productBulkUpload
+  Columns:
+  Associations:
+    - belongsTo models
+    - belongsTo models
+    - belongsTo models
+
+Table: productCategory
+  Columns:
+  Associations:
+    - belongsTo models
+    - belongsTo models
+    - hasMany models
+    - belongsTo models
+    - hasMany models
+
+Table: productDiscount
+  Columns:
+  Associations:
+    - belongsTo models
+    - belongsTo models
+    - belongsTo models
+
+Table: productDraft
+  Columns:
+  Associations:
+    - belongsTo models
+    - belongsTo models
+
+Table: productModifierOption
+  Columns:
+  Associations:
+    - belongsTo models
+
+Table: productPromotion
+  Columns:
+  Associations:
+    - belongsTo models
+    - belongsTo models
+    - belongsToMany models
+    - hasMany models
+    - hasMany models
+
+Table: productRecommendationAnalytics
+  Columns:
+  Associations:
+    - belongsTo models
+    - belongsTo models
+    - belongsTo models
+
+Table: promotionMenuItem
+  Columns:
+  Associations:
+
+Table: promotionRedemption
+  Columns:
+  Associations:
+    - belongsTo models
+    - belongsTo models
+    - belongsTo models
+
+Table: promotionRule
+  Columns:
+  Associations:
+    - belongsTo models
+
+Table: report
+  Columns:
+    - notEmpty: { msg: 'Report type is required' }
+    - notNull: { msg: 'GeneratedBy is required' }
+    - isInt: { msg: 'GeneratedBy must be an integer' }
+  Associations:
+    - belongsTo models
+
+Table: reportSchedule
+  Columns:
+    - notNull: { msg: 'User ID is required' }
+    - isInt: { msg: 'User ID must be an integer' }
+    - isInt: { msg: 'Merchant ID must be an integer' }
+  Associations:
+    - belongsTo models
+    - belongsTo models
+
+Table: roles
+  Columns:
+    - notEmpty: { msg: 'Role name is required' }
+  Associations:
+    - hasMany models
+    - hasMany models
+
+Table: route
+  Columns:
+  Associations:
+    - hasMany models
+    - hasMany models
+
+Table: routeOptimization
+  Columns:
+  Associations:
+
+Table: staff
+  Columns:
+    - notNull: { msg: 'User ID is required' }
+    - isInt: { msg: 'User ID must be an integer' }
+    - notNull: { msg: 'Merchant ID is required' }
+    - isInt: { msg: 'Merchant ID must be an integer' }
+    - notEmpty: { msg: 'Position is required' }
+  Associations:
+    - hasMany models
+    - belongsTo models
+    - belongsTo models
+    - belongsTo models
+    - belongsToMany models
+    - belongsTo models
+
+Table: staffpermissions
+  Columns:
+  Associations:
+
+Table: table
+  Columns:
+    - notNull: { msg: 'Branch ID is required' }
+    - isInt: { msg: 'Branch ID must be an integer' }
+    - notEmpty: { msg: 'Table number is required' }
+    - min: { args: [1], msg: 'Capacity must be at least 1' }
+    - defaultValue: {  }
+  Associations:
+    - belongsTo models
+    - hasMany models
+    - belongsTo models
+
+Table: tableLayoutSection
+  Columns:
+  Associations:
+    - belongsTo models
+    - hasMany models
+    - belongsTo models
+
+Table: template
+  Columns:
+    - notEmpty: { msg: 'Subject is required' }
+  Associations:
+    - hasMany models
+    - belongsTo models
+
+Table: timeWindow
+  Columns:
+  Associations:
+
+Table: users
+  Columns:
+    - notEmpty: { msg: 'First name is required' }
+    - len: { args: [2, 50], msg: 'First name must be between 2 and 50 characters' }
+    - notEmpty: { msg: 'Last name is required' }
+    - len: { args: [2, 50], msg: 'Last name must be between 2 and 50 characters' }
+    - unique: { msg: 'Email address already in use!' }
+    - isEmail: { msg: 'Must be a valid email address' }
+    - notEmpty: { msg: 'Email is required' }
+    - notEmpty: { msg: 'Country is required' }
+  Associations:
+    - belongsTo models
+    - hasOne models
+    - hasOne models
+    - hasOne models
+    - hasOne models
+    - belongsTo models
+    - hasMany models
+    - hasMany models
+    - hasMany models
+    - hasMany models
+    - hasMany models
+
+=============================

@@ -15,7 +15,8 @@ const handlers = require('@handlers/roomHandlers');
 const eventManager = require('@services/eventManager'); // New import
 
 // Import roomManager from the services (replacing the old roomManagement)
-const roomManager = require('@services/RoomManager');
+
+const roomManager = require('@services/roomManager');
 
 // Socket connection options
 const socketOptions = {

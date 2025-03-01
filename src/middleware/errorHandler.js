@@ -1,4 +1,10 @@
-// /middlewares/errorHandler.js
+/**
+ * @module middlewares/errorHandler
+ * @description Centralized error handling middleware for Express.
+ * Transforms various error types (e.g., JWT, Sequelize errors) into a unified format,
+ * logs them appropriately, and sends error responses based on the environment.
+ */
+
 const logger = require('@utils/logger');
 const AppError = require('@utils/AppError');
 const config = require('@config/config');
@@ -7,39 +13,52 @@ const {
   AuthenticationError,
   AuthorizationError,
   NotFoundError
-} = require('../utils/specificErrors');
+} = require('@utils/specificErrors');
 
+/**
+ * Handles JWT errors by returning an AuthenticationError.
+ *
+ * @returns {AuthenticationError} A new AuthenticationError indicating an invalid token.
+ */
 const handleJWTError = () => new AuthenticationError('Invalid token. Please log in again!');
+
+/**
+ * Handles expired JWT errors by returning an AuthenticationError.
+ *
+ * @returns {AuthenticationError} A new AuthenticationError indicating an expired token.
+ */
 const handleJWTExpiredError = () => new AuthenticationError('Your token has expired! Please log in again.');
+
+/**
+ * Converts a Sequelize validation error into a ValidationError.
+ *
+ * @param {Object} err - The original Sequelize error object.
+ * @returns {ValidationError} A new ValidationError with the provided message and errors.
+ */
 const handleSequelizeValidationError = (err) => new ValidationError(err.message, err.errors);
+
+/**
+ * Converts a Sequelize unique constraint error into a ValidationError.
+ *
+ * @param {Object} err - The original Sequelize error object.
+ * @returns {ValidationError} A new ValidationError indicating duplicate field values.
+ */
 const handleSequelizeUniqueConstraintError = (err) => new ValidationError('Duplicate field value entered', err.errors);
+
+/**
+ * Converts a Sequelize cast error into a ValidationError.
+ *
+ * @param {Object} err - The original Sequelize error object.
+ * @returns {ValidationError} A new ValidationError indicating an invalid field value.
+ */
 const handleCastError = (err) => new ValidationError(`Invalid ${err.path}: ${err.value}.`, null);
 
-const errorHandler = (err, req, res, next) => {
-  // Ensure err is an instance of AppError
-  let error = { ...err };
-  error.message = err.message;
-
-  if (err.name === 'JsonWebTokenError') error = handleJWTError();
-  if (err.name === 'TokenExpiredError') error = handleJWTExpiredError();
-  if (err.name === 'SequelizeValidationError') error = handleSequelizeValidationError(error);
-  if (err.name === 'SequelizeUniqueConstraintError') error = handleSequelizeUniqueConstraintError(error);
-  if (err.name === 'SequelizeCastError') error = handleCastError(error);
-
-  if (config.nodeEnv === 'development') {
-    sendErrorDev(error, res);
-  } else if (config.nodeEnv === 'production') {
-    if (error.isOperational) {
-      sendErrorProd(error, res);
-    } else {
-      // Log the error for developers
-      logger.error('ERROR 💥', error);
-      // Send generic message
-      res.status(500).json({ status: 'error', message: 'Something went wrong!' });
-    }
-  }
-};
-
+/**
+ * Sends a detailed error response in development mode.
+ *
+ * @param {AppError} err - The error object.
+ * @param {Object} res - Express response object.
+ */
 const sendErrorDev = (err, res) => {
   logger.error('ERROR 💥', err);
   res.status(err.statusCode).json({
@@ -50,12 +69,59 @@ const sendErrorDev = (err, res) => {
   });
 };
 
+/**
+ * Sends a simplified error response in production mode for operational errors.
+ *
+ * @param {AppError} err - The error object.
+ * @param {Object} res - Express response object.
+ */
 const sendErrorProd = (err, res) => {
-  // Operational, trusted error: send message to client
   res.status(err.statusCode).json({
     status: err.status,
     message: err.message
   });
+};
+
+/**
+ * Centralized error handling middleware for Express.
+ *
+ * This middleware transforms known errors (e.g., JWT errors, Sequelize errors) into a unified format.
+ * It then sends detailed error information in development and a simplified message in production.
+ *
+ * @param {Error} err - The error object.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ * @param {Function} next - Express next middleware function.
+ */
+const errorHandler = (err, req, res, next) => {
+  // Ensure error has a statusCode and status
+  let error = { ...err };
+  error.message = err.message;
+  error.statusCode = err.statusCode || 500;
+  error.status = err.status || 'error';
+
+  // Transform specific error types
+  if (err.name === 'JsonWebTokenError') error = handleJWTError();
+  if (err.name === 'TokenExpiredError') error = handleJWTExpiredError();
+  if (err.name === 'SequelizeValidationError') error = handleSequelizeValidationError(error);
+  if (err.name === 'SequelizeUniqueConstraintError') error = handleSequelizeUniqueConstraintError(error);
+  if (err.name === 'SequelizeCastError') error = handleCastError(error);
+
+  // Environment-specific error handling
+  if (config.nodeEnv === 'development') {
+    sendErrorDev(error, res);
+  } else if (config.nodeEnv === 'production') {
+    if (error.isOperational) {
+      sendErrorProd(error, res);
+    } else {
+      // Log non-operational errors and send a generic response
+      logger.error('ERROR 💥', error);
+      res.status(500).json({
+        status: 'error',
+        message: 'Something went wrong!'
+      });
+    }
+  }
 };
 
 module.exports = errorHandler;

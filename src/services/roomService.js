@@ -2,7 +2,8 @@
 
 const { EVENTS } = require('@config/events');
 const logger = require('@utils/logger');
-const roomManager = require('@services/RoomManager');
+
+const roomManager = require('@services/roomManager');
 
 class RoomService {
   // Order Processing Rooms
