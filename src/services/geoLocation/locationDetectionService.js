@@ -5,7 +5,7 @@ const AppError = require('@utils/AppError');
 const logger = require('@utils/logger');
 const config = require('@config/config');
 const countryConfigs = require('@config/countryConfigs');
-const emailService = require('@services/emailService');
+const emailService = require('@services/common/emailService');
 
 const redis = new Redis(config.redisConfig);
 

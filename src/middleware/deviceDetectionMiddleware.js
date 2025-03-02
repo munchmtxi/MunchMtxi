@@ -5,7 +5,7 @@
  */
 
 const UAParser = require('ua-parser-js');
-const { trackDevice } = require('@services/deviceService');
+const { trackDevice } = require('@services/common/deviceService');
 
 /**
  * Detects platform capabilities from the given user agent.

@@ -1,61 +1,15 @@
-# Node modules
-node_modules/
-
-# .env.local is an untracked file and should remain untracked
+# Ignore environment files
 .env
 
-# Logs
-logs/
-*.log
-
-# Debug files
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Coverage reports
-coverage/
-
-# Build directories
-dist/
-build/
-
-# Temporary files
-temp/
-tmp/
-
-# IDE-specific files
-.vscode/
-.idea/
-
-# Operating system files
-.DS_Store
-Thumbs.db
-
-# Database files
-*.sqlite
-
-# Parcel cache
-.cache/
-
-# Next.js build output
-.next/
-
-# Nuxt.js build / generate output
-.nuxt/
-dist/
-
-# SvelteKit build output
-.build/
-
-# Serverless directories
-.serverless/
-
-# Expo directories
-.expo/
-
-#notes
+# Ignore notes directory
 notes/
 
-#temp
-temp/
+# Ignore logs directory
+logs/
+
+# Ignore Husky configuration directory
+.husky/
+
+# Ignore yarn lock file
+yarn.lock
+node_modules

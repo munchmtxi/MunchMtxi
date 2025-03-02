@@ -1,11 +1,7 @@
 // src/middleware/performanceMiddleware.js
 const { performance } = require('perf_hooks');
 const logger = require('@utils/logger');
-
-/**
- * Middleware utilities for monitoring request performance and API usage.
- * @module performanceMiddleware
- */
+const catchAsync = require('@utils/catchAsync'); // Added import
 
 /**
  * Configuration options for performance monitoring middleware.
@@ -162,5 +158,5 @@ class SimpleHealthMonitor {
 module.exports = {
   performanceMiddleware,
   apiUsageMiddleware,
-  SimpleHealthMonitor // Exported for testing or simple use cases
+  SimpleHealthMonitor
 };

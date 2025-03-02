@@ -1,21 +1,20 @@
 // src/controllers/notificationController.js
-const whatsappService = require('@services/whatsappService');
-const emailService = require('@services/emailService');
-const notificationService = require('@services/notificationService'); // New notification service
+const WhatsAppService = require('@services/common/whatsappService'); // Import instance
+const EmailService = require('@services/common/emailService'); // Import instance
+const SMSService = require('@services/common/smsService'); // Import instance
+const NotificationService = require('@services/notifications/core/notificationService');
 const catchAsync = require('@utils/catchAsync');
 const AppError = require('@utils/AppError');
 const { NotificationLog, Template, User } = require('@models');
-const logger = require('@utils/logger');
-const { Op, sequelize } = require('sequelize'); // Ensure Sequelize operators are imported if needed
+const { logger } = require('@utils/logger');
+const { Op, sequelize } = require('sequelize');
 
-/**
- * Notification Controller
- * Handles different types of notifications (WhatsApp, Email, SMS)
- */
+// Use the exported instances directly (no `new` needed)
+const whatsappService = WhatsAppService;
+const emailService = EmailService;
+const smsService = SMSService;
+
 const notificationController = {
-  /**
-   * Send WhatsApp notification using template
-   */
   sendWhatsAppTemplate: catchAsync(async (req, res) => {
     const { phoneNumber, templateName, parameters } = req.body;
 
@@ -23,11 +22,7 @@ const notificationController = {
       throw new AppError('Phone number and template name are required', 400);
     }
 
-    const result = await whatsappService.sendTemplateMessage(
-      phoneNumber,
-      templateName,
-      parameters
-    );
+    const result = await whatsappService.sendTemplateMessage(phoneNumber, templateName, parameters);
 
     res.status(200).json({
       status: 'success',
@@ -36,13 +31,9 @@ const notificationController = {
     });
   }),
 
-  /**
-   * Send custom WhatsApp message (admin only)
-   */
   sendCustomWhatsApp: catchAsync(async (req, res) => {
     const { phoneNumber, message } = req.body;
 
-    // Check if user has admin privileges
     if (req.user.role !== 'ADMIN') {
       throw new AppError('Not authorized to send custom messages', 403);
     }
@@ -60,9 +51,6 @@ const notificationController = {
     });
   }),
 
-  /**
-   * Send email using template
-   */
   sendEmailTemplate: catchAsync(async (req, res) => {
     const { email, templateName, parameters } = req.body;
 
@@ -70,11 +58,7 @@ const notificationController = {
       throw new AppError('Email and template name are required', 400);
     }
 
-    const result = await emailService.sendTemplateEmail(
-      email,
-      templateName,
-      parameters
-    );
+    const result = await emailService.sendTemplateEmail(email, templateName, parameters);
 
     res.status(200).json({
       status: 'success',
@@ -83,13 +67,9 @@ const notificationController = {
     });
   }),
 
-  /**
-   * Send custom email (admin only)
-   */
   sendCustomEmail: catchAsync(async (req, res) => {
     const { email, subject, text, html, attachments } = req.body;
 
-    // Check if user has admin privileges
     if (req.user.role !== 'ADMIN') {
       throw new AppError('Not authorized to send custom emails', 403);
     }
@@ -113,66 +93,43 @@ const notificationController = {
     });
   }),
 
-  /**
-   * Send bulk notifications using template
-   */
   sendBulkNotifications: catchAsync(async (req, res) => {
-    const { 
-      recipients, 
-      templateName, 
-      parameters,
-      channels = ['whatsapp', 'email']
-    } = req.body;
+    const { recipients, templateName, parameters, channels = ['whatsapp', 'email'] } = req.body;
 
     if (!recipients || !templateName) {
       throw new AppError('Recipients and template name are required', 400);
     }
 
-    // Check if user has permission for bulk notifications
     if (!req.user.permissions.includes('SEND_BULK_NOTIFICATIONS')) {
       throw new AppError('Not authorized to send bulk notifications', 403);
     }
 
-    const results = {
-      successful: [],
-      failed: []
-    };
+    const results = { successful: [], failed: [] };
 
-    // Process recipients in batches
     for (const recipient of recipients) {
       try {
         if (channels.includes('whatsapp') && recipient.phoneNumber) {
-          await whatsappService.sendTemplateMessage(
-            recipient.phoneNumber,
-            templateName,
-            {
-              ...parameters,
-              recipientName: recipient.name
-            }
-          );
+          await whatsappService.sendTemplateMessage(recipient.phoneNumber, templateName, {
+            ...parameters,
+            recipientName: recipient.name
+          });
         }
 
         if (channels.includes('email') && recipient.email) {
-          await emailService.sendTemplateEmail(
-            recipient.email,
-            templateName,
-            {
-              ...parameters,
-              recipientName: recipient.name
-            }
-          );
+          await emailService.sendTemplateEmail(recipient.email, templateName, {
+            ...parameters,
+            recipientName: recipient.name
+          });
+        }
+
+        if (channels.includes('sms') && recipient.phoneNumber) {
+          await smsService.sendSMS(recipient.phoneNumber, parameters.message || 'Your notification', templateName);
         }
 
         results.successful.push(recipient);
       } catch (error) {
-        logger.error(`Failed to send notification to recipient:`, {
-          recipient,
-          error: error.message
-        });
-        results.failed.push({
-          recipient,
-          error: error.message
-        });
+        logger.error(`Failed to send notification to recipient:`, { recipient, error: error.message });
+        results.failed.push({ recipient, error: error.message });
       }
     }
 
@@ -183,9 +140,6 @@ const notificationController = {
     });
   }),
 
-  /**
-   * Get notification templates
-   */
   getTemplates: catchAsync(async (req, res) => {
     const templates = await Template.findAll({
       where: {
@@ -200,28 +154,13 @@ const notificationController = {
     });
   }),
 
-  /**
-   * Get notification logs
-   */
   getNotificationLogs: catchAsync(async (req, res) => {
-    const {
-      startDate,
-      endDate,
-      type,
-      status,
-      recipient,
-      page = 1,
-      limit = 10
-    } = req.query;
+    const { startDate, endDate, type, status, recipient, page = 1, limit = 10 } = req.query;
 
     const where = {};
-    
     if (startDate && endDate) {
-      where.createdAt = {
-        [Op.between]: [new Date(startDate), new Date(endDate)]
-      };
+      where.createdAt = { [Op.between]: [new Date(startDate), new Date(endDate)] };
     }
-    
     if (type) where.type = type;
     if (status) where.status = status;
     if (recipient) where.recipient = recipient;
@@ -244,18 +183,13 @@ const notificationController = {
     });
   }),
 
-  /**
-   * Get notification statistics
-   */
   getNotificationStats: catchAsync(async (req, res) => {
     const { startDate, endDate } = req.query;
 
     const stats = await NotificationLog.findAll({
       where: {
         ...(startDate && endDate && {
-          createdAt: {
-            [Op.between]: [new Date(startDate), new Date(endDate)]
-          }
+          createdAt: { [Op.between]: [new Date(startDate), new Date(endDate)] }
         })
       },
       attributes: [
@@ -272,9 +206,6 @@ const notificationController = {
     });
   }),
 
-  /**
-   * Retry failed notifications
-   */
   retryFailedNotifications: catchAsync(async (req, res) => {
     const { notificationIds } = req.body;
 
@@ -283,16 +214,10 @@ const notificationController = {
     }
 
     const failedNotifications = await NotificationLog.findAll({
-      where: {
-        id: notificationIds,
-        status: 'FAILED'
-      }
+      where: { id: notificationIds, status: 'FAILED' }
     });
 
-    const results = {
-      successful: [],
-      failed: []
-    };
+    const results = { successful: [], failed: [] };
 
     for (const notification of failedNotifications) {
       try {
@@ -308,18 +233,19 @@ const notificationController = {
             notification.templateName,
             notification.parameters
           );
+        } else if (notification.type === 'SMS') {
+          await smsService.sendSMS(
+            notification.recipient,
+            notification.content || 'Retry notification',
+            notification.templateName
+          );
         }
-        
+
+        await notification.update({ status: 'SENT', retry_count: notification.retry_count + 1 });
         results.successful.push(notification.id);
       } catch (error) {
-        logger.error(`Failed to retry notification:`, {
-          notificationId: notification.id,
-          error: error.message
-        });
-        results.failed.push({
-          id: notification.id,
-          error: error.message
-        });
+        logger.error(`Failed to retry notification:`, { notificationId: notification.id, error: error.message });
+        results.failed.push({ id: notification.id, error: error.message });
       }
     }
 
@@ -330,30 +256,15 @@ const notificationController = {
     });
   }),
 
-  /**
-   * Send SMS notification using the notificationService.
-   * Example usage of sending an SMS notification.
-   */
   sendSMSNotification: catchAsync(async (req, res) => {
     const { customerId, customerPhone, message, templateName } = req.body;
-    
+
     if (!customerId || !customerPhone) {
       throw new AppError('Customer ID and phone number are required', 400);
     }
-    
-    const notificationData = {
-      type: 'SMS',
-      recipient: {
-        customer_id: customerId,
-        phone: customerPhone
-      },
-      data: {
-        message: message || 'Your order #123 has been confirmed',
-        templateName: templateName || 'order_confirmation'
-      }
-    };
 
-    const result = await notificationService.sendNotification(notificationData);
+    const result = await smsService.sendSMS(customerPhone, message || 'Your order #123 has been confirmed', templateName);
+
     res.status(200).json({
       status: 'success',
       message: 'SMS notification sent successfully',
@@ -362,21 +273,22 @@ const notificationController = {
   })
 };
 
-// New method using the new notificationService for fetching user notifications
 const getNotifications = catchAsync(async (req, res) => {
   const { page, limit } = req.query;
-  const notifications = await notificationService.getUserNotifications(
-    req.user.id,
-    { page, limit }
-  );
-  
+
+  const notificationServiceInstance = req.app.locals.notificationService;
+  if (!notificationServiceInstance) {
+    throw new AppError('Notification service not initialized', 500);
+  }
+
+  const notifications = await notificationServiceInstance.getUserNotifications(req.user.id, { page, limit });
+
   res.status(200).json({
     status: 'success',
     data: notifications
   });
 });
 
-// Export the merged controller with the new getNotifications method
 module.exports = {
   ...notificationController,
   getNotifications

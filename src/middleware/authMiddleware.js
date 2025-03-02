@@ -1,8 +1,8 @@
 const passport = require('passport');
 const AppError = require('@utils/AppError');
-const roleService = require('@services/roleService');
-const { trackDevice } = require('@services/deviceService');
-const TokenService = require('@services/tokenService'); // Newly added import
+const roleService = require('@services/common/roleService');
+const { trackDevice } = require('@services/common/deviceService');
+const TokenService = require('@services/common/tokenService'); // Newly added import
 
 /**
  * Middleware to authenticate users using JWT.

@@ -1,5 +1,5 @@
 'use strict';
-const { Model } = require('sequelize');
+const { Model, Op } = require('sequelize'); // Import Sequelize and Op
 
 module.exports = (sequelize, DataTypes) => {
   class ProductPromotion extends Model {
@@ -146,7 +146,7 @@ module.exports = (sequelize, DataTypes) => {
         unique: true,
         where: {
           code: {
-            [DataTypes.Op.ne]: null
+            [Op.ne]: null // Use Op.ne instead of DataTypes.Op.ne
           }
         }
       },
