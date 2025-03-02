@@ -1,25 +1,19 @@
 // server/setup/socket/socketHandlersSetup.js
 const { logger } = require('@utils/logger');
-const { setupRoomHandlers } = require('./roomHandlersSetup');
-const { setupSocketNotifications } = require('@setup/notifications/socketNotification');
+const EventManager = require('@services/events/core/eventManager');
 
 module.exports = {
   setupSocketHandlers: (io, notificationService) => {
+    logger.info('Setting up Socket.IO handlers...');
+
+    // Pass io to EventManager for broadcasting
+    EventManager.setSocketIO(io);
+
     io.on('connection', (socket) => {
-      setupRoomHandlers(socket, io);
-      setupSocketNotifications(socket, io, notificationService);
+      logger.info('New Socket.IO connection', { socketId: socket.id });
 
-      socket.on('error', (error) => {
-        logger.error('Socket error:', {
-          error: error.message,
-          userId: socket.user?.id,
-          socketId: socket.id
-        });
-      });
-
-      logger.info(`Socket connection established: ${socket.id}`, {
-        userId: socket.user?.id,
-        role: socket.user?.role
+      socket.on('disconnect', () => {
+        logger.info('Socket.IO client disconnected', { socketId: socket.id });
       });
     });
 

@@ -6,12 +6,22 @@ class EventManager {
   constructor() {
     this.eventQueue = new Map();
     this.listeners = new Map();
-    this.notificationService = null; // Store notification service instance
+    this.notificationService = null;
+    this.io = null; // Add io property for Socket.IO
     this.retryConfig = {
       maxRetries: 3,
-      backoffMs: 1000, // Start with 1 second
-      maxBackoffMs: 10000 // Max 10 seconds
+      backoffMs: 1000,
+      maxBackoffMs: 10000
     };
+  }
+
+  /**
+   * Sets the Socket.IO server instance.
+   * @param {SocketIO.Server} io - The Socket.IO server instance.
+   */
+  setSocketIO(io) {
+    this.io = io;
+    logger.info('Socket.IO set in EventManager', { io: !!io });
   }
 
   /**
@@ -37,7 +47,7 @@ class EventManager {
   }
 
   /**
-   * Emits an event to all registered listeners.
+   * Emits an event to all registered listeners and broadcasts via Socket.IO if set.
    * @param {string} eventName - The name of the event.
    * @param {object} data - The data to pass to the listeners.
    */
@@ -57,6 +67,12 @@ class EventManager {
     } else {
       logger.warn(`No listeners registered for event: ${eventName}`, { data });
     }
+
+    // Broadcast via Socket.IO if io is set
+    if (this.io) {
+      this.io.emit(eventName, data);
+      logger.debug(`Event ${eventName} broadcasted via Socket.IO`, { data });
+    }
   }
 
   /**
@@ -64,8 +80,8 @@ class EventManager {
    * @param {string} eventId - Unique identifier for the event.
    * @param {string} eventName - The name of the event.
    * @param {object} payload - The event payload.
-   * @param {Socket} socket - The Socket.IO socket instance.
-   * @param {SocketIO.Server} io - The Socket.IO server instance.
+   * @param {Socket} socket - The Socket.IO socket instance (optional).
+   * @param {SocketIO.Server} io - The Socket.IO server instance (optional).
    */
   async handleEvent(eventId, eventName, payload, socket, io) {
     try {
@@ -95,8 +111,8 @@ class EventManager {
    * @param {string} eventId - The event ID.
    * @param {string} eventName - The event name.
    * @param {object} payload - The event payload.
-   * @param {Socket} socket - The Socket.IO socket instance.
-   * @param {SocketIO.Server} io - The Socket.IO server instance.
+   * @param {Socket} socket - The Socket.IO socket instance (optional).
+   * @param {SocketIO.Server} io - The Socket.IO server instance (optional).
    */
   async processEvent(eventId, eventName, payload, socket, io) {
     const event = this.eventQueue.get(eventId);
@@ -107,7 +123,6 @@ class EventManager {
 
       await this.emit(eventName, { eventId, payload, socket, io });
 
-      // If payload includes notification data and notificationService is set, send notification
       if (this.notificationService && payload.notification) {
         await this.notificationService.sendThroughChannel(payload.notification.type, {
           notification: payload.notification,
@@ -136,8 +151,8 @@ class EventManager {
    * @param {string} eventId - The event ID.
    * @param {string} eventName - The event name.
    * @param {Error} error - The error that occurred.
-   * @param {Socket} socket - The Socket.IO socket instance.
-   * @param {SocketIO.Server} io - The Socket.IO server instance.
+   * @param {Socket} socket - The Socket.IO socket instance (optional).
+   * @param {SocketIO.Server} io - The Socket.IO server instance (optional).
    */
   async handleEventError(eventId, eventName, error, socket, io) {
     const event = this.eventQueue.get(eventId);
@@ -179,8 +194,8 @@ class EventManager {
    * @param {string} eventId - The event ID.
    * @param {string} eventName - The event name.
    * @param {Error} error - The error that occurred.
-   * @param {Socket} socket - The Socket.IO socket instance.
-   * @param {SocketIO.Server} io - The Socket.IO server instance.
+   * @param {Socket} socket - The Socket.IO socket instance (optional).
+   * @param {SocketIO.Server} io - The Socket.IO server instance (optional).
    */
   async handleFinalError(eventId, eventName, error, socket, io) {
     const event = this.eventQueue.get(eventId);
@@ -232,4 +247,4 @@ class EventManager {
   }
 }
 
-module.exports = new EventManager();
+module.exports = new EventManager();222
