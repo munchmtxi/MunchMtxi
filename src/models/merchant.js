@@ -1,7 +1,8 @@
 'use strict';
 const { Model } = require('sequelize');
 const libphonenumber = require('google-libphonenumber');
-const { BUSINESS_TYPES } = require('@config/constants/businessTypes');
+const { getBusinessTypes } = require('@config/constants/businessTypes');
+
 
 module.exports = (sequelize, DataTypes) => {
   class Merchant extends Model {

@@ -7,7 +7,7 @@ const { sequelize } = require('@models');
 const { logger } = require('@utils/logger');
 const config = require('@config/config');
 const { validateEnvironment } = require('@serverUtils/envValidation');
-const { setupCustomerEvents } = require('@server/customer/events');
+const { setupCustomerEvents } = require('@setup/customer/events');
 const { setupErrorHandlers } = require('@serverUtils/errorHandling');
 const { setupCoreApp } = require('@setup/app/coreAppSetup');
 const { setupMonitoring } = require('@setup/app/monitoringSetup');
@@ -17,6 +17,7 @@ const { setupCoreSocket } = require('@setup/socket/coreSocketSetup');
 const { setupSocketHandlers } = require('@setup/socket/socketHandlersSetup');
 const { setupNotificationRoutes } = require('@setup/routes/notificationRoutesSetup');
 const { setupNotifications } = require('@setup/notifications/notificationSetup');
+const { setupMerchantProfile } = require('@setup/merchant/profile/profileSetup');
 const { shutdownServer } = require('@serverUtils/shutdown/serverShutdown');
 
 const app = Express();
@@ -77,6 +78,10 @@ const startServer = async () => {
     logger.info('Setting up notification routes...');
     setupNotificationRoutes(app);
     logger.info('Notification routes setup complete');
+
+    logger.info('Setting up merchant profile...');
+    setupMerchantProfile(app);
+    logger.info('Merchant profile setup complete');
 
     logger.info('Setting up customer events...');
     setupCustomerEvents(io, notificationService);

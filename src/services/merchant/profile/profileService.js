@@ -5,8 +5,8 @@ const SecurityAuditLogger = require('@services/common/securityAuditLogger');
 const TokenService = require('@services/common/tokenService');
 const EventManager = require('@services/events/core/eventManager');
 const { logger } = require('@utils/logger');
-const { BUSINESS_TYPES } = require('@config/constants/businessTypes');
-const { MERCHANT_PROFILE_STATUSES, MERCHANT_PROFILE_UPDATE_EVENTS } = require('@constants/merchant/profile/constants');
+const { getBusinessTypes } = require('@config/constants/businessTypes');
+const { BUSINESS_TYPES } = getBusinessTypes();
 
 const merchantProfileService = {
   async getProfile(merchantId, { includeBranches = false } = {}) {

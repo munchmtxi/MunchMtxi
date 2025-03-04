@@ -122,7 +122,7 @@ module.exports = (sequelize) => {
         name: 'notification_logs_created_at'
       },
       {
-        fields: ['templateName'],
+        fields: ['template_name'],
         name: 'notification_logs_template_name'
       },
       // New indexes from the first snippet:
