@@ -1,4 +1,3 @@
-// server/setup/socket/coreSocketSetup.js
 const SocketIO = require('socket.io');
 const jwt = require('jsonwebtoken');
 const config = require('@config/config');
@@ -6,6 +5,7 @@ const { logger } = require('@utils/logger');
 const { User, Session } = require('@models');
 const { EVENTS } = require('@config/events');
 const eventManager = require('@services/events/core/eventManager');
+const { setupGeolocationSocket } = require('../socket/geolocationSocketSetup'); // Relative path from server/setup/socket/
 
 const socketOptions = {
   cors: {
@@ -21,6 +21,8 @@ const socketOptions = {
 
 module.exports = {
   setupCoreSocket: (server) => {
+    logger.info('File loaded: coreSocketSetup.js'); // Debug to confirm loading
+    logger.info('Setting up Socket.IO...');
     const io = SocketIO(server, socketOptions);
 
     const rateLimiter = { windowMs: 15 * 60 * 1000, max: 100 };
@@ -74,6 +76,11 @@ module.exports = {
       next();
     });
 
+    // Add geolocation socket handlers
+    logger.info('Setting up geolocation socket handlers...');
+    setupGeolocationSocket(io);
+    logger.info('Geolocation socket handlers setup');
+
     setInterval(() => {
       const currentTime = Date.now();
       for (const [ip, requests] of requestCounts.entries()) {
@@ -83,6 +90,7 @@ module.exports = {
       }
     }, 60000);
 
+    logger.info('Socket.IO setup complete');
     return io;
   }
 };

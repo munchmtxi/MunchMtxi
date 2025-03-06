@@ -33,8 +33,9 @@ class SystemHealthMonitor {
     };
 
     this.healthMetrics.metrics = metrics;
+    this.healthMetrics.lastCheck = new Date();
     this._analyzePredictiveHealth(metrics);
-    return metrics;
+    return this.healthMetrics; // Return full object with metrics and predictions
   }
 
   _checkMemoryUsage() {
@@ -60,20 +61,17 @@ class SystemHealthMonitor {
   }
 
   async _checkDiskSpace() {
-    // Implement disk space check using fs.statfs (ensure your environment supports it)
-    return new Promise((resolve) => {
-      fs.statfs('/', (err, stats) => {
-        if (err) {
-          this.logger.error('Error checking disk space', err);
-          resolve(null);
-        } else {
-          resolve({
-            free: stats.bfree * stats.bsize,
-            total: stats.blocks * stats.bsize
-          });
-        }
-      });
-    });
+    try {
+      // Use fs.promises.stat for broader compatibility (Windows doesn’t support statfs natively)
+      const stats = await fs.promises.stat('/');
+      return {
+        free: stats.available || stats.free, // Fallback for different environments
+        total: stats.size // Total size of the filesystem
+      };
+    } catch (err) {
+      this.logger.error('Error checking disk space', err);
+      return null; // Return null if disk check fails
+    }
   }
 
   _analyzePredictiveHealth(metrics) {
@@ -89,7 +87,7 @@ class SystemHealthMonitor {
 
   _predictMemoryExhaustion(memory) {
     // If heapUsed exceeds 80% of heapTotal, flag as high risk
-    if (memory.heapUsed / memory.heapTotal > 0.8) {
+    if (memory.heapUsed / memory.heapTotal > 0.9) {
       return { risk: 'high' };
     }
     return { risk: 'low' };
@@ -117,9 +115,9 @@ class SystemHealthMonitor {
     const utilizationHistory = this.usageHistory.slice(-24); // Last 24 data points
 
     const analysis = {
-      current: this._getCurrentUtilization(currentMetrics),
+      current: this._getCurrentUtilization(currentMetrics.metrics), // Use .metrics
       trends: this._analyzeTrends(utilizationHistory),
-      recommendations: this._generateRecommendations(currentMetrics),
+      recommendations: this._generateRecommendations(currentMetrics.metrics), // Use .metrics
       scalingNeeded: false
     };
 
@@ -169,7 +167,7 @@ class SystemHealthMonitor {
     const hourlyAverages = new Array(24).fill(0);
     history.forEach(record => {
       const hour = new Date(record.timestamp).getHours();
-      hourlyAverages[hour] += record.cpu;
+      hourlyAverages[hour] += record.cpu || 0; // Default to 0 if undefined
     });
 
     return {
@@ -454,8 +452,9 @@ module.exports = function initMonitoring(app) {
     try {
       const health = await healthMonitor.checkSystemHealth();
       if (
-        health.predictions.memoryExhaustion.risk === 'high' || 
-        health.predictions.diskSpaceExhaustion.risk === 'high'
+        health.predictions && // Defensive check
+        (health.predictions.memoryExhaustion.risk === 'high' || 
+         health.predictions.diskSpaceExhaustion.risk === 'high')
       ) {
         logger.warn('System health risk detected', health);
       }

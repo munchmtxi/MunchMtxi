@@ -3941,6 +3941,13 @@ event-loop-stats@1.2.0:
   dependencies:
     nan "^2.14.0"
 
+event-loop-stats@^1.4.1:
+  version "1.4.1"
+  resolved "https://registry.yarnpkg.com/event-loop-stats/-/event-loop-stats-1.4.1.tgz#ab3f5e1a99f22d25a3a44e2294ed69a05ce586b7"
+  integrity sha512-Wzohoz1JrQOBjt/shh5Z3/8Ti6SVoGl5nyX952Vcp5N56QVOtjPuJsQa+dEhsDJHu4QAFz45ePXRFq01skb9xA==
+  dependencies:
+    nan "^2.14.0"
+
 event-target-shim@^5.0.0:
   version "5.0.1"
   resolved "https://registry.yarnpkg.com/event-target-shim/-/event-target-shim-5.0.1.tgz#5d4d3ebdf9583d63a5333ce2deb7480ab2b05789"

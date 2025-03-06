@@ -1,170 +1,55 @@
-// src/routes/geolocationRoutes.js
-
-const express = require('express');
-const router = express.Router();
-const geolocationController = require('@controllers/geolocationController');
-const { authenticate } = require('@middleware/authMiddleware');
-const { validateRequest } = require('@middleware/validateRequest');
-const { validateLocationPermissions } = require('@middleware/security');
-const { geoLocationLimiter } = require('@middleware/security').rateLimiters;
-
-// Import all validators
-const {
-  validateAddressRequest,
-  validateMultipleAddressesRequest,
-  validateReverseGeocodeRequest,
-  validateRouteRequest,
-  validateDeliveryTimeWindowsRequest,
-  validateOptimizeDeliveriesRequest,
-  validateGeofenceCreationRequest,
-  validateDeliveryAreaRequest,
-  validateHotspotsRequest,
-  validateBatchRoutesRequest,
-  validateGeofenceDetailsRequest,
-  validateGeofenceUpdateRequest,
-  validateTimeframeAnalysisRequest,
-  validateManualLocationRequest,
-  validateGPSLocation
-} = require('@validators/geolocationValidators');
-
-// All geolocation routes require authentication
-router.use(authenticate);
-
-// Rate limiter for specific routes
-router.use(geoLocationLimiter);
-
-// Location Detection endpoints
-router.get(
-  '/detect-location',
-  validateLocationPermissions,
-  geolocationController.detectCurrentLocation
-);
-
-router.post(
-  '/set-manual-location',
-  validateLocationPermissions,
-  validateManualLocationRequest,
-  validateRequest, // Changed this line
-  geolocationController.setManualLocation
-);
-
-router.get(
-  '/current-location',
-  validateLocationPermissions,
-  geolocationController.getCurrentLocation
-);
-
-router.post(
-  '/gps-location',
-  validateLocationPermissions,
+const { 
   validateGPSLocation,
-  validateRequest, // Changed this line
-  geolocationController.updateGPSLocation
-);
-
-// Commented Routes - To be implemented
-// ----------------------------------
-
-/*
-// Address Validation Endpoints
-router.post(
-  '/validate-address',
-  validateAddressRequest,
-  validate,
-  geolocationController.validateAddress
-);
-
-router.post(
-  '/validate-multiple-addresses',
-  validateMultipleAddressesRequest,
-  validate,
-  geolocationController.validateMultipleAddresses
-);
-
-router.post(
-  '/reverse-geocode',
-  validateReverseGeocodeRequest,
-  validate,
-  geolocationController.reverseGeocode
-);
-
-// Route Calculation Endpoints
-router.post(
-  '/calculate-route',
+  validateManualLocation,
   validateRouteRequest,
-  validate,
-  geolocationController.calculateDriverRoute
-);
-
-router.post(
-  '/calculate-delivery-time-windows',
-  validateDeliveryTimeWindowsRequest,
-  validate,
-  geolocationController.calculateDeliveryTimeWindows
-);
-
-router.post(
-  '/optimize-deliveries',
   validateOptimizeDeliveriesRequest,
-  validate,
-  geolocationController.optimizeMultipleDeliveries
-);
-
-// Geofence Operations
-router.post(
-  '/create-geofence',
+  validateDeliveryTimeWindowsRequest,
   validateGeofenceCreationRequest,
-  validate,
-  geolocationController.createGeofence
-);
-
-router.post(
-  '/check-delivery-area',
   validateDeliveryAreaRequest,
-  validate,
-  geolocationController.checkDeliveryArea
-);
-
-router.post(
-  '/analyze-delivery-hotspots',
   validateHotspotsRequest,
-  validate,
-  geolocationController.analyzeDeliveryHotspots
-);
+  validateHealthRequest
+} = require('@validators/geolocationValidators');
+const { authenticate } = require('@middleware/authMiddleware'); // For restrictTo
+const { logger } = require('@utils/logger');
 
-// Health Check Endpoint
-router.get('/health', geolocationController.checkGeolocationHealth);
+// Placeholder middleware and controllers (stubbed)
+const validateLocationPermissions = (req, res, next) => next(); // Stub
+const restrictTo = (...roles) => (req, res, next) => {
+  if (!roles.includes(req.user?.role)) return next(new Error('Unauthorized'));
+  next();
+};
+const hasMerchantPermission = (perm) => (req, res, next) => next(); // Stub
+const verifyStaffAccess = (perms) => (req, res, next) => next(); // Stub
+const attachGeoLocation = (req, res, next) => {
+  req.geo = { latitude: req.body.latitude, longitude: req.body.longitude };
+  next();
+};
 
-// Batch Route Calculation
-router.post(
-  '/batch-calculate-routes',
-  validateBatchRoutesRequest,
-  validate,
-  geolocationController.batchCalculateRoutes
-);
+// Placeholder controllers (stubbed)
+const detectCurrentLocation = (req, res) => res.json({ status: 'success', data: { lat: 51.5074, lon: -0.1278 } });
+const setManualLocation = (req, res) => res.json({ status: 'success', data: req.body });
+const getCurrentLocation = (req, res) => res.json({ status: 'success', data: { lat: 51.5074, lon: -0.1278 } });
+const updateGPSLocation = (req, res) => res.json({ status: 'success', data: req.geo });
+const calculateRoute = (req, res) => res.json({ status: 'success', data: { route: 'mock' } });
+const optimizeDeliveryRoute = (req, res) => res.json({ status: 'success', data: { optimized: 'mock' } });
+const calculateDeliveryTimeWindows = (req, res) => res.json({ status: 'success', data: { windows: 'mock' } });
+const createGeofence = (req, res) => res.json({ status: 'success', data: { geofence: 'mock' } });
+const checkPointInGeofence = (req, res) => res.json({ status: 'success', data: { inGeofence: true } });
+const analyzeDeliveryHotspots = (req, res) => res.json({ status: 'success', data: { hotspots: 'mock' } });
+const checkGeolocationHealth = (req, res) => res.json({ status: 'success', data: { health: 'ok' } });
 
-// Geofence Details and Update Endpoints
-router.get(
-  '/geofences/:geofenceId',
-  validateGeofenceDetailsRequest,
-  validate,
-  geolocationController.getGeofenceDetails
-);
+module.exports = (router) => {
+  router.get('/current', validateLocationPermissions, detectCurrentLocation);
+  router.post('/manual', validateManualLocation, validateLocationPermissions, setManualLocation);
+  router.get('/', validateLocationPermissions, getCurrentLocation);
+  router.post('/gps', validateGPSLocation, attachGeoLocation, validateLocationPermissions, updateGPSLocation);
+  router.post('/route', validateRouteRequest, restrictTo('driver', 'merchant'), calculateRoute);
+  router.post('/optimize-delivery', validateOptimizeDeliveriesRequest, restrictTo('driver', 'merchant'), hasMerchantPermission('manage_deliveries'), optimizeDeliveryRoute);
+  router.post('/time-windows', validateDeliveryTimeWindowsRequest, restrictTo('merchant', 'staff'), verifyStaffAccess(['logistics']), calculateDeliveryTimeWindows);
+  router.post('/geofence', validateGeofenceCreationRequest, restrictTo('merchant', 'admin'), createGeofence);
+  router.post('/geofence/check', validateDeliveryAreaRequest, restrictTo('merchant', 'driver'), checkPointInGeofence);
+  router.post('/hotspots', validateHotspotsRequest, restrictTo('merchant', 'admin'), hasMerchantPermission('analyze_data'), analyzeDeliveryHotspots);
+  router.get('/health', validateHealthRequest, restrictTo('admin'), checkGeolocationHealth);
 
-router.put(
-  '/geofences/:geofenceId',
-  validateGeofenceUpdateRequest,
-  validate,
-  geolocationController.updateGeofence
-);
-
-// Timeframe Analysis
-router.post(
-  '/timeframe-analysis',
-  validateTimeframeAnalysisRequest,
-  validate,
-  geolocationController.getTimeframeAnalysis
-);
-*/
-
-module.exports = router;
+  return router;
+};

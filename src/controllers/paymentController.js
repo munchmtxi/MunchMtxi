@@ -2,7 +2,7 @@
 const { logTransactionEvent } = require('../utils/logger');
 const fs = require('fs');
 const path = require('path');
-const paymentService = require('../services/paymentService');
+const paymentService = require('../services/common/paymentService');
 const catchAsync = require('../utils/catchAsync');
 
 // Helper function: Export Transaction Report

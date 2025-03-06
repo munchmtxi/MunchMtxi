@@ -1,5 +1,5 @@
 // src/controllers/authController.js
-const authService = require('@services/authService');
+const authService = require('@services/common/authService');
 const catchAsync = require('@utils/catchAsync');
 const AppError = require('@utils/AppError');
 const logger = require('@utils/logger');

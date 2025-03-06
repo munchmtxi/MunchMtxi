@@ -1,5 +1,5 @@
 // src/controllers/2faController.js
-const twoFaService = require('@services/2faService');
+const twoFaService = require('@services/common/2faService');
 const catchAsync = require('@utils/catchAsync');
 const AppError = require('@utils/AppError');
 

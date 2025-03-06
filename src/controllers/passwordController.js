@@ -1,6 +1,6 @@
 // src/controllers/passwordController.js
 
-const passwordService = require('@services/passwordService');
+const passwordService = require('@services/common/passwordService');
 const catchAsync = require('@utils/catchAsync');
 const AppError = require('@utils/AppError');
 const { PasswordResetLog } = require('@models');

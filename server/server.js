@@ -18,6 +18,7 @@ const { setupSocketHandlers } = require('@setup/socket/socketHandlersSetup');
 const { setupNotificationRoutes } = require('@setup/routes/notificationRoutesSetup');
 const { setupNotifications } = require('@setup/notifications/notificationSetup');
 const { setupMerchantProfile } = require('@setup/merchant/profile/profileSetup');
+const { setupGetProfileRoutes } = require('@setup/routes/getProfileRoutesSetup'); // New import
 const { shutdownServer } = require('@serverUtils/shutdown/serverShutdown');
 
 const app = Express();
@@ -57,7 +58,7 @@ const startServer = async () => {
     logger.info('Common services setup complete', {
       whatsappType: typeof whatsappService,
       emailType: typeof emailService,
-      smsType: typeof smsService
+      smsType: typeof smsService,
     });
 
     logger.info('Setting up notification service...');
@@ -82,6 +83,10 @@ const startServer = async () => {
     logger.info('Setting up merchant profile...');
     setupMerchantProfile(app);
     logger.info('Merchant profile setup complete');
+
+    logger.info('Setting up get profile routes...');
+    setupGetProfileRoutes(app); // New setup step
+    logger.info('Get profile routes setup complete');
 
     logger.info('Setting up customer events...');
     setupCustomerEvents(io, notificationService);

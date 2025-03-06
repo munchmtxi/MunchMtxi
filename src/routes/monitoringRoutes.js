@@ -27,14 +27,14 @@ router.get('/metrics', authenticate, authorizeRoles('ADMIN'), (req, res) => {
   }
 });
 
-// System Health Check
+// System Health Check (Updated)
 router.get('/health', authenticate, authorizeRoles('ADMIN'), async (req, res) => {
   try {
     const health = await req.app.locals.healthMonitor.checkSystemHealth();
     res.json({
       status: 'success',
       timestamp: new Date(),
-      data: health
+      data: health // Now includes metrics and predictions from healthMetrics
     });
   } catch (error) {
     logger.error('Error checking system health', error);

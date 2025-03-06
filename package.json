@@ -66,6 +66,7 @@
     "csurf": "^1.11.0",
     "date-fns": "^4.1.0",
     "dotenv": "^16.4.7",
+    "event-loop-stats": "^1.4.1",
     "exceljs": "^4.4.0",
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.0",
