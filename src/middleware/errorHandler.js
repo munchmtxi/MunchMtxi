@@ -5,7 +5,7 @@
  * logs them appropriately, and sends error responses based on the environment.
  */
 
-const logger = require('@utils/logger');
+const { logger } = require('@utils/logger');
 const AppError = require('@utils/AppError');
 const config = require('@config/config');
 const {
@@ -60,12 +60,12 @@ const handleCastError = (err) => new ValidationError(`Invalid ${err.path}: ${err
  * @param {Object} res - Express response object.
  */
 const sendErrorDev = (err, res) => {
-  logger.error('ERROR 💥', err);
-  res.status(err.statusCode).json({
-    status: err.status,
-    error: err,
-    message: err.message,
-    stack: err.stack
+  logger.error('ERROR 💥', { error: err || 'Unknown error', stack: err?.stack || new Error().stack });
+  res.status(err.statusCode || 500).json({
+    status: err.status || 'error',
+    error: err || {},
+    message: err.message || 'An unexpected error occurred',
+    stack: err.stack || new Error().stack
   });
 };
 
@@ -96,16 +96,16 @@ const sendErrorProd = (err, res) => {
 const errorHandler = (err, req, res, next) => {
   // Ensure error has a statusCode and status
   let error = { ...err };
-  error.message = err.message;
+  error.message = err.message || 'Unknown error';
   error.statusCode = err.statusCode || 500;
   error.status = err.status || 'error';
 
   // Transform specific error types
   if (err.name === 'JsonWebTokenError') error = handleJWTError();
   if (err.name === 'TokenExpiredError') error = handleJWTExpiredError();
-  if (err.name === 'SequelizeValidationError') error = handleSequelizeValidationError(error);
-  if (err.name === 'SequelizeUniqueConstraintError') error = handleSequelizeUniqueConstraintError(error);
-  if (err.name === 'SequelizeCastError') error = handleCastError(error);
+  if (err.name === 'SequelizeValidationError') error = handleSequelizeValidationError(err);
+  if (err.name === 'SequelizeUniqueConstraintError') error = handleSequelizeUniqueConstraintError(err);
+  if (err.name === 'SequelizeCastError') error = handleCastError(err);
 
   // Environment-specific error handling
   if (config.nodeEnv === 'development') {

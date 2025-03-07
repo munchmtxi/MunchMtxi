@@ -1,6 +1,6 @@
 const { Client } = require('@googlemaps/google-maps-services-js');
 const AppError = require('@utils/AppError');
-const logger = require('@utils/logger');
+const { logger } = require('@utils/logger');
 const countries = require('@config/countryConfigs');
 
 class Geolocation1Service {

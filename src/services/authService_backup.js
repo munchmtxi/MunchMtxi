@@ -194,7 +194,11 @@ const loginMerchant = async (email, password, deviceInfo, rememberMe = false) =>
     logger.info('Attempting merchant login', { email, deviceInfo, rememberMe });
     const user = await User.scope(null).findOne({
       where: { email, role_id: 19 },
-      include: [{ model: Merchant, as: 'merchant_profile', required: true }]
+      include: [{
+        model: Merchant,
+        as: 'merchant',
+        required: true
+      }]
     });
 
     if (!user) {
@@ -202,7 +206,6 @@ const loginMerchant = async (email, password, deviceInfo, rememberMe = false) =>
       throw new AppError('Invalid merchant credentials', 401);
     }
 
-    logger.info('User found', { email, role_id: user.role_id, is_verified: user.is_verified, status: user.status });
     const passwordMatch = await bcrypt.compare(password, user.password);
     if (!passwordMatch) {
       logger.warn('Password mismatch', { email });
@@ -241,7 +244,10 @@ const loginMerchant = async (email, password, deviceInfo, rememberMe = false) =>
 
     logger.info('Merchant login successful', { userId: user.id });
     return {
-      user: { ...user.toJSON(), merchant: user.merchant },
+      user: {
+        ...user.toJSON(),
+        merchant: user.merchant
+      },
       accessToken,
       refreshToken,
       rememberToken: rememberTokenData?.rememberToken,

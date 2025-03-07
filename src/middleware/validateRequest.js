@@ -1,7 +1,7 @@
 // src/middleware/validateRequest.js
 const { validationResult } = require('express-validator');
 const AppError = require('@utils/AppError');
-const logger = require('@utils/logger');
+const { logger } = require('@utils/logger');
 
 /**
  * Middleware for validating incoming HTTP requests and detecting SQL injection.

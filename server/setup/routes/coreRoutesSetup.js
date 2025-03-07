@@ -1,3 +1,4 @@
+// src/routes/coreRoutesSetup.js
 'use strict';
 const MonitoringRoutes = require('@routes/monitoringRoutes');
 const AuthRoutes = require('@routes/authRoutes');
@@ -8,7 +9,7 @@ const PasswordRoutes = require('@routes/passwordRoutes');
 const { setupGeolocationRoutes } = require('./geolocationRoutesSetup');
 const PaymentRoutes = require('@routes/paymentRoutes');
 const PdfRoutes = require('@routes/pdfRoutes');
-const ExcelRoutes = require('@routes/excelRoutes'); // New import for Excel routes
+const ExcelRoutes = require('@routes/excelRoutes');
 const AppError = require('@utils/AppError');
 const { logger } = require('@utils/logger');
 
@@ -21,8 +22,9 @@ module.exports = {
     app.use('/monitoring', MonitoringRoutes);
     logger.info('Monitoring routes mounted');
 
+    // Updated auth situation
     app.use('/auth', AuthRoutes);
-    logger.info('Auth routes mounted');
+    logger.info('Auth routes mounted at /auth (includes /register, /login, /token, /merchant/login, /merchant/logout, /register-role)');
 
     app.use('/2fa', TwoFaRoutes);
     logger.info('2FA routes mounted');
@@ -46,7 +48,7 @@ module.exports = {
     app.use('/api/pdf', PdfRoutes);
     logger.info('PDF routes mounted');
 
-    app.use('/api/excel', ExcelRoutes); // New Excel routes mounted
+    app.use('/api/excel', ExcelRoutes);
     logger.info('Excel routes mounted at /api/excel');
 
     app.get('/health', async (req, res) => {

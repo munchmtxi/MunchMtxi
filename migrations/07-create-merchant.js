@@ -89,17 +89,17 @@ module.exports = {
         allowNull: false,
         defaultValue: true,
       },
-      logoUrl: {
+      logo_url: {
         type: Sequelize.STRING,
-        allowNull: true,
+        allowNull: true
       },
-      bannerUrl: {
+      banner_url: {
         type: Sequelize.STRING,
-        allowNull: true,
+        allowNull: true
       },
-      storefrontUrl: {
+      storefront_url: {
         type: Sequelize.STRING,
-        allowNull: true,
+        allowNull: true
       },
       delivery_area: {
         type: Sequelize.JSONB,

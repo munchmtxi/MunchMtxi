@@ -1,6 +1,6 @@
 // src/middleware/responseOptimizer.js
 const compression = require('compression');
-const logger = require('@utils/logger');
+const { logger } = require('@utils/logger');
 const { AppError } = require('@utils/AppError');
 
 /**

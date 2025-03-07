@@ -11,7 +11,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const sharp = require('sharp');
 const AppError = require('@utils/AppError');
-const logger = require('@utils/logger');
+const { logger } = require('@utils/logger');
 
 const SUPPORTED_FORMATS = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB

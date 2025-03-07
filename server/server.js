@@ -1,4 +1,3 @@
-// server/server.js
 require('module-alias/register');
 require('dotenv').config();
 const Express = require('express');
@@ -13,12 +12,13 @@ const { setupCoreApp } = require('@setup/app/coreAppSetup');
 const { setupMonitoring } = require('@setup/app/monitoringSetup');
 const { setupCommonServices } = require('@setup/services/commonServices');
 const { setupNotificationService } = require('@setup/services/notificationServices');
+const { setupAuthServices } = require('@setup/services/authServices');
 const { setupCoreSocket } = require('@setup/socket/coreSocketSetup');
 const { setupSocketHandlers } = require('@setup/socket/socketHandlersSetup');
 const { setupNotificationRoutes } = require('@setup/routes/notificationRoutesSetup');
 const { setupNotifications } = require('@setup/notifications/notificationSetup');
 const { setupMerchantProfile } = require('@setup/merchant/profile/profileSetup');
-const { setupGetProfileRoutes } = require('@setup/routes/getProfileRoutesSetup'); // New import
+const { setupGetProfileRoutes } = require('@setup/routes/getProfileRoutesSetup');
 const { shutdownServer } = require('@serverUtils/shutdown/serverShutdown');
 
 const app = Express();
@@ -28,6 +28,7 @@ const REQUIRED_ENV = ['PORT', 'DATABASE_URL', 'JWT_SECRET', 'JWT_EXPIRES_IN'];
 
 let io;
 let notificationService;
+let authService;
 
 const startServer = async () => {
   try {
@@ -61,12 +62,17 @@ const startServer = async () => {
       smsType: typeof smsService,
     });
 
+    logger.info('Setting up auth services...');
+    authService = setupAuthServices();
+    logger.info('Auth services setup complete');
+
     logger.info('Setting up notification service...');
     notificationService = setupNotificationService(io, whatsappService, emailService, smsService);
     logger.info('Notification service setup complete');
 
     app.locals.healthMonitor = healthMonitor;
     app.locals.notificationService = notificationService;
+    app.locals.authService = authService;
 
     logger.info('Setting up socket handlers...');
     setupSocketHandlers(io, notificationService);
@@ -80,12 +86,17 @@ const startServer = async () => {
     setupNotificationRoutes(app);
     logger.info('Notification routes setup complete');
 
+    // Removed setupAuthRoutes to avoid duplication with setupCoreRoutes in coreAppSetup
+    // logger.info('Setting up auth routes...');
+    // setupAuthRoutes(app);
+    // logger.info('Auth routes setup complete');
+
     logger.info('Setting up merchant profile...');
     setupMerchantProfile(app);
     logger.info('Merchant profile setup complete');
 
     logger.info('Setting up get profile routes...');
-    setupGetProfileRoutes(app); // New setup step
+    setupGetProfileRoutes(app);
     logger.info('Get profile routes setup complete');
 
     logger.info('Setting up customer events...');
@@ -108,4 +119,4 @@ const startServer = async () => {
 
 startServer();
 
-module.exports = { app, server, io, notificationService };
+module.exports = { app, server, io, notificationService, authService };

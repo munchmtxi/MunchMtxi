@@ -1,7 +1,7 @@
 // src/middleware/locationMiddleware.js
 const locationDetectionService = require('@services/geoLocation/locationDetectionService');
 const catchAsync = require('@utils/catchAsync');
-const logger = require('@utils/logger');
+const { logger } = require('@utils/logger');
 const { getTimeDifference } = require('@utils/dateTimeUtils'); // Assuming dateTimeUtils.js is added
 
 /**

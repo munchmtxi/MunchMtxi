@@ -1,6 +1,6 @@
 // src/services/RoomManager.js
 const { EVENTS } = require('@config/events');
-const logger = require('@utils/logger');
+const { logger } = require('@utils/logger');
 
 class RoomManager {
   constructor() {

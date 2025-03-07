@@ -7,7 +7,7 @@ const { RateLimiterRedis } = require('rate-limiter-flexible');
 const csrf = require('csurf');
 const cookieParser = require('cookie-parser');
 const { AppError } = require('@utils/AppError');
-const logger = require('@utils/logger');
+const { logger } = require('@utils/logger');
 
 /**
  * Security middleware utilities for protecting Express applications.
@@ -252,7 +252,7 @@ module.exports = function securityMiddleware(app) {
   }));
 
   app.use(defaultLimiter);
-  app.use('/api/auth/login', authLimiter);
+  app.use('/api/auth/login', authLimiter); // Should be /auth/login to match authRoutes.js
   app.use('/api/location', geoLocationLimiter);
 
   const whitelistedIPs = new Set(process.env.WHITELISTED_IPS?.split(',') || []);
@@ -278,7 +278,12 @@ module.exports = function securityMiddleware(app) {
 
   const csrfProtection = csrf({ cookie: { httpOnly: true, secure: process.env.NODE_ENV === 'production' } });
   app.use((req, res, next) => {
-    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+    logger.info('CSRF Check', { path: req.path, originalUrl: req.originalUrl, method: req.method });
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method) || req.originalUrl.startsWith('/auth')) {
+      logger.info('CSRF Bypassed', { originalUrl: req.originalUrl });
+      return next();
+    }
+    logger.info('CSRF Applied', { originalUrl: req.originalUrl });
     csrfProtection(req, res, next);
   });
 

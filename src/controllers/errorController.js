@@ -1,6 +1,6 @@
 // src/controllers/errorController.js
 const AppError = require('@utils/AppError');
-const logger = require('@utils/logger');
+const { logger } = require('@utils/logger');
 
 const sendErrorDev = (err, req, res) => {
   logger.error(err);

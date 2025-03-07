@@ -1,5 +1,5 @@
 // src/middleware/requestLogger.js
-const logger = require('@utils/logger');
+const { logger } = require('@utils/logger');
 
 /**
  * Middleware for logging incoming HTTP requests.

@@ -1,7 +1,7 @@
 // src/services/smsService.js
 const africastalking = require('africastalking');
 const { NotificationLog } = require('@models');
-const logger = require('@utils/logger');
+const { logger } = require('@utils/logger');
 const AppError = require('@utils/AppError');
 
 class SMSService {

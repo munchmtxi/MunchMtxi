@@ -1,6 +1,7 @@
 // validators/authValidators.js
 const Joi = require('joi');
 const AppError = require('@utils/AppError');
+const { logger } = require('@utils/logger');
 
 const validateRegister = (req, res, next) => {
   const schema = Joi.object({
@@ -74,14 +75,14 @@ const validateMerchantLogin = (req, res, next) => {
     rememberMe: Joi.boolean().optional().default(false),
     deviceType: Joi.string().valid('mobile', 'desktop', 'tablet').required()
   });
-
+  logger.info('Validating merchant login', { body: req.body });
   const { error } = schema.validate(req.body, { abortEarly: false });
-
   if (error) {
     const details = error.details.map(detail => detail.message);
+    logger.warn('Validation failed', { errors: details });
     return next(new AppError(`Validation Error: ${details.join('. ')}`, 400));
   }
-
+  logger.info('Validation passed');
   next();
 };
 

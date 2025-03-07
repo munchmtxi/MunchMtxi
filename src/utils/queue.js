@@ -6,7 +6,7 @@
  */
 
 const Bull = require('bull');
-const logger = require('@utils/logger');
+const { logger } = require('@utils/logger');
 const excelService = require('@services/common/excelService');
 const emailService = require('@services/common/emailService');
 const config = require('@config/config');

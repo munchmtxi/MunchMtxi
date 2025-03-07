@@ -3,7 +3,6 @@ const { Model } = require('sequelize');
 const libphonenumber = require('google-libphonenumber');
 const { getBusinessTypes } = require('@config/constants/businessTypes');
 
-
 module.exports = (sequelize, DataTypes) => {
   class Merchant extends Model {
     static associate(models) {
@@ -37,23 +36,22 @@ module.exports = (sequelize, DataTypes) => {
       });
       this.belongsTo(models.Geofence, {
         foreignKey: 'geofence_id',
-        as: 'geofence'
+        as: 'geofence',
       });
-      
       // Password management associations
       this.hasMany(models.PasswordHistory, {
         foreignKey: 'user_id',
         constraints: false,
         scope: {
-          user_type: 'merchant'
-        }
+          user_type: 'merchant',
+        },
       });
       this.hasMany(models.PasswordResetLog, {
         foreignKey: 'user_id',
         constraints: false,
         scope: {
-          user_type: 'merchant'
-        }
+          user_type: 'merchant',
+        },
       });
     }
 
@@ -69,21 +67,21 @@ module.exports = (sequelize, DataTypes) => {
 
     format_business_hours() {
       return {
-        open: this.business_hours?.open?.toLocaleTimeString('en-US', { 
+        open: this.business_hours?.open?.toLocaleTimeString('en-US', {
           timeZone: this.time_zone,
           hour: '2-digit',
-          minute: '2-digit'
+          minute: '2-digit',
         }),
         close: this.business_hours?.close?.toLocaleTimeString('en-US', {
           timeZone: this.time_zone,
           hour: '2-digit',
-          minute: '2-digit'
-        })
+          minute: '2-digit',
+        }),
       };
     }
 
     getBusinessTypeConfig() {
-      return BUSINESS_TYPES[this.business_type.toUpperCase()];
+      return getBusinessTypes()[this.business_type.toUpperCase()];
     }
 
     validateBusinessTypeDetails() {
@@ -100,12 +98,12 @@ module.exports = (sequelize, DataTypes) => {
       // Check service types
       const hasValidServices = details.service_types?.every(service =>
         typeConfig.allowedServiceTypes.includes(service)
-      );
+      ) ?? true;
 
       // Check licenses
       const hasRequiredLicenses = typeConfig.requiredLicenses.every(license =>
         details.licenses?.includes(license)
-      );
+      ) ?? true;
 
       return hasAllRequired && hasValidServices && hasRequiredLicenses;
     }
@@ -146,9 +144,9 @@ module.exports = (sequelize, DataTypes) => {
       validate: {
         isIn: {
           args: [['grocery', 'restaurant', 'cafe', 'bakery', 'butcher']],
-          msg: 'Invalid business type'
-        }
-      }
+          msg: 'Invalid business type',
+        },
+      },
     },
     business_type_details: {
       type: DataTypes.JSONB,
@@ -161,7 +159,7 @@ module.exports = (sequelize, DataTypes) => {
             const { BUSINESS_TYPES } = require('../config/constants/businessTypes');
             const typeConfig = BUSINESS_TYPES[this.business_type.toUpperCase()];
             
-            if (!typeConfig) return;  // Skip validation if type config not found
+            if (!typeConfig) return; // Skip validation if type config not found
 
             // Validate required fields
             const missingFields = typeConfig.requiredFields.filter(field => !value[field]);
@@ -190,13 +188,12 @@ module.exports = (sequelize, DataTypes) => {
             }
           } catch (error) {
             if (error.code === 'MODULE_NOT_FOUND') {
-              // Skip validation if constants file not found
-              return;
+              return; // Skip validation if constants file not found
             }
             throw error;
           }
-        }
-      }
+        },
+      },
     },
     address: {
       type: DataTypes.STRING,
@@ -224,11 +221,10 @@ module.exports = (sequelize, DataTypes) => {
         },
       },
     },
-    // Password management fields
     last_password_update: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: DataTypes.NOW
+      defaultValue: DataTypes.NOW,
     },
     password_strength: {
       type: DataTypes.INTEGER,
@@ -236,16 +232,16 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: 0,
       validate: {
         min: 0,
-        max: 100
-      }
+        max: 100,
+      },
     },
     failed_password_attempts: {
       type: DataTypes.INTEGER,
-      defaultValue: 0
+      defaultValue: 0,
     },
     password_lock_until: {
       type: DataTypes.DATE,
-      allowNull: true
+      allowNull: true,
     },
     currency: {
       type: DataTypes.STRING,
@@ -271,8 +267,8 @@ module.exports = (sequelize, DataTypes) => {
           if (value && (!value.open || !value.close)) {
             throw new Error('Business hours must include both open and close times');
           }
-        }
-      }
+        },
+      },
     },
     notification_preferences: {
       type: DataTypes.JSON,
@@ -281,62 +277,62 @@ module.exports = (sequelize, DataTypes) => {
         orderUpdates: true,
         bookingNotifications: true,
         customerFeedback: true,
-        marketingMessages: false
-      }
+        marketingMessages: false,
+      },
     },
     whatsapp_enabled: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
-      defaultValue: true
+      defaultValue: true,
     },
-    logoUrl: {
+    logo_url: {
       type: DataTypes.STRING,
-      allowNull: true
+      allowNull: true,
     },
-    bannerUrl: {
+    banner_url: {
       type: DataTypes.STRING,
-      allowNull: true
+      allowNull: true,
     },
-    storefrontUrl: {
+    storefront_url: {
       type: DataTypes.STRING,
-      allowNull: true
+      allowNull: true,
     },
     delivery_area: {
       type: DataTypes.JSONB,
-      allowNull: true
+      allowNull: true,
     },
     location: {
       type: DataTypes.JSONB,
-      allowNull: true
+      allowNull: true,
     }, 
     service_radius: {
       type: DataTypes.DECIMAL,
-      allowNull: true
+      allowNull: true,
     },
     geofence_id: {
       type: DataTypes.INTEGER,
       allowNull: true,
       references: {
         model: 'geofences',
-        key: 'id'
+        key: 'id',
       },
       onUpdate: 'CASCADE',
-      onDelete: 'SET NULL'
+      onDelete: 'SET NULL',
     },
     created_at: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: sequelize.literal('CURRENT_TIMESTAMP')
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP'),
     },
     updated_at: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: sequelize.literal('CURRENT_TIMESTAMP')
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP'),
     },
     deleted_at: {
       type: DataTypes.DATE,
-      allowNull: true
-    }
+      allowNull: true,
+    },
   }, {
     sequelize,
     modelName: 'Merchant',
@@ -347,25 +343,24 @@ module.exports = (sequelize, DataTypes) => {
       {
         unique: true,
         fields: ['user_id'],
-        name: 'merchants_user_id_unique'
+        name: 'merchants_user_id_unique',
       },
       {
         unique: true,
         fields: ['phone_number'],
-        name: 'merchants_phone_number_unique'
-      }
+        name: 'merchants_phone_number_unique',
+      },
     ],
     hooks: {
       beforeValidate: async (merchant) => {
         if (merchant.changed('business_type') && merchant.business_type_details) {
-          // Revalidate business type details when type changes
           const isValid = merchant.validateBusinessTypeDetails();
           if (!isValid) {
             throw new Error('Business type details invalid for new business type');
           }
         }
-      }
-    }
+      },
+    },
   });
 
   return Merchant;

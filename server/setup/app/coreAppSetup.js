@@ -14,7 +14,7 @@ const authMiddleware = require('@middleware/authMiddleware');
 const { setupPassport } = require('@config/passport');
 const { setupSwagger } = require('@config/swagger');
 const { setupGeolocationMiddleware } = require('./geolocationMiddlewareSetup');
-const { setupCoreRoutes } = require('../routes/coreRoutesSetup'); // Relative path from server/setup/app/
+const { setupCoreRoutes } = require('../routes/coreRoutesSetup');
 const { logger } = require('@utils/logger');
 
 module.exports = {
@@ -64,18 +64,25 @@ module.exports = {
     app.use(deviceDetectionMiddleware);
     logger.info('Device detection middleware applied');
 
-    app.use(authMiddleware.authenticate);
-    logger.info('Auth middleware applied');
-
+    // Passport setup before selective auth
     setupPassport(app);
     logger.info('Passport setup applied');
+
+    // Selective auth middleware
+    app.use((req, res, next) => {
+      if (req.path.startsWith('/auth')) {
+        logger.info(`Bypassing auth middleware for ${req.path}`);
+        return next();
+      }
+      logger.info(`Applying auth middleware for ${req.path}`);
+      authMiddleware.authenticate(req, res, next);
+    });
 
     setupSwagger(app);
     logger.info('Swagger setup applied');
 
-    // Add core routes setup
     logger.info('Setting up core routes...');
-    setupCoreRoutes(app);
+    setupCoreRoutes(app); // Mounts /auth routes here
     logger.info('Core routes setup complete');
 
     app.use(errorHandler);

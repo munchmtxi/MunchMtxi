@@ -1,6 +1,6 @@
 // src/middleware/performanceMiddleware.js
 const { performance } = require('perf_hooks');
-const logger = require('@utils/logger');
+const { logger } = require('@utils/logger');
 const catchAsync = require('@utils/catchAsync'); // Added import
 
 /**

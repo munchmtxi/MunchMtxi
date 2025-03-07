@@ -4,7 +4,7 @@ const geolocation1Service = require('@services/geoLocation/geolocation1Service')
 const geolocation2Service = require('@services/geoLocation/geolocation2Service');
 const geolocation3Service = require('@services/geoLocation/geolocation3Service');
 const AppError = require('@utils/AppError');
-const logger = require('@utils/logger');
+const { logger } = require('@utils/logger');
 
 // Geolocation Controller
 // IP-based Location Detection
