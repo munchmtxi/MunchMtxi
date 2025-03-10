@@ -59,12 +59,11 @@ router.post(
   registerNonCustomer
 );
 
-// Log in a merchant
-router.post(
-  '/merchant/login',
-  validateMerchantLogin,
-  merchantLogin
-);
+// Log in a merchant with logging middleware
+router.post('/merchant/login', (req, res, next) => {
+  logger.info('DEFINITELY REACHED MERCHANT LOGIN ROUTE', { body: req.body });
+  next();
+}, validateMerchantLogin, merchantLogin);
 
 // Log out a merchant
 router.post(

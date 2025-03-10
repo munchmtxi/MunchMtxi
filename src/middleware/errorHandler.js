@@ -7,6 +7,7 @@
 
 const { logger } = require('@utils/logger');
 const AppError = require('@utils/AppError');
+console.log('AppError:', AppError); // Debug: Ensure AppError is imported correctly.
 const config = require('@config/config');
 const {
   ValidationError,
@@ -114,12 +115,10 @@ const errorHandler = (err, req, res, next) => {
     if (error.isOperational) {
       sendErrorProd(error, res);
     } else {
-      // Log non-operational errors and send a generic response
+      // Log non-operational errors and send a generic response using AppError instantiation
       logger.error('ERROR 💥', error);
-      res.status(500).json({
-        status: 'error',
-        message: 'Something went wrong!'
-      });
+      error = new AppError('Something went wrong!', 500);
+      sendErrorProd(error, res);
     }
   }
 };

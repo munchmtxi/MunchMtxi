@@ -12,6 +12,9 @@ const catchAsync = require('@utils/catchAsync');
 const AppError = require('@utils/AppError');
 const { logger } = require('@utils/logger');
 
+// If needed, import getModels from your models module, e.g.:
+// const { getModels } = require('@models');
+
 /**
  * Registers a new user (Customer).
  */
@@ -144,8 +147,21 @@ const registerNonCustomer = catchAsync(async (req, res) => {
  */
 const merchantLogin = catchAsync(async (req, res) => {
   const { email, password, deviceId, deviceType, rememberMe } = req.body;
-  logger.info('Merchant login attempt', { email, deviceId, deviceType, rememberMe });
+  logger.info('ENTERING MERCHANT LOGIN CONTROLLER', { email, deviceId });
 
+  // Use dynamic model access
+  const { User } = req.app.locals.models || getModels();
+  logger.info('User model in controller', { User: !!User });
+
+  logger.info('Merchant login: Before DB test', { email });
+  try {
+    await User.findOne({ where: { id: 1 } });
+    logger.info('DB test successful');
+  } catch (dbError) {
+    logger.error('DB connection failed', { error: dbError.message });
+    throw new AppError('Database unavailable', 500);
+  }
+  logger.info('Merchant login attempt', { email, deviceId, deviceType, rememberMe });
   const result = await loginMerchant(email, password, { deviceId, deviceType }, rememberMe);
   logger.info('Merchant login successful', { userId: result.user.id });
 

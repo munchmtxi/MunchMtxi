@@ -6,6 +6,7 @@
 
 const UAParser = require('ua-parser-js');
 const { trackDevice } = require('@services/common/deviceService');
+const { logger } = require('@utils/logger');
 
 /**
  * Detects platform capabilities from the given user agent.
@@ -129,30 +130,30 @@ const getPlatformSpecificFeatures = (platform, version) => {
  * @param {Function} next - Express next middleware function.
  */
 const deviceDetectionMiddleware = async (req, res, next) => {
+  logger.info('Device middleware entered', { user: !!req.user, path: req.path });
+
   try {
     if (req.user) {
       const platformCapabilities = detectPlatformCapabilities(req.headers['user-agent'] || '');
       const networkCapabilities = detectNetworkCapabilities(req);
+      const platformFeatures = getPlatformSpecificFeatures(platformCapabilities.platform, platformCapabilities.platformVersion);
 
       const deviceInfo = {
         ...platformCapabilities,
         ...networkCapabilities,
-        platformFeatures: getPlatformSpecificFeatures(
-          platformCapabilities.platform,
-          platformCapabilities.platformVersion
-        ),
+        ...platformFeatures,
         lastDetectedAt: new Date()
       };
 
       await trackDevice(req.user.id, deviceInfo);
-      req.deviceInfo = deviceInfo;
-
-      // Set platform-specific headers
-      res.set('X-Platform', deviceInfo.platform);
-      res.set('X-Platform-Version', deviceInfo.platformVersion ? deviceInfo.platformVersion.toString() : 'unknown');
+      req.deviceInfo = deviceInfo; // Attach device info to the request object
+      res.set('X-Platform', deviceInfo.platform); // Set platform header
     }
+
+    logger.info('Device middleware exiting');
     next();
   } catch (error) {
+    logger.error('Device middleware error', { error: error.message, stack: error.stack });
     next(error);
   }
 };

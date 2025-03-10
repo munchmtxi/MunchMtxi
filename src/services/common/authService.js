@@ -1,14 +1,31 @@
-// src/services/common/authService.js
+/**
+ * @module services/common/authService
+ * @description Service for handling authentication-related operations, including user registration,
+ * login, token generation, and merchant-specific authentication.
+ */
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { User, Merchant, Device } = require('@models');
 const AppError = require('@utils/AppError');
-const jwtConfig = require('@config/jwtConfig'); // Use centralized JWT config
+const jwtConfig = require('@config/jwtConfig');
 const { logger } = require('@utils/logger');
 
-// Fully implemented TokenService using Device model
+logger.info('File loaded: authService.js');
+
+// Dynamic require to fetch models at runtime
+const getModels = () => require('@models');
+
+/**
+ * TokenService handles JWT token generation, storage, and invalidation.
+ */
 const TokenService = {
+  /**
+   * Generates access and refresh tokens for a user.
+   * @param {Object} user - User object containing `id` and `role_id`.
+   * @param {String} deviceId - Unique identifier for the user's device.
+   * @returns {Object} - Object containing `accessToken` and `refreshToken`.
+   */
   generateTokens: async (user, deviceId) => {
+    const { Device } = getModels();
     const accessToken = jwt.sign(
       { id: user.id, role: user.role_id },
       jwtConfig.secretOrKey,
@@ -19,8 +36,6 @@ const TokenService = {
       jwtConfig.refreshSecret,
       { expiresIn: jwtConfig.refreshExpiresIn, algorithm: jwtConfig.algorithm }
     );
-
-    // Store refresh token in Device
     await Device.update(
       {
         refresh_token: refreshToken,
@@ -28,14 +43,19 @@ const TokenService = {
       },
       { where: { user_id: user.id, device_id: deviceId } }
     );
-
     return { accessToken, refreshToken };
   },
+
+  /**
+   * Generates a remember-me token for persistent sessions.
+   * @param {Number} userId - User ID.
+   * @param {String} deviceId - Unique identifier for the user's device.
+   * @returns {Object} - Object containing `rememberToken` and `expiresAt`.
+   */
   generateRememberToken: async (userId, deviceId) => {
+    const { Device } = getModels();
     const rememberToken = `${userId}-${deviceId}-${Date.now()}`;
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
-
-    // Store remember token in Device
     await Device.update(
       {
         remember_token: rememberToken,
@@ -43,10 +63,16 @@ const TokenService = {
       },
       { where: { user_id: userId, device_id: deviceId } }
     );
-
     return { rememberToken, expiresAt };
   },
+
+  /**
+   * Invalidates tokens for a specific device.
+   * @param {Number} userId - User ID.
+   * @param {String} deviceId - Unique identifier for the user's device.
+   */
   logoutUser: async (userId, deviceId) => {
+    const { Device } = getModels();
     await Device.update(
       {
         refresh_token: null,
@@ -58,7 +84,13 @@ const TokenService = {
     );
     logger.info('User tokens invalidated', { userId, deviceId });
   },
+
+  /**
+   * Clears all remember-me tokens for a user.
+   * @param {Number} userId - User ID.
+   */
   clearAllRememberTokens: async (userId) => {
+    const { Device } = getModels();
     await Device.update(
       {
         remember_token: null,
@@ -70,7 +102,14 @@ const TokenService = {
     );
     logger.info('All tokens cleared for user', { userId });
   },
+
+  /**
+   * Clears a specific remember-me token for a device.
+   * @param {Number} userId - User ID.
+   * @param {String} deviceId - Unique identifier for the user's device.
+   */
   clearRememberToken: async (userId, deviceId) => {
+    const { Device } = getModels();
     await Device.update(
       {
         remember_token: null,
@@ -79,7 +118,7 @@ const TokenService = {
       { where: { user_id: userId, device_id: deviceId } }
     );
     logger.info('Remember token cleared', { userId, deviceId });
-  }
+  },
 };
 
 /**
@@ -91,6 +130,7 @@ const registerUser = async (userData) => {
   try {
     const { firstName, lastName, email, password, phone, country, merchantType, role } = userData;
     const hashedPassword = await bcrypt.hash(password, 10);
+    const { User } = getModels();
     const user = await User.create({
       first_name: firstName,
       last_name: lastName,
@@ -99,7 +139,7 @@ const registerUser = async (userData) => {
       phone,
       country,
       merchant_type: merchantType,
-      role_id: role === 'Merchant' ? 19 : null // Adjust based on Role table
+      role_id: role === 'Merchant' ? 19 : null, // Adjust based on Role table
     });
     return user;
   } catch (error) {
@@ -107,7 +147,7 @@ const registerUser = async (userData) => {
       throw new AppError('Email or phone number already in use', 400);
     }
     if (error.name === 'SequelizeValidationError') {
-      const messages = error.errors.map(e => e.message).join('. ');
+      const messages = error.errors.map((e) => e.message).join('. ');
       throw new AppError(`Validation Error: ${messages}`, 400);
     }
     throw new AppError('Failed to register user', 500);
@@ -118,10 +158,11 @@ const registerUser = async (userData) => {
  * Logs in a user.
  * @param {String} email - User's email.
  * @param {String} password - User's password.
- * @returns {Object} - User and JWT token.
+ * @returns {Object} - User and JWT tokens.
  */
 const loginUser = async (email, password) => {
   try {
+    const { User } = getModels();
     const user = await User.scope(null).findOne({ where: { email } });
     if (!user || !(await bcrypt.compare(password, user.password))) {
       throw new AppError('Invalid email or password', 401);
@@ -129,7 +170,6 @@ const loginUser = async (email, password) => {
     if (user.status !== 'active') {
       throw new AppError('User account is inactive', 403);
     }
-
     const { accessToken, refreshToken } = await TokenService.generateTokens(user, null); // No deviceId for general login
     return { user, accessToken, refreshToken };
   } catch (error) {
@@ -139,62 +179,30 @@ const loginUser = async (email, password) => {
 };
 
 /**
- * Generates a new JWT access token.
- * @param {Object} payload - Payload containing user ID and role.
- * @param {String} [expiresIn] - Token expiration time.
- * @returns {String} - JWT token.
- */
-const generateToken = (payload, expiresIn = jwtConfig.expiresIn) => {
-  return jwt.sign(payload, jwtConfig.secretOrKey, { 
-    expiresIn, 
-    algorithm: jwtConfig.algorithm 
-  });
-};
-
-/**
- * Verifies a JWT token.
- * @param {String} token - JWT token.
- * @returns {Object} - Decoded payload.
- */
-const verifyToken = (token) => {
-  return jwt.verify(token, jwtConfig.secretOrKey);
-};
-
-/**
- * Generates a new JWT refresh token.
- * @param {Object} payload - Payload containing user ID and role.
- * @returns {String} - JWT refresh token.
- */
-const generateRefreshToken = (payload) => {
-  return jwt.sign(payload, jwtConfig.refreshSecret, {
-    expiresIn: jwtConfig.refreshExpiresIn,
-    algorithm: jwtConfig.algorithm
-  });
-};
-
-/**
- * Verifies a JWT refresh token.
- * @param {String} token - JWT refresh token.
- * @returns {Object} - Decoded payload.
- */
-const verifyRefreshToken = (token) => {
-  return jwt.verify(token, jwtConfig.refreshSecret);
-};
-
-/**
  * Logs in a merchant with device tracking and optional remember-me functionality.
  * @param {String} email - Merchant's email.
  * @param {String} password - Merchant's password.
- * @param {Object} deviceInfo - Device details (deviceId, deviceType).
+ * @param {Object} deviceInfo - Device details (`deviceId`, `deviceType`).
  * @param {Boolean} rememberMe - Whether to generate a remember token.
  * @returns {Object} - User, tokens, and optional remember token data.
  */
 const loginMerchant = async (email, password, deviceInfo, rememberMe = false) => {
   try {
+    const { User, Merchant, Device } = getModels(); // Fetch models at runtime
     logger.info('Attempting merchant login', { email, deviceInfo, rememberMe });
+
+    await User.sequelize.authenticate();
+    logger.info('DB connection successful');
+
+    logger.info('Merchant login: Before DB test', { email });
+
     const user = await User.scope(null).findOne({
       where: { email, role_id: 19 },
-      include: [{ model: Merchant, as: 'merchant_profile', required: true }]
+      include: [{ model: Merchant, as: 'merchant_profile', required: true }],
+      timeout: 5000,
+    }).catch((err) => {
+      logger.error('User query failed', { error: err.message });
+      throw new AppError('Database query timeout', 500);
     });
 
     if (!user) {
@@ -202,7 +210,6 @@ const loginMerchant = async (email, password, deviceInfo, rememberMe = false) =>
       throw new AppError('Invalid merchant credentials', 401);
     }
 
-    logger.info('User found', { email, role_id: user.role_id, is_verified: user.is_verified, status: user.status });
     const passwordMatch = await bcrypt.compare(password, user.password);
     if (!passwordMatch) {
       logger.warn('Password mismatch', { email });
@@ -213,6 +220,7 @@ const loginMerchant = async (email, password, deviceInfo, rememberMe = false) =>
       logger.warn('User not verified', { email });
       throw new AppError('Please verify your account first', 403);
     }
+
     if (user.status !== 'active') {
       logger.warn('User account inactive', { email });
       throw new AppError('User account is inactive', 403);
@@ -228,8 +236,8 @@ const loginMerchant = async (email, password, deviceInfo, rememberMe = false) =>
         device_id: deviceInfo.deviceId,
         device_type: deviceInfo.deviceType,
         platform: 'web',
-        last_active_at: new Date()
-      }
+        last_active_at: new Date(),
+      },
     });
 
     let rememberTokenData = null;
@@ -241,11 +249,11 @@ const loginMerchant = async (email, password, deviceInfo, rememberMe = false) =>
 
     logger.info('Merchant login successful', { userId: user.id });
     return {
-      user: { ...user.toJSON(), merchant: user.merchant },
+      user: { ...user.toJSON(), merchant: user.merchant_profile },
       accessToken,
       refreshToken,
       rememberToken: rememberTokenData?.rememberToken,
-      rememberTokenExpiry: rememberTokenData?.expiresAt
+      rememberTokenExpiry: rememberTokenData?.expiresAt,
     };
   } catch (error) {
     logger.error('Login merchant failed', { error: error.message, stack: error.stack });
@@ -274,13 +282,15 @@ const logoutMerchant = async (userId, deviceId = null, clearAllDevices = false) 
   }
 };
 
-module.exports = { 
-  registerUser, 
-  loginUser, 
-  generateToken, 
-  verifyToken, 
-  generateRefreshToken, 
-  verifyRefreshToken, 
-  loginMerchant, 
-  logoutMerchant 
+module.exports = {
+  registerUser,
+  loginUser,
+  generateToken: (payload, expiresIn = jwtConfig.expiresIn) =>
+    jwt.sign(payload, jwtConfig.secretOrKey, { expiresIn, algorithm: jwtConfig.algorithm }),
+  verifyToken: (token) => jwt.verify(token, jwtConfig.secretOrKey),
+  generateRefreshToken: (payload) =>
+    jwt.sign(payload, jwtConfig.refreshSecret, { expiresIn: jwtConfig.refreshExpiresIn, algorithm: jwtConfig.algorithm }),
+  verifyRefreshToken: (token) => jwt.verify(token, jwtConfig.refreshSecret),
+  loginMerchant,
+  logoutMerchant,
 };

@@ -4,6 +4,13 @@
  * such as HTTP status code, custom error code, and metadata.
  *
  * @extends Error
+  */
+/**
+ * Class representing an application-specific error.
+ * Extends the built-in Error class to include additional properties
+ * such as HTTP status code, custom error code, and metadata.
+ *
+ * @extends Error
  */
 class AppError extends Error {
   /**
@@ -18,55 +25,35 @@ class AppError extends Error {
   constructor(message, statusCode, errorCode = null, details = null, meta = null) {
     super(message);
 
-    /**
-     * HTTP status code.
-     * @type {number}
-     */
+    // HTTP status code.
     this.statusCode = statusCode;
     
-    /**
-     * Error status determined by the status code ('fail' for 4xx errors, 'error' for others).
-     * @type {string}
-     */
-    this.status = `${statusCode}`.startsWith('4') ? 'fail' : 'error';
+    // Determine error status based on the HTTP code:
+    // 'fail' for 4xx errors, 'error' for others.
+    this.status = statusCode.toString().startsWith('4') ? 'fail' : 'error';
     
-    /**
-     * Flag indicating if the error is operational (trusted error).
-     * @type {boolean}
-     */
+    // Indicates whether the error is operational (trusted error).
     this.isOperational = true;
     
-    /**
-     * Custom error code identifier.
-     * @type {string|null}
-     */
+    // Custom error code identifier.
     this.errorCode = errorCode;
     
-    /**
-     * Additional error details.
-     * @type {any|null}
-     */
+    // Additional error details.
     this.details = details;
     
-    /**
-     * Contextual metadata.
-     * @type {any|null}
-     */
+    // Contextual metadata.
     this.meta = meta;
     
-    /**
-     * Timestamp of when the error instance was created.
-     * @type {Date}
-     */
+    // Timestamp when the error instance was created.
     this.timestamp = new Date();
 
-    // Capture stack trace excluding the constructor call.
+    // Capture the stack trace excluding the constructor call.
     Error.captureStackTrace(this, this.constructor);
   }
 
   /**
    * Converts the error instance to a plain object.
-   * This method is useful for logging or sending error responses.
+   * Useful for logging or sending error responses.
    *
    * @returns {object} A plain object containing error details.
    */

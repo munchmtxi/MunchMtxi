@@ -76,7 +76,7 @@ const validateMerchantLogin = (req, res, next) => {
     deviceType: Joi.string().valid('mobile', 'desktop', 'tablet').required()
   });
   logger.info('Validating merchant login', { body: req.body });
-  const { error } = schema.validate(req.body, { abortEarly: false });
+  const { error } = schema.validate(req.body || {}, { abortEarly: false }); // Fallback to empty object
   if (error) {
     const details = error.details.map(detail => detail.message);
     logger.warn('Validation failed', { errors: details });
