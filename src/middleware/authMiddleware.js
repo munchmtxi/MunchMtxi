@@ -1,8 +1,42 @@
 const passport = require('passport');
 const AppError = require('@utils/AppError');
+const { logger } = require('@utils/logger');
 const roleService = require('@services/common/roleService');
 const { trackDevice } = require('@services/common/deviceService');
 const TokenService = require('@services/common/tokenService'); // Newly added import
+
+// --------------------------------------------------------------------------
+// Legacy Middleware (from original snippet)
+// --------------------------------------------------------------------------
+
+const legacyAuthenticate = passport.authenticate('jwt', { session: false });
+
+const legacyRestrictTo = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      logger.warn('No user authenticated');
+      return next(new AppError('Authentication required', 401));
+    }
+    // Map role_id to role name
+    const roleMap = {
+      19: 'merchant',
+      1: 'admin', // Add other roles as needed
+      // Add mappings based on your roles table
+    };
+    // Assume req.user.role contains the role_id
+    const userRole = roleMap[req.user.role] || 'unknown';
+    logger.info('User role:', { id: req.user.id, role: req.user.role, mapped: userRole });
+    if (!roles.includes(userRole)) {
+      logger.warn('Role restriction failed', { userRole, required: roles });
+      return next(new AppError('You are not authorized to perform this action', 403));
+    }
+    next();
+  };
+};
+
+// --------------------------------------------------------------------------
+// Extended Middleware (from your current code)
+// --------------------------------------------------------------------------
 
 /**
  * Middleware to authenticate users using JWT.
@@ -44,7 +78,7 @@ const authenticate = async (req, res, next) => {
  */
 const authorizeRoles = (...roles) => {
   return (req, res, next) => {
-    const allowedRoles = roles.flat(); // This handles both strings and arrays
+    const allowedRoles = roles.flat(); // Handles both strings and arrays
     if (!allowedRoles.includes(req.user.role)) {
       return next(new AppError('You are not authorized to access this resource', 403));
     }
@@ -242,8 +276,8 @@ const checkRoleBasedRateLimit = (role) => {
 };
 
 /**
- * Basic route protection middleware
- * Ensures the user is authenticated and token is valid
+ * Basic route protection middleware.
+ * Ensures the user is authenticated and token is valid.
  */
 const protect = async (req, res, next) => {
   try {
@@ -312,8 +346,8 @@ const protect = async (req, res, next) => {
 };
 
 /**
- * Restricts access to specific user roles
- * @param  {...string} roles - Allowed roles
+ * Restricts access to specific user roles.
+ * @param  {...string} roles - Allowed roles.
  */
 const restrictTo = (...roles) => {
   return async (req, res, next) => {
@@ -365,6 +399,10 @@ const restrictTo = (...roles) => {
   };
 };
 
+// --------------------------------------------------------------------------
+// Module Exports
+// --------------------------------------------------------------------------
+
 module.exports = {
   authenticate,
   authorizeRoles,
@@ -377,5 +415,7 @@ module.exports = {
   verifyApiKey,
   checkRoleBasedRateLimit,
   protect,
-  restrictTo
+  restrictTo,
+  legacyAuthenticate,
+  legacyRestrictTo
 };

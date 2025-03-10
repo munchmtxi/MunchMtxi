@@ -1,122 +1,140 @@
+// server/server.js
+'use strict';
 require('module-alias/register');
 require('dotenv').config();
-const Express = require('express');
-const Http = require('http');
+const { createServer } = require('http');
+const { Router } = require('express');
 const { sequelize } = require('@models');
 const { logger } = require('@utils/logger');
-const config = require('@config/config');
-const { validateEnvironment } = require('@serverUtils/envValidation');
-const { setupCustomerEvents } = require('@setup/customer/events');
-const { setupErrorHandlers } = require('@serverUtils/errorHandling');
-const { setupCoreApp } = require('@setup/app/coreAppSetup');
-const { setupMonitoring } = require('@setup/app/monitoringSetup');
+const { setupApp } = require('./app');
+const { setupSocket } = require('./socket');
 const { setupCommonServices } = require('@setup/services/commonServices');
 const { setupNotificationService } = require('@setup/services/notificationServices');
 const { setupAuthServices } = require('@setup/services/authServices');
-const { setupCoreSocket } = require('@setup/socket/coreSocketSetup');
-const { setupSocketHandlers } = require('@setup/socket/socketHandlersSetup');
+const { setupMerchantProfile } = require('./setup/merchant/profile/profileSetup');
+const { getProfile } = require('../src/controllers/merchant/profile/getProfile');
+const authMiddleware = require('../src/middleware/authMiddleware'); // Correct import
 const { setupNotificationRoutes } = require('@setup/routes/notificationRoutesSetup');
 const { setupNotifications } = require('@setup/notifications/notificationSetup');
-const { setupMerchantProfile } = require('@setup/merchant/profile/profileSetup');
-const { setupGetProfileRoutes } = require('@setup/routes/getProfileRoutesSetup');
-const { shutdownServer } = require('@serverUtils/shutdown/serverShutdown');
-
-const app = Express();
-const server = Http.createServer(app);
+const { setupAuthRoutes } = require('@setup/routes/authRouteSetup');
+const { setupCustomerEvents } = require('@setup/customer/events');
 
 const REQUIRED_ENV = ['PORT', 'DATABASE_URL', 'JWT_SECRET', 'JWT_EXPIRES_IN'];
+const GRACEFUL_SHUTDOWN_TIMEOUT = 10000;
 
-let io;
-let notificationService;
-let authService;
+// Environment Validation
+const validateEnvironment = (requiredEnv) => {
+  const missing = requiredEnv.filter(key => !process.env[key]);
+  if (missing.length > 0) {
+    logger.error('Missing required environment variables:', { missing });
+    throw new Error(`Missing environment variables: ${missing.join(', ')}`);
+  }
+  logger.info('Environment variables validated successfully');
+};
 
-const startServer = async () => {
+// Graceful Shutdown
+const shutdownServer = async (server, io, sequelize) => {
+  logger.info('Initiating graceful server shutdown...');
+
+  if (io) {
+    io.close(() => logger.info('Socket.IO server closed'));
+  }
+
+  return new Promise((resolve, reject) => {
+    server.close(() => {
+      logger.info('HTTP server closed successfully');
+      if (sequelize) {
+        sequelize.close()
+          .then(() => {
+            logger.info('Database connection closed successfully');
+            resolve();
+          })
+          .catch((err) => {
+            logger.error('Failed to close database connection:', { error: err.message });
+            reject(err);
+          });
+      } else {
+        resolve();
+      }
+    });
+
+    setTimeout(() => {
+      logger.error(`Forced shutdown after ${GRACEFUL_SHUTDOWN_TIMEOUT}ms timeout`);
+      process.exit(1);
+    }, GRACEFUL_SHUTDOWN_TIMEOUT);
+  });
+};
+
+// Error Handlers
+const setupErrorHandlers = (server, io, sequelize) => {
+  process.on('uncaughtException', (error) => {
+    logger.error('Uncaught Exception:', { error: error.message });
+    shutdownServer(server, io, sequelize).then(() => process.exit(1)).catch(() => process.exit(1));
+  });
+
+  process.on('unhandledRejection', (reason) => {
+    logger.error('Unhandled Rejection:', { reason: reason.message || reason });
+    shutdownServer(server, io, sequelize).then(() => process.exit(1)).catch(() => process.exit(1));
+  });
+
+  process.on('SIGTERM', () => {
+    logger.info('SIGTERM received, shutting down...');
+    shutdownServer(server, io, sequelize).then(() => process.exit(0)).catch(() => process.exit(1));
+  });
+
+  process.on('SIGINT', () => {
+    logger.info('SIGINT received, shutting down...');
+    shutdownServer(server, io, sequelize).then(() => process.exit(0)).catch(() => process.exit(1));
+  });
+
+  logger.info('Error handlers setup complete');
+};
+
+// Updated setupGetProfile with correct middleware names
+const setupGetProfile = (app) => {
+  const merchantProfileRouter = Router();
+  merchantProfileRouter.use(authMiddleware.validateToken); // Changed from verifyToken
+  merchantProfileRouter.use(authMiddleware.restrictTo('merchant', 'admin')); // Changed from checkRole
+  merchantProfileRouter.get('/merchant/profile', getProfile);
+  app.use('/', merchantProfileRouter);
+  logger.info('Merchant get profile routes mounted');
+};
+
+// Main Server Startup
+async function startServer() {
   try {
     logger.info('Starting server initialization...');
 
-    logger.info('Validating environment variables...');
     validateEnvironment(REQUIRED_ENV);
-    logger.info('Environment variables validated');
-
-    logger.info('Authenticating database connection...');
     await sequelize.authenticate();
-    logger.info('Database connection established successfully');
+    logger.info('Database connection established');
 
-    logger.info('Setting up health monitoring...');
-    const healthMonitor = setupMonitoring(app);
-    logger.info('Health monitoring setup complete');
+    const app = await setupApp();
+    const server = createServer(app);
 
-    logger.info('Setting up core application...');
-    setupCoreApp(app, healthMonitor);
-    logger.info('Core application setup complete');
-
-    logger.info('Setting up Socket.IO...');
-    io = setupCoreSocket(server);
-    logger.info('Socket.IO setup complete');
-
-    logger.info('Setting up common services...');
+    const io = setupSocket(server);
     const { whatsappService, emailService, smsService } = setupCommonServices();
-    logger.info('Common services setup complete', {
-      whatsappType: typeof whatsappService,
-      emailType: typeof emailService,
-      smsType: typeof smsService,
-    });
+    const authService = setupAuthServices();
+    const notificationService = setupNotificationService(io, whatsappService, emailService, smsService);
 
-    logger.info('Setting up auth services...');
-    authService = setupAuthServices();
-    logger.info('Auth services setup complete');
-
-    logger.info('Setting up notification service...');
-    notificationService = setupNotificationService(io, whatsappService, emailService, smsService);
-    logger.info('Notification service setup complete');
-
-    app.locals.healthMonitor = healthMonitor;
     app.locals.notificationService = notificationService;
     app.locals.authService = authService;
 
-    logger.info('Setting up socket handlers...');
-    setupSocketHandlers(io, notificationService);
-    logger.info('Socket handlers setup complete');
-
-    logger.info('Setting up notifications...');
-    setupNotifications(app, notificationService);
-    logger.info('Notifications setup complete');
-
-    logger.info('Setting up notification routes...');
-    setupNotificationRoutes(app);
-    logger.info('Notification routes setup complete');
-
-    // Removed setupAuthRoutes to avoid duplication with setupCoreRoutes in coreAppSetup
-    // logger.info('Setting up auth routes...');
-    // setupAuthRoutes(app);
-    // logger.info('Auth routes setup complete');
-
-    logger.info('Setting up merchant profile...');
+    setupAuthRoutes(app);
     setupMerchantProfile(app);
-    logger.info('Merchant profile setup complete');
-
-    logger.info('Setting up get profile routes...');
-    setupGetProfileRoutes(app);
-    logger.info('Get profile routes setup complete');
-
-    logger.info('Setting up customer events...');
+    setupGetProfile(app);
+    setupNotificationRoutes(app);
+    setupNotifications(app, notificationService);
     setupCustomerEvents(io, notificationService);
-    logger.info('Customer events setup complete');
 
-    logger.info('Starting server...');
-    server.listen(config.port, () => {
-      logger.info(`Server started on port ${config.port} in ${config.nodeEnv} mode`);
-    });
+    const port = process.env.PORT || 3000;
+    server.listen(port, () => logger.info(`Server running on port ${port}`));
 
-    logger.info('Setting up error handlers...');
     setupErrorHandlers(server, io, sequelize);
-    logger.info('Error handlers setup complete');
   } catch (error) {
-    logger.error('Server startup failed:', { error: error.message, stack: error.stack });
+    logger.error('Server startup failed:', error);
     process.exit(1);
   }
-};
+}
 
 startServer();
-
-module.exports = { app, server, io, notificationService, authService };
