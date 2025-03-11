@@ -6,7 +6,7 @@ const morgan = require('morgan');
 const { setupPassport } = require('@config/passport');
 const { setupSwagger } = require('@config/swagger');
 const InitMonitoring = require('@config/monitoring');
-const securityMiddleware = require('@middleware/security'); // Use lowercase for consistency
+const securityMiddleware = require('@middleware/security');
 const { detectLocation, attachGeoLocation } = require('@middleware/locationMiddleware');
 const { performanceMiddleware } = require('@middleware/performanceMiddleware');
 const deviceMiddleware = require('@middleware/deviceDetectionMiddleware');
@@ -15,7 +15,6 @@ const { requestLogger } = require('@middleware/requestLogger');
 const { setupAuthRoutes } = require('@setup/routes/authRouteSetup');
 const errorHandler = require('../src/middleware/errorHandler');
 const { logger } = require('@utils/logger');
-const AppError = require('@utils/AppError');
 
 module.exports.setupApp = async () => {
   const app = express();
@@ -43,7 +42,7 @@ module.exports.setupApp = async () => {
   app.use(morgan('combined', { stream: { write: msg => logger.info(msg.trim()) } }));
   logger.info('Morgan logging middleware applied');
 
-  securityMiddleware(app); // Call the default export directly
+  securityMiddleware(app);
   logger.info('Security middleware applied');
 
   app.use((req, res, next) => {
@@ -90,13 +89,7 @@ module.exports.setupApp = async () => {
   setupAuthRoutes(app);
   logger.info('Authentication routes setup complete');
 
-  app.all('*', (req, res, next) => {
-    const error = new AppError(`Route ${req.originalUrl} not found`, 404);
-    logger.warn('Unhandled route:', { method: req.method, url: req.originalUrl, ip: req.ip });
-    next(error);
-  });
-  logger.info('Catch-all route mounted');
-
+  // Removed catch-all from here
   app.use(errorHandler);
   logger.info('Error handler middleware applied');
 

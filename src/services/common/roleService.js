@@ -1,6 +1,7 @@
-// src/services/roleService.js
+'use strict';
 const { Role, Permission } = require('@models');
 const AppError = require('@utils/AppError');
+const { logger } = require('@utils/logger');
 
 /**
  * Creates a new role with associated permissions.
@@ -54,4 +55,33 @@ const deleteRole = async (roleId) => {
   await role.destroy();
 };
 
-module.exports = { createRole, getRolePermissions, updateRolePermissions, deleteRole };
+/**
+ * Retrieves a role by ID.
+ * @param {Number} roleId - ID of the role.
+ * @returns {Object} - Role object with name.
+ */
+const getRoleById = async (roleId) => {
+  try {
+    const role = await Role.findByPk(roleId, {
+      attributes: ['id', 'name'],
+      paranoid: true, // Respect soft deletes
+    });
+    if (!role) {
+      logger.warn('Role not found', { roleId });
+      throw new AppError('Role not found', 404);
+    }
+    logger.info('Role fetched', { roleId, name: role.name });
+    return { name: role.name };
+  } catch (error) {
+    logger.error('Error fetching role by ID', { error: error.message, roleId });
+    throw error;
+  }
+};
+
+module.exports = {
+  createRole,
+  getRolePermissions,
+  updateRolePermissions,
+  deleteRole,
+  getRoleById,
+};

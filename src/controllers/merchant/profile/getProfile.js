@@ -5,7 +5,7 @@ const GetProfileService = require('@services/merchant/profile/getProfileService'
 const catchAsync = require('@utils/catchAsync');
 
 const getProfile = catchAsync(async (req, res) => {
-  const merchantId = req.params.merchantId; // Extract from route params
+  const merchantId = req.user.merchantId; // Extract from route params
   const profile = await GetProfileService.execute(merchantId);
 
   res.status(200).json({

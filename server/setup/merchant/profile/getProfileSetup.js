@@ -1,17 +1,27 @@
-// Original server/setup/merchant/profile/getProfileSetup.js
-'use strict';
-const express = require('express');
-const { merchantProfileController } = require('@controllers/merchant/merchantProfileController');
-const authMiddleware = require('@middleware/auth');
+// server/setup/merchant/profile/getProfileSetup.js or inline in startServer.js
+const { Router } = require('express');
+const authMiddleware = require('@middleware/authMiddleware');
+const { getProfile } = require('@controllers/merchant/profile/getProfile');
 const { logger } = require('@utils/logger');
 
-module.exports = {
-  setupGetProfile: (app) => {
-    const merchantProfileRouter = express.Router();
-    merchantProfileRouter.use(authMiddleware.verifyToken);
-    merchantProfileRouter.use(authMiddleware.checkRole(['MERCHANT', 'ADMIN']));
-    merchantProfileRouter.get('/merchant/profile', merchantProfileController.getProfile);
-    app.use('/', merchantProfileRouter);
-    logger.info('Merchant get profile routes mounted');
-  }
+const setupGetProfile = (app) => {
+  const merchantProfileRouter = Router();
+
+  merchantProfileRouter.use((req, res, next) => {
+    logger.info('Merchant profile router hit', { method: req.method, url: req.url });
+    next();
+  });
+
+  merchantProfileRouter.use(authMiddleware.validateToken);
+  merchantProfileRouter.use(authMiddleware.restrictTo('merchant', 'admin'));
+
+  merchantProfileRouter.get('/profile', (req, res, next) => {
+    logger.info('Reached /merchant/profile endpoint', { user: req.user });
+    getProfile(req, res, next);
+  });
+
+  app.use('/merchant', merchantProfileRouter); // Mount at /merchant, so /merchant/profile
+  logger.info('Merchant get profile routes mounted at /merchant/profile');
 };
+
+module.exports = { setupGetProfile };

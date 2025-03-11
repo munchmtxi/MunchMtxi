@@ -1,7 +1,10 @@
+// src/config/passport.js
+'use strict';
 const passport = require('passport');
 const { Strategy: JwtStrategy, ExtractJwt } = require('passport-jwt');
 const { User } = require('@models');
 const jwtConfig = require('@config/jwtConfig');
+const { logger } = require('@utils/logger'); // Add logger
 
 console.log('Initializing passport with jwtConfig:', {
   secretOrKey: jwtConfig.secretOrKey || '[MISSING]',
@@ -19,45 +22,49 @@ if (!jwtConfig.jwtFromRequest) {
 
 const configurePassport = () => {
   const strategy = new JwtStrategy(jwtConfig, async (payload, done) => {
-    console.log('JWT Payload received:', payload);
+    logger.info('JWT Payload received:', payload);
     try {
       if (!payload || !payload.id) {
-        console.log('Invalid token payload:', payload);
+        logger.warn('Invalid token payload:', payload);
         return done(null, false, { message: 'Invalid token payload' });
       }
 
       const user = await User.findByPk(payload.id);
       if (!user) {
-        console.log('User not found for ID:', payload.id);
+        logger.warn('User not found for ID:', payload.id);
         return done(null, false, { message: 'User not found' });
       }
       if (user.status !== 'active') {
-        console.log('User inactive:', payload.id);
+        logger.warn('User inactive:', payload.id);
         return done(null, false, { message: 'User account is inactive' });
       }
 
-      console.log('User authenticated:', user.id, user.role_id);
-      return done(null, user);
+      const userData = {
+        id: user.id,
+        roleId: user.role_id, // Map role_id to roleId
+      };
+      logger.info('User authenticated:', { id: user.id, roleId: user.role_id });
+      return done(null, userData);
     } catch (error) {
-      console.error('Error during JWT verification:', error);
+      logger.error('Error during JWT verification:', error);
       return done(error, false);
     }
   });
 
   strategy.on = (event, handler) => {
     if (event === 'error') {
-      console.error('JWT Strategy error:', handler);
+      logger.error('JWT Strategy error:', handler);
     }
   };
 
   passport.use(strategy);
-  console.log('JWT Strategy registered');
+  logger.info('JWT Strategy registered');
 };
 
 const setupPassport = (app) => {
   configurePassport();
   app.use(passport.initialize());
-  console.log('Passport initialized');
+  logger.info('Passport initialized');
 };
 
 module.exports = { setupPassport };

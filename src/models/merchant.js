@@ -66,17 +66,21 @@ module.exports = (sequelize, DataTypes) => {
     }
 
     format_business_hours() {
+      if (!this.business_hours) return null;
+      const { open, close } = this.business_hours;
+      const parseTime = (timeStr) => {
+        const [hours, minutes] = timeStr.split(':');
+        const date = new Date();
+        date.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
+        return date.toLocaleTimeString('en-US', {
+          timeZone: this.time_zone,
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+      };
       return {
-        open: this.business_hours?.open?.toLocaleTimeString('en-US', {
-          timeZone: this.time_zone,
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-        close: this.business_hours?.close?.toLocaleTimeString('en-US', {
-          timeZone: this.time_zone,
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
+        open: open ? parseTime(open) : null,
+        close: close ? parseTime(close) : null,
       };
     }
 
