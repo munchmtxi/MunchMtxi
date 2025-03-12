@@ -286,6 +286,3 @@ class UserActivityLogger {
 }
 
 module.exports = new UserActivityLogger();
-}
-
-module.exports = new UserActivityLogger();

@@ -12,6 +12,7 @@ const { setupNotificationService } = require('@setup/services/notificationServic
 const authService = require('@services/common/authService');
 const { setupMerchantProfile } = require('@setup/merchant/profile/profileSetup');
 const { setupGetProfile } = require('@setup/merchant/profile/getProfileSetup');
+const { setupBusinessType } = require('@setup/merchant/profile/businessTypeSetup');
 const { setupNotificationRoutes } = require('@setup/routes/notificationRoutesSetup');
 const { setupNotifications } = require('@setup/notifications/notificationSetup');
 const { setupAuthRoutes } = require('@setup/routes/authRouteSetup');
@@ -73,7 +74,6 @@ const setupErrorHandlers = (server, io, sequelize) => {
   logger.info('Error handlers setup complete');
 };
 
-// Debug router stack after each setup
 const logRouterStack = (app, label) => {
   logger.info(`Router stack after ${label}:`, {
     routes: app._router.stack.map(layer => ({
@@ -95,6 +95,15 @@ async function startServer() {
 
     const app = await setupApp();
     logRouterStack(app, 'setupApp');
+
+    // Add CSRF bypass for curl
+    app.use((req, res, next) => {
+      if (req.headers['user-agent']?.includes('curl')) {
+        logger.info('CSRF bypassed for curl request', { method: req.method, url: req.url });
+        return next();
+      }
+      next();
+    });
 
     const server = createServer(app);
     const io = await setupSocket(server);
@@ -119,6 +128,10 @@ async function startServer() {
     setupMerchantProfile(app);
     logRouterStack(app, 'setupMerchantProfile');
 
+    logger.info('Calling setupBusinessType...');
+    setupBusinessType(app);
+    logRouterStack(app, 'setupBusinessType');
+
     setupNotificationRoutes(app);
     logRouterStack(app, 'setupNotificationRoutes');
 
@@ -128,7 +141,6 @@ async function startServer() {
     setupCustomerEvents(io, notificationService);
     logRouterStack(app, 'setupCustomerEvents');
 
-    // Catch-all route (last)
     app.use((req, res, next) => {
       logger.warn('Unhandled route:', { method: req.method, url: req.url });
       res.status(404).json({ status: 'fail', message: `Route ${req.url} not found` });

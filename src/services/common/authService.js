@@ -270,10 +270,22 @@ const loginMerchant = async (email, password, deviceInfo, rememberMe = false) =>
  */
 const logoutMerchant = async (userId, deviceId = null, clearAllDevices = false) => {
   try {
+    const { Device } = getModels();
     if (clearAllDevices) {
       await TokenService.clearAllRememberTokens(userId);
+      logger.info('All devices cleared for user', { userId });
     } else if (deviceId) {
-      await TokenService.logoutUser(userId, deviceId);
+      const device = await Device.findOne({ where: { user_id: userId, device_id: deviceId } });
+      if (device) {
+        await TokenService.logoutUser(userId, deviceId);
+        logger.info('Device-specific logout successful', { userId, deviceId });
+      } else {
+        logger.warn('No matching device found, proceeding with logout', { userId, deviceId });
+        // Still succeeds—no error thrown
+      }
+    } else {
+      logger.info('No deviceId provided, logout without device action', { userId });
+      // Succeed without device action
     }
     logger.info('Merchant logout successful', { userId, deviceId, clearAllDevices });
   } catch (error) {

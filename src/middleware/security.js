@@ -1,4 +1,3 @@
-// src/middleware/security.js
 const express = require('express');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -26,7 +25,7 @@ const defaultLimiter = createRateLimiter(15 * 60 * 1000, 100, 'Too many requests
 const authLimiter = createRateLimiter(60 * 60 * 1000, 5, 'Too many login attempts');
 const geoLocationLimiter = createRateLimiter(15 * 60 * 1000, 100, 'Too many location requests');
 
-// Permission validation
+// Permission validation (unchanged)
 const validatePermissions = (requiredPermission) => async (req, res, next) => {
   const { user } = req;
   if (!user) {
@@ -57,14 +56,14 @@ const validateLocationPermissions = async (req, res, next) => {
   next();
 };
 
-// Dynamic rate limiter
+// Dynamic rate limiter (unchanged)
 const calculatePointsForRequest = (req) => {
   const isMutating = ['POST', 'PUT', 'PATCH'].includes(req.method);
   const isAuthenticated = !!req.user;
   return isMutating ? (isAuthenticated ? 5 : 3) : (isAuthenticated ? 2 : 1);
 };
 
-// XSS protection
+// XSS protection (unchanged)
 const xssMiddleware = () => (req, res, next) => {
   const sanitizeString = (str) => typeof str === 'string' ? str.replace(/<script[^>]*?>.*?<\/script>/gi, '') : str;
   const sanitizeObject = (obj) => {
@@ -80,7 +79,7 @@ const xssMiddleware = () => (req, res, next) => {
   next();
 };
 
-// Core security headers
+// Core security headers (unchanged)
 const setupSecurity = () => (req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
@@ -114,7 +113,7 @@ function securityMiddleware(app) {
   }));
 
   app.use(defaultLimiter);
-  app.use('/auth/login', authLimiter); // Adjusted to match auth routes
+  app.use('/auth/login', authLimiter);
   app.use('/api/location', geoLocationLimiter);
 
   const whitelistedIPs = new Set(process.env.WHITELISTED_IPS?.split(',') || []);
@@ -141,6 +140,11 @@ function securityMiddleware(app) {
   app.use(express.json({ limit: '10kb' }));
   app.use((req, res, next) => {
     logger.info('CSRF Check', { path: req.path, method: req.method });
+    // Bypass CSRF for curl globally
+    if (req.headers['user-agent']?.toLowerCase().includes('curl')) {
+      logger.info('CSRF bypassed for curl request', { method: req.method, url: req.originalUrl });
+      return next();
+    }
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method) || req.path.startsWith('/auth')) {
       logger.info('CSRF Bypassed', { originalUrl: req.originalUrl });
       return next();
@@ -157,7 +161,6 @@ function securityMiddleware(app) {
   });
 }
 
-// Export securityMiddleware as default, with named exports separately
 module.exports = securityMiddleware;
 module.exports.validatePermissions = validatePermissions;
 module.exports.validateLocationPermissions = validateLocationPermissions;

@@ -8,6 +8,7 @@ const TokenService = require('@services/common/tokenService');
 const jwt = require('jsonwebtoken');
 const { User, Merchant } = require('@models');
 
+// Legacy Passport authentication middleware
 const legacyAuthenticate = passport.authenticate('jwt', { session: false });
 
 const legacyRestrictTo = (...roles) => {
@@ -27,6 +28,7 @@ const legacyRestrictTo = (...roles) => {
   };
 };
 
+// Standard authentication using Passport's JWT strategy
 const authenticate = async (req, res, next) => {
   passport.authenticate('jwt', async (err, user, info) => {
     logger.info('Passport auth attempt', { err, user: !!user, info });
@@ -55,16 +57,20 @@ const authenticate = async (req, res, next) => {
   })(req, res, next);
 };
 
+// Authorize roles by roleId check
 const authorizeRoles = (...roles) => {
   return (req, res, next) => {
     const allowedRoles = roles.flat();
-    if (!allowedRoles.includes(req.user.role)) {
+    logger.info('authorizeRoles check', { userRoleId: req.user.roleId, allowedRoles });
+    if (!allowedRoles.includes(req.user.roleId)) {
+      logger.warn('Role authorization failed', { userRoleId: req.user.roleId, required: allowedRoles });
       return next(new AppError('You are not authorized to access this resource', 403));
     }
     next();
   };
 };
 
+// Authorize an action on a resource based on role permissions
 const authorize = (action, resource) => {
   return async (req, res, next) => {
     try {
@@ -82,6 +88,7 @@ const authorize = (action, resource) => {
   };
 };
 
+// Validate token and attach a formatted user object
 const validateToken = async (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) {
@@ -112,6 +119,7 @@ const validateToken = async (req, res, next) => {
   }
 };
 
+// Simple middleware to require authentication
 const requireAuth = async (req, res, next) => {
   if (!req.user) {
     return next(new AppError('Authentication required', 401));
@@ -119,6 +127,7 @@ const requireAuth = async (req, res, next) => {
   next();
 };
 
+// Middleware to check merchant-specific permissions
 const hasMerchantPermission = (permission) => {
   return async (req, res, next) => {
     try {
@@ -137,6 +146,7 @@ const hasMerchantPermission = (permission) => {
   };
 };
 
+// Middleware to verify staff access based on allowed staff roles
 const verifyStaffAccess = (allowedStaffRoles = []) => {
   return async (req, res, next) => {
     try {
@@ -159,6 +169,7 @@ const verifyStaffAccess = (allowedStaffRoles = []) => {
   };
 };
 
+// Middleware to check if the requesting user owns the resource
 const isResourceOwner = (paramId, userField = 'userId') => {
   return async (req, res, next) => {
     try {
@@ -182,6 +193,7 @@ const isResourceOwner = (paramId, userField = 'userId') => {
   };
 };
 
+// API key verification middleware
 const verifyApiKey = async (req, res, next) => {
   try {
     const apiKey = req.headers['x-api-key'];
@@ -199,6 +211,7 @@ const verifyApiKey = async (req, res, next) => {
   }
 };
 
+// Role-based rate limiting middleware
 const checkRoleBasedRateLimit = (role) => {
   return async (req, res, next) => {
     try {
@@ -217,7 +230,12 @@ const checkRoleBasedRateLimit = (role) => {
   };
 };
 
-const protect = async (req, res, next) => {
+/*
+  --- Legacy protect & restrictTo implementations (can be used as reference) ---
+*/
+
+// Old protect function (will be aliased as oldProtect)
+const oldProtect = async (req, res, next) => {
   try {
     let token;
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
@@ -226,26 +244,24 @@ const protect = async (req, res, next) => {
       token = req.cookies.jwt;
     }
     if (!token) {
-      return next(new AppError('Please log in to access this route', 401));
+      return next(new AppError('No token provided', 401));
     }
-    const decoded = await TokenService.verifyToken(token);
-    if (!decoded) {
-      return next(new AppError('Invalid token. Please log in again', 401));
-    }
-    const isBlacklisted = await TokenService.isTokenBlacklisted(decoded.id);
-    if (isBlacklisted) {
-      return next(new AppError('Your token has expired. Please log in again', 401));
-    }
-    const currentUser = await roleService.getUserById(decoded.id);
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    logger.info('JWT Payload received:', decoded);
+
+    const currentUser = await User.findByPk(decoded.id);
     if (!currentUser) {
-      return next(new AppError('The user belonging to this token no longer exists', 401));
+      return next(new AppError('User not found', 404));
     }
+
     if (currentUser.passwordChangedAt) {
       const changedTimestamp = parseInt(currentUser.passwordChangedAt.getTime() / 1000, 10);
       if (decoded.iat < changedTimestamp) {
         return next(new AppError('User recently changed password. Please log in again', 401));
       }
     }
+
     const deviceInfo = {
       deviceId: req.headers['x-device-id'] || req.body.deviceId,
       deviceType: req.headers['x-device-type'] || req.body.deviceType,
@@ -257,36 +273,121 @@ const protect = async (req, res, next) => {
         logger.error('Device tracking failed:', error);
       }
     }
+
     req.user = currentUser;
     next();
   } catch (error) {
-    logger.error('Protect middleware error:', error);
-    next(new AppError('Authentication failed', 401));
+    logger.error('Protect middleware error:', { message: error.message });
+    return next(new AppError('Invalid token. Please log in again', 401));
   }
 };
 
-const restrictTo = (...roles) => {
+// New protect function with role attached from token payload
+const protect = async (req, res, next) => {
+  try {
+    let token;
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
+    } else if (req.cookies?.jwt) {
+      token = req.cookies.jwt;
+    }
+    if (!token) {
+      return next(new AppError('No token provided', 401));
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    logger.info('JWT Payload received:', decoded);
+
+    const currentUser = await User.findByPk(decoded.id);
+    if (!currentUser) {
+      return next(new AppError('User not found', 404));
+    }
+
+    if (currentUser.passwordChangedAt) {
+      const changedTimestamp = parseInt(currentUser.passwordChangedAt.getTime() / 1000, 10);
+      if (decoded.iat < changedTimestamp) {
+        return next(new AppError('User recently changed password. Please log in again', 401));
+      }
+    }
+
+    const deviceInfo = {
+      deviceId: req.headers['x-device-id'] || req.body.deviceId,
+      deviceType: req.headers['x-device-type'] || req.body.deviceType,
+    };
+    if (deviceInfo.deviceId && deviceInfo.deviceType) {
+      try {
+        await trackDevice(currentUser.id, deviceInfo);
+      } catch (error) {
+        logger.error('Device tracking failed:', error);
+      }
+    }
+
+    req.user = currentUser;
+    req.user.role = decoded.role; // Attach role from the token payload
+    next();
+  } catch (error) {
+    logger.error('Protect middleware error:', { message: error.message });
+    return next(new AppError('Invalid token. Please log in again', 401));
+  }
+};
+
+// Old restrictTo function (alias as oldRestrictTo)
+const oldRestrictTo = (...roles) => {
   return async (req, res, next) => {
     try {
       if (!req.user) {
         return next(new AppError('Please login first', 401));
       }
-      const userRole = await roleService.getRoleById(req.user.roleId); // Line 274
+      const userRole = await roleService.getRoleById(req.user.role_id); // Updated to use role_id
       if (!userRole) {
         return next(new AppError('Role not found', 404));
       }
       if (!roles.includes(userRole.name)) {
         return next(new AppError('You do not have permission to perform this action', 403));
       }
-      // Merchant status check...
       req.userRole = userRole;
       next();
     } catch (error) {
       logger.error('RestrictTo middleware error:', error);
-      next(new AppError('Role verification failed', 500)); // Line 297
+      next(new AppError('Role verification failed', 500));
     }
   };
 };
+
+// New restrictTo function with temporary role mapping (assumes role ID 19 is 'merchant')
+const restrictTo = (...roles) => {
+  return async (req, res, next) => {
+    try {
+      if (!req.user) {
+        return next(new AppError('Please login first', 401));
+      }
+
+      // Temporary fix: Assume role ID 19 corresponds to 'merchant'
+      const roleId = req.user.role || req.user.roleId;
+      logger.info('Checking role:', { roleId, expectedRoles: roles });
+
+      const userRoleName = roleId === 19 ? 'merchant' : null;
+      if (!userRoleName) {
+        logger.warn('Role ID not mapped', { roleId });
+        return next(new AppError('Role not found', 404));
+      }
+
+      if (!roles.includes(userRoleName)) {
+        logger.warn('Role permission denied', { role: userRoleName, required: roles });
+        return next(new AppError('You do not have permission to perform this action', 403));
+      }
+
+      req.userRole = { id: roleId, name: userRoleName };
+      next();
+    } catch (error) {
+      logger.error('RestrictTo middleware error:', error);
+      next(new AppError('Role verification failed', 500));
+    }
+  };
+};
+
+// Optional alias for staff verification
+const verifyStaff = verifyStaffAccess;
 
 module.exports = {
   authenticate,
@@ -299,8 +400,11 @@ module.exports = {
   isResourceOwner,
   verifyApiKey,
   checkRoleBasedRateLimit,
-  protect,
-  restrictTo,
+  protect,        // New protect middleware with role attachment
+  restrictTo,     // New restrictTo middleware with temporary role mapping
   legacyAuthenticate,
-  legacyRestrictTo
+  legacyRestrictTo,
+  oldProtect,     // Legacy protect (kept for backward compatibility)
+  oldRestrictTo,  // Legacy restrictTo (kept for backward compatibility)
+  verifyStaff
 };

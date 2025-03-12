@@ -1,4 +1,3 @@
-// src/config/constants/businessTypes.js
 const BUSINESS_TYPES = {
   RESTAURANT: {
     code: 'restaurant',
@@ -21,13 +20,24 @@ const BUSINESS_TYPES = {
       minimum_storage_area: 100,
       requires_cold_storage: true
     }
+  },
+  CAFE: {
+    code: 'cafe',
+    name: 'Cafe',
+    requiredFields: ['cuisine_type', 'seating_capacity', 'service_types'],
+    allowedServiceTypes: ['dine_in', 'takeaway', 'delivery'],
+    requiredLicenses: ['food_service'],
+    validationRules: {
+      minimum_seating: 1,
+      requires_menu: true
+    }
   }
 };
 
 const BUSINESS_VALIDATION_RULES = {
   cuisine_type: {
     type: 'array',
-    options: ['italian', 'chinese', 'indian', 'american', 'japanese', 'thai', 'mediterranean', 'mexican'],
+    options: ['italian', 'chinese', 'indian', 'american', 'japanese', 'thai', 'mediterranean', 'mexican', 'coffee'],
     min: 1
   },
   seating_capacity: {
