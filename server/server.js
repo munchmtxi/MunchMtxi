@@ -13,6 +13,7 @@ const authService = require('@services/common/authService');
 const { setupMerchantProfile } = require('@setup/merchant/profile/profileSetup');
 const { setupGetProfile } = require('@setup/merchant/profile/getProfileSetup');
 const { setupBusinessType } = require('@setup/merchant/profile/businessTypeSetup');
+const { setupMerchantImages } = require('@setup/merchant/profile/imageSetup'); // New import
 const { setupNotificationRoutes } = require('@setup/routes/notificationRoutesSetup');
 const { setupNotifications } = require('@setup/notifications/notificationSetup');
 const { setupAuthRoutes } = require('@setup/routes/authRouteSetup');
@@ -131,6 +132,10 @@ async function startServer() {
     logger.info('Calling setupBusinessType...');
     setupBusinessType(app);
     logRouterStack(app, 'setupBusinessType');
+
+    logger.info('Calling setupMerchantImages...'); // New setup
+    setupMerchantImages(app); // Add this line
+    logRouterStack(app, 'setupMerchantImages');
 
     setupNotificationRoutes(app);
     logRouterStack(app, 'setupNotificationRoutes');
