@@ -13,8 +13,9 @@ const authService = require('@services/common/authService');
 const { setupMerchantProfile } = require('@setup/merchant/profile/profileSetup');
 const { setupGetProfile } = require('@setup/merchant/profile/getProfileSetup');
 const { setupBusinessType } = require('@setup/merchant/profile/businessTypeSetup');
-const { setupMerchantImages } = require('@setup/merchant/profile/imageSetup'); // New import
-const { setupMerchantPassword } = require('@setup/merchant/profile/passwordSetup'); // Add this
+const { setupMerchantImages } = require('@setup/merchant/profile/imageSetup');
+const { setupMerchantPassword } = require('@setup/merchant/profile/passwordSetup');
+const { setupMerchant2FA } = require('@setup/merchant/profile/merchant2FASetup');
 const { setupNotificationRoutes } = require('@setup/routes/notificationRoutesSetup');
 const { setupNotifications } = require('@setup/notifications/notificationSetup');
 const { setupAuthRoutes } = require('@setup/routes/authRouteSetup');
@@ -95,7 +96,19 @@ async function startServer() {
     const models = require('@models');
     logger.info('Models loaded', { models: Object.keys(models).filter(k => k !== 'sequelize' && k !== 'Sequelize') });
 
-    const app = await setupApp();
+    const express = require('express');
+    const app = express();
+
+    // Add body parsing before 2FA routes
+    app.use(express.json());
+    logger.info('Early JSON body parser applied');
+
+    // Mount 2FA routes before setupApp
+    logger.info('Calling setupMerchant2FA before setupApp...');
+    setupMerchant2FA(app);
+    logRouterStack(app, 'setupMerchant2FA');
+
+    await setupApp(app);
     logRouterStack(app, 'setupApp');
 
     // Add CSRF bypass for curl
@@ -138,7 +151,6 @@ async function startServer() {
     setupMerchantImages(app);
     logRouterStack(app, 'setupMerchantImages');
 
-    // New addition: setupMerchantPassword
     logger.info('Calling setupMerchantPassword...');
     setupMerchantPassword(app);
     logRouterStack(app, 'setupMerchantPassword');

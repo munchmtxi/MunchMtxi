@@ -16,9 +16,7 @@ const { setupAuthRoutes } = require('@setup/routes/authRouteSetup');
 const errorHandler = require('../src/middleware/errorHandler');
 const { logger } = require('@utils/logger');
 
-module.exports.setupApp = async () => {
-  const app = express();
-
+module.exports.setupApp = async (app) => { // Changed to accept app parameter
   logger.info('Setting up core app middleware...');
   app.use(cors());
   logger.info('CORS middleware applied');
@@ -89,7 +87,6 @@ module.exports.setupApp = async () => {
   setupAuthRoutes(app);
   logger.info('Authentication routes setup complete');
 
-  // Removed catch-all from here
   app.use(errorHandler);
   logger.info('Error handler middleware applied');
 
