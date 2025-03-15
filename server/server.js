@@ -20,6 +20,9 @@ const { setupNotificationRoutes } = require('@setup/routes/notificationRoutesSet
 const { setupNotifications } = require('@setup/notifications/notificationSetup');
 const { setupAuthRoutes } = require('@setup/routes/authRouteSetup');
 const { setupCustomerEvents } = require('@setup/customer/events');
+const { setupAnalyticsRoutes } = require('@setup/merchant/profile/analyticsSetup');
+const { trackAnalytics } = require('@middleware/analyticsMiddleware'); // New import
+const { setupPublicProfile } = require('@setup/merchant/profile/publicProfileSetup');
 
 const REQUIRED_ENV = ['PORT', 'DATABASE_URL', 'JWT_SECRET', 'JWT_EXPIRES_IN'];
 const GRACEFUL_SHUTDOWN_TIMEOUT = 10000;
@@ -99,11 +102,9 @@ async function startServer() {
     const express = require('express');
     const app = express();
 
-    // Add body parsing before 2FA routes
     app.use(express.json());
     logger.info('Early JSON body parser applied');
 
-    // Mount 2FA routes before setupApp
     logger.info('Calling setupMerchant2FA before setupApp...');
     setupMerchant2FA(app);
     logRouterStack(app, 'setupMerchant2FA');
@@ -111,7 +112,11 @@ async function startServer() {
     await setupApp(app);
     logRouterStack(app, 'setupApp');
 
-    // Add CSRF bypass for curl
+    // Apply analytics tracking middleware to public profile route
+    logger.info('Applying analytics tracking to public profile...');
+    app.use('/api/v1/merchants/:merchantId/profile', trackAnalytics());
+    logger.info('Analytics middleware applied');
+
     app.use((req, res, next) => {
       if (req.headers['user-agent']?.includes('curl')) {
         logger.info('CSRF bypassed for curl request', { method: req.method, url: req.url });
@@ -163,6 +168,14 @@ async function startServer() {
 
     setupCustomerEvents(io, notificationService);
     logRouterStack(app, 'setupCustomerEvents');
+
+    // Add analytics routes
+    logger.info('Calling setupAnalyticsRoutes...');
+    setupAnalyticsRoutes(app);
+    logRouterStack(app, 'setupAnalyticsRoutes');
+
+    setupPublicProfile(app);
+    logger.info('Public profile setup complete');
 
     app.use((req, res, next) => {
       logger.warn('Unhandled route:', { method: req.method, url: req.url });
