@@ -18,6 +18,11 @@ module.exports = {
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE',
       },
+      user_type: {
+        type: Sequelize.STRING,
+        allowNull: false,
+        defaultValue: 'merchant',
+      },
       password_hash: {
         type: Sequelize.STRING,
         allowNull: false,
@@ -27,13 +32,16 @@ module.exports = {
         allowNull: false,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP'),
       },
+      updated_at: { // Added
+        type: Sequelize.DATE,
+        allowNull: true,
+      },
       deleted_at: {
         type: Sequelize.DATE,
         allowNull: true,
       },
     });
 
-    // Add index for user_id
     await queryInterface.addIndex('password_histories', {
       fields: ['user_id'],
       name: 'password_histories_user_id_index',
@@ -41,7 +49,6 @@ module.exports = {
   },
 
   down: async (queryInterface, Sequelize) => {
-    // Drop the password_histories table if the migration is rolled back
     await queryInterface.dropTable('password_histories');
   },
 };

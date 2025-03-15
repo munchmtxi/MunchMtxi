@@ -14,6 +14,7 @@ const { setupMerchantProfile } = require('@setup/merchant/profile/profileSetup')
 const { setupGetProfile } = require('@setup/merchant/profile/getProfileSetup');
 const { setupBusinessType } = require('@setup/merchant/profile/businessTypeSetup');
 const { setupMerchantImages } = require('@setup/merchant/profile/imageSetup'); // New import
+const { setupMerchantPassword } = require('@setup/merchant/profile/passwordSetup'); // Add this
 const { setupNotificationRoutes } = require('@setup/routes/notificationRoutesSetup');
 const { setupNotifications } = require('@setup/notifications/notificationSetup');
 const { setupAuthRoutes } = require('@setup/routes/authRouteSetup');
@@ -133,9 +134,14 @@ async function startServer() {
     setupBusinessType(app);
     logRouterStack(app, 'setupBusinessType');
 
-    logger.info('Calling setupMerchantImages...'); // New setup
-    setupMerchantImages(app); // Add this line
+    logger.info('Calling setupMerchantImages...');
+    setupMerchantImages(app);
     logRouterStack(app, 'setupMerchantImages');
+
+    // New addition: setupMerchantPassword
+    logger.info('Calling setupMerchantPassword...');
+    setupMerchantPassword(app);
+    logRouterStack(app, 'setupMerchantPassword');
 
     setupNotificationRoutes(app);
     logRouterStack(app, 'setupNotificationRoutes');

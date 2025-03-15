@@ -29,6 +29,17 @@ module.exports = (sequelize, DataTypes) => {
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL',
       },
+      user_type: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        defaultValue: 'merchant',
+        validate: {
+          isIn: {
+            args: [['merchant', 'customer', 'staff', 'driver']],
+            msg: 'User type must be merchant, customer, staff, or driver',
+          },
+        },
+      },
       status: {
         type: DataTypes.ENUM('success', 'failed'),
         allowNull: false,
@@ -51,6 +62,14 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.DATE,
         allowNull: false,
         defaultValue: sequelize.literal('CURRENT_TIMESTAMP'),
+      },
+      updated_at: { // Explicitly added
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
+      deleted_at: { // Explicitly added
+        type: DataTypes.DATE,
+        allowNull: true,
       },
     },
     {

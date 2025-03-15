@@ -280,14 +280,10 @@ module.exports = (sequelize, DataTypes) => {
         },
         beforeUpdate: async (user) => {
           if (user.changed('password')) {
-            const salt = await bcrypt.genSalt(10);
-            user.password = await bcrypt.hash(user.password, salt);
-            const oldPassword = user.previous('password');
-            if (oldPassword) {
-              await sequelize.models.PasswordHistory.create({
-                user_id: user.id,
-                password_hash: oldPassword,
-              });
+            // Only hash if not already a bcrypt hash
+            if (!user.password.match(/^\$2[aby]\$/)) {
+              const salt = await bcrypt.genSalt(10);
+              user.password = await bcrypt.hash(user.password, salt);
             }
           }
         },

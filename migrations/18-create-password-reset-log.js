@@ -1,3 +1,4 @@
+// migrations/20250314-create-password-reset-logs.js
 'use strict';
 module.exports = {
   up: async (queryInterface, Sequelize) => {
@@ -10,13 +11,18 @@ module.exports = {
       },
       user_id: {
         type: Sequelize.INTEGER,
-        allowNull: true, // Nullable because logs may exist for failed attempts without a user
+        allowNull: true,
         references: {
           model: 'users',
           key: 'id',
         },
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL',
+      },
+      user_type: {
+        type: Sequelize.STRING,
+        allowNull: false,
+        defaultValue: 'merchant',
       },
       status: {
         type: Sequelize.ENUM('success', 'failed'),
@@ -31,27 +37,28 @@ module.exports = {
         allowNull: false,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP'),
       },
+      updated_at: { // Added
+        type: Sequelize.DATE,
+        allowNull: true,
+      },
       deleted_at: {
         type: Sequelize.DATE,
         allowNull: true,
       },
     });
 
-    // Add index for user_id
     await queryInterface.addIndex('password_reset_logs', {
       fields: ['user_id'],
       name: 'password_reset_logs_user_id_index',
     });
 
-    // Add index for status
     await queryInterface.addIndex('password_reset_logs', {
       fields: ['status'],
       name: 'password_reset_logs_status_index',
     });
   },
 
-  down: async (queryInterface, Sequelize) => {
-    // Drop the password_reset_logs table if the migration is rolled back
+  down: async (queryInterface) => {
     await queryInterface.dropTable('password_reset_logs');
   },
 };

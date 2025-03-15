@@ -29,6 +29,17 @@ module.exports = (sequelize, DataTypes) => {
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE',
       },
+      user_type: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        defaultValue: 'merchant',
+        validate: {
+          isIn: {
+            args: [['merchant', 'customer', 'staff', 'driver']],
+            msg: 'User type must be merchant, customer, staff, or driver',
+          },
+        },
+      },
       password_hash: {
         type: DataTypes.STRING,
         allowNull: false,
@@ -41,6 +52,14 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: sequelize.literal('CURRENT_TIMESTAMP'),
       },
+      updated_at: { // Added
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
+      deleted_at: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
     },
     {
       sequelize,
@@ -50,7 +69,7 @@ module.exports = (sequelize, DataTypes) => {
       paranoid: true,
       defaultScope: {
         attributes: {
-          exclude: ['password_hash'], // Exclude sensitive fields by default
+          exclude: ['password_hash'],
         },
       },
       indexes: [
