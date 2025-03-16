@@ -1,4 +1,3 @@
-// src/server/server.js
 'use strict';
 require('module-alias/register');
 require('dotenv').config();
@@ -18,7 +17,8 @@ const { setupMerchantImages } = require('@setup/merchant/profile/imageSetup');
 const { setupMerchantPassword } = require('@setup/merchant/profile/passwordSetup');
 const { setupMerchant2FA } = require('@setup/merchant/profile/merchant2FASetup');
 const { setupPreviewRoutes } = require('@setup/merchant/profile/previewSetup');
-const setupMerchantDraft = require('@setup/merchant/profile/draftSetup'); // Updated import
+const setupMerchantDraft = require('@setup/merchant/profile/draftSetup');
+const setupActivityLog = require('@setup/merchant/profile/activityLogSetup'); // Fixed import
 const { setupNotificationRoutes } = require('@setup/routes/notificationRoutesSetup');
 const { setupNotifications } = require('@setup/notifications/notificationSetup');
 const { setupAuthRoutes } = require('@setup/routes/authRouteSetup');
@@ -170,6 +170,10 @@ async function startServer() {
     setupMerchantDraft(app);
     logRouterStack(app, 'setupMerchantDraft');
 
+    logger.info('Calling setupActivityLog...');
+    setupActivityLog(app);
+    logRouterStack(app, 'setupActivityLog');
+
     setupNotificationRoutes(app);
     logRouterStack(app, 'setupNotificationRoutes');
 
@@ -212,3 +216,23 @@ async function startServer() {
 }
 
 startServer();
+
+require('dotenv').config();
+
+const jwtConfig = {
+  jwtFromRequest: require('passport-jwt').ExtractJwt.fromAuthHeaderAsBearerToken(),
+  secretOrKey: process.env.JWT_SECRET,
+  expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  algorithm: process.env.JWT_ALGORITHM || 'HS256',
+  refreshSecret: process.env.JWT_REFRESH_SECRET,
+  refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+};
+
+console.log('jwtConfig initialized:', {
+  secretOrKey: jwtConfig.secretOrKey || '[MISSING]',
+  refreshSecret: jwtConfig.refreshSecret || '[MISSING]',
+  expiresIn: jwtConfig.expiresIn,
+  algorithm: jwtConfig.algorithm,
+});
+
+module.exports = jwtConfig;

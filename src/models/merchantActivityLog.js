@@ -81,6 +81,7 @@ module.exports = (sequelize, DataTypes) => {
     tableName: 'merchant_activity_logs',
     underscored: true,
     timestamps: true,
+    updatedAt: false,
     indexes: [
       {
         fields: ['merchant_id', 'created_at'],
