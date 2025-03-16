@@ -16,12 +16,13 @@ const { setupBusinessType } = require('@setup/merchant/profile/businessTypeSetup
 const { setupMerchantImages } = require('@setup/merchant/profile/imageSetup');
 const { setupMerchantPassword } = require('@setup/merchant/profile/passwordSetup');
 const { setupMerchant2FA } = require('@setup/merchant/profile/merchant2FASetup');
+const { setupPreviewRoutes } = require('@setup/merchant/profile/previewSetup'); 
 const { setupNotificationRoutes } = require('@setup/routes/notificationRoutesSetup');
 const { setupNotifications } = require('@setup/notifications/notificationSetup');
 const { setupAuthRoutes } = require('@setup/routes/authRouteSetup');
 const { setupCustomerEvents } = require('@setup/customer/events');
 const { setupAnalyticsRoutes } = require('@setup/merchant/profile/analyticsSetup');
-const { trackAnalytics } = require('@middleware/analyticsMiddleware'); // New import
+const { trackAnalytics } = require('@middleware/analyticsMiddleware');
 const { setupPublicProfile } = require('@setup/merchant/profile/publicProfileSetup');
 
 const REQUIRED_ENV = ['PORT', 'DATABASE_URL', 'JWT_SECRET', 'JWT_EXPIRES_IN'];
@@ -112,7 +113,10 @@ async function startServer() {
     await setupApp(app);
     logRouterStack(app, 'setupApp');
 
-    // Apply analytics tracking middleware to public profile route
+    logger.info('Calling setupPreviewRoutes...');
+    setupPreviewRoutes(app);
+    logRouterStack(app, 'setupPreviewRoutes');
+
     logger.info('Applying analytics tracking to public profile...');
     app.use('/api/v1/merchants/:merchantId/profile', trackAnalytics());
     logger.info('Analytics middleware applied');
@@ -169,13 +173,19 @@ async function startServer() {
     setupCustomerEvents(io, notificationService);
     logRouterStack(app, 'setupCustomerEvents');
 
-    // Add analytics routes
     logger.info('Calling setupAnalyticsRoutes...');
     setupAnalyticsRoutes(app);
     logRouterStack(app, 'setupAnalyticsRoutes');
 
     setupPublicProfile(app);
     logger.info('Public profile setup complete');
+
+    logger.info('Full router stack after all setups', {
+      stack: app._router.stack.map(layer => ({
+        path: layer.route?.path || layer.regexp?.toString(),
+        methods: layer.route?.methods || {}
+      }))
+    });
 
     app.use((req, res, next) => {
       logger.warn('Unhandled route:', { method: req.method, url: req.url });
