@@ -5,7 +5,7 @@ const { createServer } = require('http');
 const { Router } = require('express');
 const { sequelize } = require('@models');
 const { logger } = require('@utils/logger');
-const { setupApp } = require('@server/app');
+const { setupApp } = require('@server/app'); // Assuming this is your app setup file
 const { setupSocket } = require('@server/socket');
 const { setupCommonServices } = require('@setup/services/commonServices');
 const { setupNotificationService } = require('@setup/services/notificationServices');
@@ -18,7 +18,7 @@ const { setupMerchantPassword } = require('@setup/merchant/profile/passwordSetup
 const { setupMerchant2FA } = require('@setup/merchant/profile/merchant2FASetup');
 const { setupPreviewRoutes } = require('@setup/merchant/profile/previewSetup');
 const setupMerchantDraft = require('@setup/merchant/profile/draftSetup');
-const setupActivityLog = require('@setup/merchant/profile/activityLogSetup'); // Fixed import
+const setupActivityLog = require('@setup/merchant/profile/activityLogSetup');
 const { setupNotificationRoutes } = require('@setup/routes/notificationRoutesSetup');
 const { setupNotifications } = require('@setup/notifications/notificationSetup');
 const { setupAuthRoutes } = require('@setup/routes/authRouteSetup');
@@ -26,6 +26,7 @@ const { setupCustomerEvents } = require('@setup/customer/events');
 const { setupAnalyticsRoutes } = require('@setup/merchant/profile/analyticsSetup');
 const { trackAnalytics } = require('@middleware/analyticsMiddleware');
 const { setupPublicProfile } = require('@setup/merchant/profile/publicProfileSetup');
+const setupBanner = require('@setup/merchant/profile/bannerSetup');
 
 const REQUIRED_ENV = ['PORT', 'DATABASE_URL', 'JWT_SECRET', 'JWT_EXPIRES_IN'];
 const GRACEFUL_SHUTDOWN_TIMEOUT = 10000;
@@ -46,7 +47,8 @@ const shutdownServer = async (server, io, sequelize) => {
     server.close(() => {
       logger.info('HTTP server closed successfully');
       if (sequelize) {
-        sequelize.close()
+        sequelize
+          .close()
           .then(() => {
             logger.info('Database connection closed successfully');
             resolve();
@@ -85,10 +87,10 @@ const setupErrorHandlers = (server, io, sequelize) => {
 
 const logRouterStack = (app, label) => {
   logger.info(`Router stack after ${label}:`, {
-    routes: app._router.stack.map(layer => ({
+    routes: app._router.stack.map((layer) => ({
       path: layer.route?.path || layer.regexp?.toString(),
-      methods: layer.route?.methods || {}
-    }))
+      methods: layer.route?.methods || {},
+    })),
   });
 };
 
@@ -100,7 +102,9 @@ async function startServer() {
     logger.info('Database connection established');
 
     const models = require('@models');
-    logger.info('Models loaded', { models: Object.keys(models).filter(k => k !== 'sequelize' && k !== 'Sequelize') });
+    logger.info('Models loaded', {
+      models: Object.keys(models).filter((k) => k !== 'sequelize' && k !== 'Sequelize'),
+    });
 
     const express = require('express');
     const app = express();
@@ -108,6 +112,12 @@ async function startServer() {
     app.use(express.json());
     logger.info('Early JSON body parser applied');
 
+    // Mount banner routes BEFORE any global auth middleware
+    logger.info('Calling setupBanner...');
+    setupBanner(app); // Exempt from authMiddleware.js
+    logRouterStack(app, 'setupBanner');
+
+    // Now proceed with other middleware and setups
     logger.info('Calling setupMerchant2FA before setupApp...');
     setupMerchant2FA(app);
     logRouterStack(app, 'setupMerchant2FA');
@@ -191,10 +201,10 @@ async function startServer() {
     logger.info('Public profile setup complete');
 
     logger.info('Full router stack after all setups', {
-      stack: app._router.stack.map(layer => ({
+      stack: app._router.stack.map((layer) => ({
         path: layer.route?.path || layer.regexp?.toString(),
-        methods: layer.route?.methods || {}
-      }))
+        methods: layer.route?.methods || {},
+      })),
     });
 
     app.use((req, res, next) => {
@@ -216,23 +226,3 @@ async function startServer() {
 }
 
 startServer();
-
-require('dotenv').config();
-
-const jwtConfig = {
-  jwtFromRequest: require('passport-jwt').ExtractJwt.fromAuthHeaderAsBearerToken(),
-  secretOrKey: process.env.JWT_SECRET,
-  expiresIn: process.env.JWT_EXPIRES_IN || '7d',
-  algorithm: process.env.JWT_ALGORITHM || 'HS256',
-  refreshSecret: process.env.JWT_REFRESH_SECRET,
-  refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
-};
-
-console.log('jwtConfig initialized:', {
-  secretOrKey: jwtConfig.secretOrKey || '[MISSING]',
-  refreshSecret: jwtConfig.refreshSecret || '[MISSING]',
-  expiresIn: jwtConfig.expiresIn,
-  algorithm: jwtConfig.algorithm,
-});
-
-module.exports = jwtConfig;
