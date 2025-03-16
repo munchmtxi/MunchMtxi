@@ -5,7 +5,7 @@ const { createServer } = require('http');
 const { Router } = require('express');
 const { sequelize } = require('@models');
 const { logger } = require('@utils/logger');
-const { setupApp } = require('@server/app'); // Assuming this is your app setup file
+const { setupApp } = require('@server/app');
 const { setupSocket } = require('@server/socket');
 const { setupCommonServices } = require('@setup/services/commonServices');
 const { setupNotificationService } = require('@setup/services/notificationServices');
@@ -27,8 +27,9 @@ const { setupAnalyticsRoutes } = require('@setup/merchant/profile/analyticsSetup
 const { trackAnalytics } = require('@middleware/analyticsMiddleware');
 const { setupPublicProfile } = require('@setup/merchant/profile/publicProfileSetup');
 const setupBanner = require('@setup/merchant/profile/bannerSetup');
+const setupMapsRoutes = require('@setup/merchant/profile/mapsSetup'); // New import
 
-const REQUIRED_ENV = ['PORT', 'DATABASE_URL', 'JWT_SECRET', 'JWT_EXPIRES_IN'];
+const REQUIRED_ENV = ['PORT', 'DATABASE_URL', 'JWT_SECRET', 'JWT_EXPIRES_IN', 'GOOGLE_MAPS_API_KEY']; // Added GOOGLE_MAPS_API_KEY
 const GRACEFUL_SHUTDOWN_TIMEOUT = 10000;
 
 const validateEnvironment = (requiredEnv) => {
@@ -114,7 +115,7 @@ async function startServer() {
 
     // Mount banner routes BEFORE any global auth middleware
     logger.info('Calling setupBanner...');
-    setupBanner(app); // Exempt from authMiddleware.js
+    setupBanner(app);
     logRouterStack(app, 'setupBanner');
 
     // Now proceed with other middleware and setups
@@ -183,6 +184,10 @@ async function startServer() {
     logger.info('Calling setupActivityLog...');
     setupActivityLog(app);
     logRouterStack(app, 'setupActivityLog');
+
+    logger.info('Calling setupMapsRoutes...');
+    setupMapsRoutes(app); // Add maps routes setup
+    logRouterStack(app, 'setupMapsRoutes');
 
     setupNotificationRoutes(app);
     logRouterStack(app, 'setupNotificationRoutes');

@@ -26,7 +26,7 @@ const createRole = async (roleName, permissions) => {
  * @returns {Array} - Array of permissions.
  */
 const getRolePermissions = async (roleId) => {
-  const permissions = await Permission.findAll({ where: { roleId } });
+  const permissions = await Permission.findAll({ where: { role_id: roleId } }); // Changed from roleId to role_id
   return permissions;
 };
 
