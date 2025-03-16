@@ -1,3 +1,4 @@
+// src/server/server.js
 'use strict';
 require('module-alias/register');
 require('dotenv').config();
@@ -16,7 +17,8 @@ const { setupBusinessType } = require('@setup/merchant/profile/businessTypeSetup
 const { setupMerchantImages } = require('@setup/merchant/profile/imageSetup');
 const { setupMerchantPassword } = require('@setup/merchant/profile/passwordSetup');
 const { setupMerchant2FA } = require('@setup/merchant/profile/merchant2FASetup');
-const { setupPreviewRoutes } = require('@setup/merchant/profile/previewSetup'); 
+const { setupPreviewRoutes } = require('@setup/merchant/profile/previewSetup');
+const setupMerchantDraft = require('@setup/merchant/profile/draftSetup'); // Updated import
 const { setupNotificationRoutes } = require('@setup/routes/notificationRoutesSetup');
 const { setupNotifications } = require('@setup/notifications/notificationSetup');
 const { setupAuthRoutes } = require('@setup/routes/authRouteSetup');
@@ -163,6 +165,10 @@ async function startServer() {
     logger.info('Calling setupMerchantPassword...');
     setupMerchantPassword(app);
     logRouterStack(app, 'setupMerchantPassword');
+
+    logger.info('Calling setupMerchantDraft...');
+    setupMerchantDraft(app);
+    logRouterStack(app, 'setupMerchantDraft');
 
     setupNotificationRoutes(app);
     logRouterStack(app, 'setupNotificationRoutes');
