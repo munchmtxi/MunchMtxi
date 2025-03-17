@@ -27,9 +27,10 @@ const { setupAnalyticsRoutes } = require('@setup/merchant/profile/analyticsSetup
 const { trackAnalytics } = require('@middleware/analyticsMiddleware');
 const { setupPublicProfile } = require('@setup/merchant/profile/publicProfileSetup');
 const setupBanner = require('@setup/merchant/profile/bannerSetup');
-const setupMapsRoutes = require('@setup/merchant/profile/mapsSetup'); // New import
+const setupMapsRoutes = require('@setup/merchant/profile/mapsSetup');
+const setupPerformanceMetrics = require('@setup/merchant/profile/performanceMetricsSetup'); // New import
 
-const REQUIRED_ENV = ['PORT', 'DATABASE_URL', 'JWT_SECRET', 'JWT_EXPIRES_IN', 'GOOGLE_MAPS_API_KEY']; // Added GOOGLE_MAPS_API_KEY
+const REQUIRED_ENV = ['PORT', 'DATABASE_URL', 'JWT_SECRET', 'JWT_EXPIRES_IN', 'GOOGLE_MAPS_API_KEY'];
 const GRACEFUL_SHUTDOWN_TIMEOUT = 10000;
 
 const validateEnvironment = (requiredEnv) => {
@@ -186,8 +187,12 @@ async function startServer() {
     logRouterStack(app, 'setupActivityLog');
 
     logger.info('Calling setupMapsRoutes...');
-    setupMapsRoutes(app); // Add maps routes setup
+    setupMapsRoutes(app);
     logRouterStack(app, 'setupMapsRoutes');
+
+    logger.info('Calling setupPerformanceMetrics...');
+    setupPerformanceMetrics(app); // Add performance metrics setup
+    logRouterStack(app, 'setupPerformanceMetrics');
 
     setupNotificationRoutes(app);
     logRouterStack(app, 'setupNotificationRoutes');
