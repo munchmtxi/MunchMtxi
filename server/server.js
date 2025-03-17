@@ -1,3 +1,4 @@
+// server.js
 'use strict';
 require('module-alias/register');
 require('dotenv').config();
@@ -28,7 +29,8 @@ const { trackAnalytics } = require('@middleware/analyticsMiddleware');
 const { setupPublicProfile } = require('@setup/merchant/profile/publicProfileSetup');
 const setupBanner = require('@setup/merchant/profile/bannerSetup');
 const setupMapsRoutes = require('@setup/merchant/profile/mapsSetup');
-const setupPerformanceMetrics = require('@setup/merchant/profile/performanceMetricsSetup'); // New import
+const setupPerformanceMetrics = require('@setup/merchant/profile/performanceMetricsSetup');
+const { setupBranchProfile } = require('@setup/merchant/branch/profileSetup'); // New import
 
 const REQUIRED_ENV = ['PORT', 'DATABASE_URL', 'JWT_SECRET', 'JWT_EXPIRES_IN', 'GOOGLE_MAPS_API_KEY'];
 const GRACEFUL_SHUTDOWN_TIMEOUT = 10000;
@@ -191,8 +193,12 @@ async function startServer() {
     logRouterStack(app, 'setupMapsRoutes');
 
     logger.info('Calling setupPerformanceMetrics...');
-    setupPerformanceMetrics(app); // Add performance metrics setup
+    setupPerformanceMetrics(app);
     logRouterStack(app, 'setupPerformanceMetrics');
+
+    logger.info('Calling setupBranchProfile...'); // New setup call
+    setupBranchProfile(app);
+    logRouterStack(app, 'setupBranchProfile');
 
     setupNotificationRoutes(app);
     logRouterStack(app, 'setupNotificationRoutes');
