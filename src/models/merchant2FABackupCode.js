@@ -48,7 +48,8 @@ module.exports = (sequelize, DataTypes) => {
     modelName: 'Merchant2FABackupCode',
     tableName: 'merchant_2fa_backup_codes',
     underscored: true,
-    timestamps: true
+    timestamps: true,
+    updatedAt: false
   });
 
   return Merchant2FABackupCode;

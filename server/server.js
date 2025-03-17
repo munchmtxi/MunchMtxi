@@ -30,7 +30,8 @@ const { setupPublicProfile } = require('@setup/merchant/profile/publicProfileSet
 const setupBanner = require('@setup/merchant/profile/bannerSetup');
 const setupMapsRoutes = require('@setup/merchant/profile/mapsSetup');
 const setupPerformanceMetrics = require('@setup/merchant/profile/performanceMetricsSetup');
-const { setupBranchProfile } = require('@setup/merchant/branch/profileSetup'); // New import
+const { setupBranchProfile } = require('@setup/merchant/branch/profileSetup');
+const setupBranchProfileSecurity = require('@setup/merchant/branch/branchProfileSecuritySetup'); // New import
 
 const REQUIRED_ENV = ['PORT', 'DATABASE_URL', 'JWT_SECRET', 'JWT_EXPIRES_IN', 'GOOGLE_MAPS_API_KEY'];
 const GRACEFUL_SHUTDOWN_TIMEOUT = 10000;
@@ -196,9 +197,13 @@ async function startServer() {
     setupPerformanceMetrics(app);
     logRouterStack(app, 'setupPerformanceMetrics');
 
-    logger.info('Calling setupBranchProfile...'); // New setup call
+    logger.info('Calling setupBranchProfile...');
     setupBranchProfile(app);
     logRouterStack(app, 'setupBranchProfile');
+
+    logger.info('Calling setupBranchProfileSecurity...'); // New setup call
+    setupBranchProfileSecurity(app);
+    logRouterStack(app, 'setupBranchProfileSecurity');
 
     setupNotificationRoutes(app);
     logRouterStack(app, 'setupNotificationRoutes');
