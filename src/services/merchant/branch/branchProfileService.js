@@ -18,28 +18,31 @@ const branchProfileService = {
     try {
       const { placeId, sessionToken, location, ...rest } = branchData;
       let placeDetails;
+
       if (placeId && sessionToken) {
-        placeDetails = await mapsService.getPlaceDetails({ placeId, sessionToken });
+        logger.info('Calling getPlaceDetails with', { placeId, sessionToken });
+        placeDetails = await mapsService.getPlaceDetails(placeId, sessionToken); // Pass strings directly
       }
-  
-      // Convert location to GeoJSON if provided as latitude/longitude
+
       const geoLocation = location && location.latitude && location.longitude
         ? { type: 'Point', coordinates: [location.longitude, location.latitude] }
-        : (placeDetails ? { type: 'Point', coordinates: [placeDetails.geometry.location.lng, placeDetails.geometry.location.lat] } : null);
-  
+        : placeDetails
+          ? { type: 'Point', coordinates: [placeDetails.location.lng, placeDetails.location.lat] }
+          : null;
+
       const branch = await MerchantBranch.create({
         merchant_id: merchantId,
         name: rest.name,
         branch_code: rest.branch_code,
         contact_email: rest.contact_email,
         contact_phone: rest.contact_phone,
-        address: rest.address || placeDetails?.formatted_address,
+        address: rest.address || (placeDetails ? placeDetails.formattedAddress : null),
         location: geoLocation,
         operating_hours: rest.operating_hours,
         delivery_radius: rest.delivery_radius,
         is_active: true,
       });
-  
+
       return branch;
     } catch (error) {
       logger.error('Error creating branch profile', { merchantId, error: error.message, stack: error.stack });

@@ -42,20 +42,23 @@ const mapsService = {
 
   async getPlaceDetails(placeId, sessionToken) {
     try {
-      const response = await axios.get(`${this.baseUrl}/details/json`, {
-        params: {
-          place_id: placeId,
-          key: config.googleMaps.apiKey,
-          sessiontoken: sessionToken,
-          fields: 'formatted_address,geometry',
-        },
-      });
-
+      const params = {
+        place_id: placeId, // Revert to standard param
+        key: config.googleMaps.apiKey,
+        sessiontoken: sessionToken,
+        fields: 'formatted_address,geometry',
+      };
+      const url = `${this.baseUrl}/details/json?${new URLSearchParams(params).toString()}`;
+      logger.info('Constructed Place Details URL', { url });
+  
+      const response = await axios.get(url);
+  
+      logger.info('Raw Place Details response', { data: response.data });
       if (response.data.status !== 'OK') {
         logger.error('Google Place Details API Error', { status: response.data.status });
         throw new AppError('Failed to fetch address details', 422, 'MAPS_API_ERROR');
       }
-
+  
       const { result } = response.data;
       logger.info('Fetched place details', { placeId });
       return {
@@ -66,10 +69,7 @@ const mapsService = {
         },
       };
     } catch (error) {
-      logger.error('Maps Service Error in getPlaceDetails', {
-        message: error.message,
-        stack: error.stack,
-      });
+      logger.error('Maps Service Error in getPlaceDetails', { message: error.message, stack: error.stack });
       throw error instanceof AppError ? error : new AppError('Maps service unavailable', 500, 'MAPS_SERVICE_FAILURE');
     }
   },
