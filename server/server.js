@@ -1,4 +1,4 @@
-// server.js
+// server/server.js
 'use strict';
 require('module-alias/register');
 require('dotenv').config();
@@ -31,7 +31,8 @@ const setupBanner = require('@setup/merchant/profile/bannerSetup');
 const setupMapsRoutes = require('@setup/merchant/profile/mapsSetup');
 const setupPerformanceMetrics = require('@setup/merchant/profile/performanceMetricsSetup');
 const { setupBranchProfile } = require('@setup/merchant/branch/profileSetup');
-const setupBranchProfileSecurity = require('@setup/merchant/branch/branchProfileSecuritySetup'); // New import
+const setupBranchProfileSecurity = require('@setup/merchant/branch/branchProfileSecuritySetup');
+const setupMerchantProducts = require('@setup/merchant/products/products');
 
 const REQUIRED_ENV = ['PORT', 'DATABASE_URL', 'JWT_SECRET', 'JWT_EXPIRES_IN', 'GOOGLE_MAPS_API_KEY'];
 const GRACEFUL_SHUTDOWN_TIMEOUT = 10000;
@@ -39,23 +40,22 @@ const GRACEFUL_SHUTDOWN_TIMEOUT = 10000;
 const validateEnvironment = (requiredEnv) => {
   const missing = requiredEnv.filter((key) => !process.env[key]);
   if (missing.length > 0) {
-    logger.error('Missing required environment variables:', { missing });
+    logger.error(`🚨 Missing env vars: ${missing.join(', ')}`);
     throw new Error(`Missing environment variables: ${missing.join(', ')}`);
   }
-  logger.info('Environment variables validated successfully');
+  logger.info('✅ Env vars checked');
 };
 
 const shutdownServer = async (server, io, sequelize) => {
-  logger.info('Initiating graceful server shutdown...');
-  if (io) io.close(() => logger.info('Socket.IO server closed'));
+  logger.info('🛑 Starting graceful shutdown...');
+  if (io) io.close(() => logger.info('🔌 Socket.IO closed'));
   return new Promise((resolve, reject) => {
     server.close(() => {
-      logger.info('HTTP server closed successfully');
+      logger.info('🌐 HTTP server stopped');
       if (sequelize) {
-        sequelize
-          .close()
+        sequelize.close()
           .then(() => {
-            logger.info('Database connection closed successfully');
+            logger.info('💾 DB connection closed');
             resolve();
           })
           .catch((err) => reject(err));
@@ -64,7 +64,7 @@ const shutdownServer = async (server, io, sequelize) => {
       }
     });
     setTimeout(() => {
-      logger.error(`Forced shutdown after ${GRACEFUL_SHUTDOWN_TIMEOUT}ms timeout`);
+      logger.error(`⏰ Forced shutdown after ${GRACEFUL_SHUTDOWN_TIMEOUT}ms`);
       process.exit(1);
     }, GRACEFUL_SHUTDOWN_TIMEOUT);
   });
@@ -72,75 +72,66 @@ const shutdownServer = async (server, io, sequelize) => {
 
 const setupErrorHandlers = (server, io, sequelize) => {
   process.on('uncaughtException', (error) => {
-    logger.error('Uncaught Exception:', { error: error.message });
+    logger.error(`💥 Uncaught Exception: ${error.message}`);
     shutdownServer(server, io, sequelize).then(() => process.exit(1));
   });
   process.on('unhandledRejection', (reason) => {
-    logger.error('Unhandled Rejection:', { reason: reason.message || reason });
+    logger.error(`❌ Unhandled Rejection: ${reason.message || reason}`);
     shutdownServer(server, io, sequelize).then(() => process.exit(1));
   });
   process.on('SIGTERM', () => {
-    logger.info('SIGTERM received, shutting down...');
+    logger.info('👋 SIGTERM received, shutting down...');
     shutdownServer(server, io, sequelize).then(() => process.exit(0));
   });
   process.on('SIGINT', () => {
-    logger.info('SIGINT received, shutting down...');
+    logger.info('👋 SIGINT received, shutting down...');
     shutdownServer(server, io, sequelize).then(() => process.exit(0));
   });
-  logger.info('Error handlers setup complete');
+  logger.info('🛡️ Error handlers ready');
 };
 
 const logRouterStack = (app, label) => {
-  logger.info(`Router stack after ${label}:`, {
-    routes: app._router.stack.map((layer) => ({
-      path: layer.route?.path || layer.regexp?.toString(),
-      methods: layer.route?.methods || {},
-    })),
-  });
+  logger.debug(`🚦 Stack after ${label}: ${app._router.stack.length} layers`);
 };
 
 async function startServer() {
   try {
-    logger.info('Starting server initialization...');
+    logger.info('🚀 Booting server...');
     validateEnvironment(REQUIRED_ENV);
     await sequelize.authenticate();
-    logger.info('Database connection established');
+    logger.info('💾 DB connected');
 
     const models = require('@models');
-    logger.info('Models loaded', {
-      models: Object.keys(models).filter((k) => k !== 'sequelize' && k !== 'Sequelize'),
-    });
+    logger.info(`📦 Loaded ${Object.keys(models).length - 2} models`);
 
     const express = require('express');
     const app = express();
 
     app.use(express.json());
-    logger.info('Early JSON body parser applied');
-
-    // Mount banner routes BEFORE any global auth middleware
-    logger.info('Calling setupBanner...');
-    setupBanner(app);
-    logRouterStack(app, 'setupBanner');
-
-    // Now proceed with other middleware and setups
-    logger.info('Calling setupMerchant2FA before setupApp...');
-    setupMerchant2FA(app);
-    logRouterStack(app, 'setupMerchant2FA');
+    logger.info('📋 JSON parser active');
 
     await setupApp(app);
     logRouterStack(app, 'setupApp');
 
-    logger.info('Calling setupPreviewRoutes...');
+    logger.info('🎨 Setting up banner...');
+    setupBanner(app);
+    logRouterStack(app, 'setupBanner');
+
+    logger.info('🔐 Setting up 2FA...');
+    setupMerchant2FA(app);
+    logRouterStack(app, 'setupMerchant2FA');
+
+    logger.info('👀 Setting up previews...');
     setupPreviewRoutes(app);
     logRouterStack(app, 'setupPreviewRoutes');
 
-    logger.info('Applying analytics tracking to public profile...');
+    logger.info('📊 Adding analytics to public profile...');
     app.use('/api/v1/merchants/:merchantId/profile', trackAnalytics());
-    logger.info('Analytics middleware applied');
+    logger.info('📈 Analytics added');
 
     app.use((req, res, next) => {
       if (req.headers['user-agent']?.includes('curl')) {
-        logger.info('CSRF bypassed for curl request', { method: req.method, url: req.url });
+        logger.info('🌀 CSRF skipped for curl', { path: req.path });
         return next();
       }
       next();
@@ -157,91 +148,93 @@ async function startServer() {
     app.locals.sequelize = sequelize;
     app.locals.models = models;
 
-    logger.info('Setting up routes...');
+    logger.info('🛤️ Mounting routes...');
     setupAuthRoutes(app);
     logRouterStack(app, 'setupAuthRoutes');
 
-    logger.info('Calling setupGetProfile...');
+    // Products before Profile to ensure precedence
+    logger.info('🛍️ Setting up merchant products...');
+    setupMerchantProducts(app);
+    logRouterStack(app, 'setupMerchantProducts');
+
+    logger.info('👤 Setting up get profile...');
     setupGetProfile(app);
     logRouterStack(app, 'setupGetProfile');
 
-    logger.info('Calling setupMerchantProfile...');
+    logger.info('🏪 Setting up merchant profile...');
     setupMerchantProfile(app);
     logRouterStack(app, 'setupMerchantProfile');
 
-    logger.info('Calling setupBusinessType...');
+    logger.info('🏢 Setting up business type...');
     setupBusinessType(app);
     logRouterStack(app, 'setupBusinessType');
 
-    logger.info('Calling setupMerchantImages...');
+    logger.info('🖼️ Setting up merchant images...');
     setupMerchantImages(app);
     logRouterStack(app, 'setupMerchantImages');
 
-    logger.info('Calling setupMerchantPassword...');
+    logger.info('🔑 Setting up merchant password...');
     setupMerchantPassword(app);
     logRouterStack(app, 'setupMerchantPassword');
 
-    logger.info('Calling setupMerchantDraft...');
+    logger.info('📝 Setting up merchant draft...');
     setupMerchantDraft(app);
     logRouterStack(app, 'setupMerchantDraft');
 
-    logger.info('Calling setupActivityLog...');
+    logger.info('📒 Setting up activity log...');
     setupActivityLog(app);
     logRouterStack(app, 'setupActivityLog');
 
-    logger.info('Calling setupMapsRoutes...');
+    logger.info('🗺️ Setting up maps routes...');
     setupMapsRoutes(app);
     logRouterStack(app, 'setupMapsRoutes');
 
-    logger.info('Calling setupPerformanceMetrics...');
+    logger.info('📉 Setting up performance metrics...');
     setupPerformanceMetrics(app);
     logRouterStack(app, 'setupPerformanceMetrics');
 
-    logger.info('Calling setupBranchProfile...');
+    logger.info('🌿 Setting up branch profile...');
     setupBranchProfile(app);
     logRouterStack(app, 'setupBranchProfile');
 
-    logger.info('Calling setupBranchProfileSecurity...'); // New setup call
+    logger.info('🔒 Setting up branch security...');
     setupBranchProfileSecurity(app);
     logRouterStack(app, 'setupBranchProfileSecurity');
 
+    logger.info('🔔 Setting up notification routes...');
     setupNotificationRoutes(app);
     logRouterStack(app, 'setupNotificationRoutes');
 
+    logger.info('📣 Setting up notifications...');
     setupNotifications(app, notificationService);
     logRouterStack(app, 'setupNotifications');
 
+    logger.info('🎉 Setting up customer events...');
     setupCustomerEvents(io, notificationService);
     logRouterStack(app, 'setupCustomerEvents');
 
-    logger.info('Calling setupAnalyticsRoutes...');
+    logger.info('📊 Setting up analytics routes...');
     setupAnalyticsRoutes(app);
     logRouterStack(app, 'setupAnalyticsRoutes');
 
+    logger.info('🌐 Setting up public profile...');
     setupPublicProfile(app);
-    logger.info('Public profile setup complete');
-
-    logger.info('Full router stack after all setups', {
-      stack: app._router.stack.map((layer) => ({
-        path: layer.route?.path || layer.regexp?.toString(),
-        methods: layer.route?.methods || {},
-      })),
-    });
+    logRouterStack(app, 'setupPublicProfile');
 
     app.use((req, res, next) => {
-      logger.warn('Unhandled route:', { method: req.method, url: req.url });
+      logger.warn(`🚫 404: ${req.method} ${req.url}`);
       res.status(404).json({ status: 'fail', message: `Route ${req.url} not found` });
     });
     logRouterStack(app, 'catch-all');
 
     const port = process.env.PORT || 3000;
     server.listen(port, () => {
-      logger.info(`Server running on port ${port}`);
+      logger.info(`🎉 Server live on port ${port}`);
     });
 
     setupErrorHandlers(server, io, sequelize);
   } catch (error) {
-    logger.error('Server startup failed:', { error: error.message, stack: error.stack });
+    logger.error(`💥 Startup crashed: ${error.message}`);
     process.exit(1);
   }
 }

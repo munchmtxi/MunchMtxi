@@ -16,10 +16,17 @@ const { setupAuthRoutes } = require('@setup/routes/authRouteSetup');
 const errorHandler = require('../src/middleware/errorHandler');
 const { logger } = require('@utils/logger');
 
-module.exports.setupApp = async (app) => { // Changed to accept app parameter
+module.exports.setupApp = async (app) => {
   logger.info('Setting up core app middleware...');
-  app.use(cors());
-  logger.info('CORS middleware applied');
+
+  const corsOptions = {
+    origin: 'http://localhost:5173', // Match your Vite server origin
+    credentials: true, // Allow cookies and auth headers
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'], // Include CSRF token header
+  };
+  app.use(cors(corsOptions));
+  logger.info('CORS middleware applied with credentials support');
 
   app.use((req, res, next) => {
     res.setTimeout(10000, () => {

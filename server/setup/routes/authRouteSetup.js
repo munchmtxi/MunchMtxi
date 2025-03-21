@@ -25,6 +25,13 @@ module.exports = {
       next();
     });
 
+    // Add CSRF token endpoint
+    app.get('/csrf-token', (req, res) => {
+      const csrfToken = req.csrfToken(); // Provided by csurf
+      logger.info('CSRF token requested', { token: csrfToken });
+      res.json({ csrfToken });
+    });
+
     app.use((req, res, next) => {
       logger.info('CSRF Check', { path: req.path, originalUrl: req.originalUrl, method: req.method });
       // Bypass CSRF for /auth POST or curl requests
