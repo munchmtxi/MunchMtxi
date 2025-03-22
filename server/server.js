@@ -1,4 +1,3 @@
-// server/server.js
 'use strict';
 require('module-alias/register');
 require('dotenv').config();
@@ -33,8 +32,15 @@ const setupPerformanceMetrics = require('@setup/merchant/profile/performanceMetr
 const { setupBranchProfile } = require('@setup/merchant/branch/profileSetup');
 const setupBranchProfileSecurity = require('@setup/merchant/branch/branchProfileSecuritySetup');
 const setupMerchantProducts = require('@setup/merchant/products/products');
+const setupInventory = require('@setup/merchant/products/inventorySetup'); // New import
 
-const REQUIRED_ENV = ['PORT', 'DATABASE_URL', 'JWT_SECRET', 'JWT_EXPIRES_IN', 'GOOGLE_MAPS_API_KEY'];
+const REQUIRED_ENV = [
+  'PORT',
+  'DATABASE_URL',
+  'JWT_SECRET',
+  'JWT_EXPIRES_IN',
+  'GOOGLE_MAPS_API_KEY',
+];
 const GRACEFUL_SHUTDOWN_TIMEOUT = 10000;
 
 const validateEnvironment = (requiredEnv) => {
@@ -53,7 +59,8 @@ const shutdownServer = async (server, io, sequelize) => {
     server.close(() => {
       logger.info('🌐 HTTP server stopped');
       if (sequelize) {
-        sequelize.close()
+        sequelize
+          .close()
           .then(() => {
             logger.info('💾 DB connection closed');
             resolve();
@@ -156,6 +163,10 @@ async function startServer() {
     logger.info('🛍️ Setting up merchant products...');
     setupMerchantProducts(app);
     logRouterStack(app, 'setupMerchantProducts');
+
+    logger.info('📦 Setting up inventory...');
+    setupInventory(app); // New setup call
+    logRouterStack(app, 'setupInventory');
 
     logger.info('👤 Setting up get profile...');
     setupGetProfile(app);
