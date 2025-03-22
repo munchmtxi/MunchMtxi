@@ -32,7 +32,8 @@ const setupPerformanceMetrics = require('@setup/merchant/profile/performanceMetr
 const { setupBranchProfile } = require('@setup/merchant/branch/profileSetup');
 const setupBranchProfileSecurity = require('@setup/merchant/branch/branchProfileSecuritySetup');
 const setupMerchantProducts = require('@setup/merchant/products/products');
-const setupInventory = require('@setup/merchant/products/inventorySetup'); // New import
+const setupInventory = require('@setup/merchant/products/inventorySetup');
+const setupReservationRoutes = require('@setup/merchant/reservation/reservationRoutesSetup');
 
 const REQUIRED_ENV = [
   'PORT',
@@ -211,6 +212,10 @@ async function startServer() {
     logger.info('🔒 Setting up branch security...');
     setupBranchProfileSecurity(app);
     logRouterStack(app, 'setupBranchProfileSecurity');
+
+    logger.info('🍽️ Setting up reservation routes...');
+    setupReservationRoutes(app);
+    logRouterStack(app, 'setupReservationRoutes');
 
     logger.info('🔔 Setting up notification routes...');
     setupNotificationRoutes(app);

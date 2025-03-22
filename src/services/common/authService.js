@@ -19,32 +19,45 @@ const getModels = () => require('@models');
  */
 const TokenService = {
   /**
-   * Generates access and refresh tokens for a user.
-   * @param {Object} user - User object containing `id` and `role_id`.
-   * @param {String} deviceId - Unique identifier for the user's device.
-   * @returns {Object} - Object containing `accessToken` and `refreshToken`.
-   */
-  generateTokens: async (user, deviceId) => {
-    const { Device } = getModels();
-    const accessToken = jwt.sign(
-      { id: user.id, role: user.role_id },
-      jwtConfig.secretOrKey,
-      { expiresIn: jwtConfig.expiresIn, algorithm: jwtConfig.algorithm }
-    );
-    const refreshToken = jwt.sign(
-      { id: user.id, role: user.role_id },
-      jwtConfig.refreshSecret,
-      { expiresIn: jwtConfig.refreshExpiresIn, algorithm: jwtConfig.algorithm }
-    );
-    await Device.update(
-      {
-        refresh_token: refreshToken,
-        refresh_token_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-      },
-      { where: { user_id: user.id, device_id: deviceId } }
-    );
-    return { accessToken, refreshToken };
-  },
+ * Generates access and refresh tokens for a user.
+ * @param {Object} user - User object containing `id`, `role_id`, and optionally `merchant_profile`.
+ * @param {String} deviceId - Unique identifier for the user's device.
+ * @returns {Object} - Object containing `accessToken` and `refreshToken`.
+ */
+generateTokens: async (user, deviceId) => {
+  const { Device } = getModels();
+  
+  // Prepare token payload
+  const payload = { 
+    id: user.id, 
+    role: user.role_id 
+  };
+  if (user.role_id === 19 && user.merchant_profile) { // Merchant role
+    payload.merchant_id = user.merchant_profile.id;
+  }
+
+  const accessToken = jwt.sign(
+    payload,
+    jwtConfig.secretOrKey,
+    { expiresIn: jwtConfig.expiresIn, algorithm: jwtConfig.algorithm }
+  );
+  const refreshToken = jwt.sign(
+    { id: user.id, role: user.role_id }, // Refresh token doesn’t need merchant_id
+    jwtConfig.refreshSecret,
+    { expiresIn: jwtConfig.refreshExpiresIn, algorithm: jwtConfig.algorithm }
+  );
+
+  await Device.update(
+    {
+      refresh_token: refreshToken,
+      refresh_token_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+    },
+    { where: { user_id: user.id, device_id: deviceId } }
+  );
+
+  logger.info('Tokens generated', { userId: user.id, merchantId: payload.merchant_id || null });
+  return { accessToken, refreshToken };
+},
 
   /**
    * Generates a remember-me token for persistent sessions.
