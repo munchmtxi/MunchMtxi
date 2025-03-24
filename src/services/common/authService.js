@@ -24,40 +24,40 @@ const TokenService = {
  * @param {String} deviceId - Unique identifier for the user's device.
  * @returns {Object} - Object containing `accessToken` and `refreshToken`.
  */
-generateTokens: async (user, deviceId) => {
-  const { Device } = getModels();
+  generateTokens: async (user, deviceId) => {
+    const { Device } = getModels();
+    const payload = { id: user.id, role: user.role_id };
+    if (user.role_id === 19 && user.merchant_profile) {
+      payload.merchant_id = user.merchant_profile.id;
+    }
   
-  // Prepare token payload
-  const payload = { 
-    id: user.id, 
-    role: user.role_id 
-  };
-  if (user.role_id === 19 && user.merchant_profile) { // Merchant role
-    payload.merchant_id = user.merchant_profile.id;
-  }
-
-  const accessToken = jwt.sign(
-    payload,
-    jwtConfig.secretOrKey,
-    { expiresIn: jwtConfig.expiresIn, algorithm: jwtConfig.algorithm }
-  );
-  const refreshToken = jwt.sign(
-    { id: user.id, role: user.role_id }, // Refresh token doesn’t need merchant_id
-    jwtConfig.refreshSecret,
-    { expiresIn: jwtConfig.refreshExpiresIn, algorithm: jwtConfig.algorithm }
-  );
-
-  await Device.update(
-    {
-      refresh_token: refreshToken,
-      refresh_token_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-    },
-    { where: { user_id: user.id, device_id: deviceId } }
-  );
-
-  logger.info('Tokens generated', { userId: user.id, merchantId: payload.merchant_id || null });
-  return { accessToken, refreshToken };
-},
+    let accessToken, refreshToken;
+    try {
+      accessToken = jwt.sign(payload, jwtConfig.secretOrKey, { expiresIn: jwtConfig.expiresIn, algorithm: jwtConfig.algorithm });
+      logger.debug('Access token generated', { length: accessToken.length });
+    } catch (err) {
+      logger.error('Access token generation failed', { error: err.message });
+    }
+    try {
+      refreshToken = jwt.sign({ id: user.id, role: user.role_id }, jwtConfig.refreshSecret, { expiresIn: jwtConfig.refreshExpiresIn, algorithm: jwtConfig.algorithm });
+      logger.debug('Refresh token generated', { length: refreshToken.length });
+    } catch (err) {
+      logger.error('Refresh token generation failed', { error: err.message });
+    }
+  
+    if (!accessToken) throw new Error('Access token generation failed');
+  
+    await Device.update(
+      {
+        refresh_token: refreshToken,
+        refresh_token_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+      { where: { user_id: user.id, device_id: deviceId } }
+    );
+  
+    logger.info('Tokens generated', { userId: user.id, merchantId: payload.merchant_id || null });
+    return { accessToken, refreshToken };
+  },
 
   /**
    * Generates a remember-me token for persistent sessions.

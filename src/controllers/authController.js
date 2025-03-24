@@ -19,9 +19,9 @@ const { logger } = require('@utils/logger');
  * Registers a new user (Customer).
  */
 const register = catchAsync(async (req, res) => {
-  logger.info('Registering new customer', { body: req.body });
+  logger.info('START: Registering new customer', { requestBody: req.body });
   const user = await registerUser(req.body);
-  logger.info('Customer registered successfully', { userId: user.id });
+  logger.info('SUCCESS: Customer registered', { userId: user.id, details: user });
   res.status(201).json({
     status: 'success',
     data: {
@@ -38,6 +38,7 @@ const register = catchAsync(async (req, res) => {
       updatedAt: user.updated_at,
     },
   });
+  logger.info('END: Registering new customer');
 });
 
 /**
@@ -45,9 +46,30 @@ const register = catchAsync(async (req, res) => {
  */
 const login = catchAsync(async (req, res) => {
   const { email, password } = req.body;
-  logger.info('User login attempt', { email });
-  const { user, token, refreshToken } = await loginUser(email, password);
-  logger.info('User login successful', { userId: user.id });
+  logger.info('START: User login attempt initiated', { email });
+  
+  logger.debug('Input received for login', { email, passwordLength: password?.length });
+  
+  const loginResult = await loginUser(email, password);
+  
+  const { user, accessToken, refreshToken } = loginResult; // Fix: Use accessToken instead of token
+  logger.info('Login service response received', {
+    userId: user?.id,
+    tokenStatus: accessToken ? 'present' : 'missing', // Update logging
+    refreshTokenStatus: refreshToken ? 'present' : 'missing'
+  });
+  
+  if (accessToken) {
+    logger.debug('Access token details', { accessTokenLength: accessToken.length });
+  }
+  if (refreshToken) {
+    logger.debug('Refresh token details', { refreshTokenLength: refreshToken.length });
+  }
+  
+  if (!accessToken) {
+    logger.warn('Access token is missing in login result', { email });
+  }
+  
   res.status(200).json({
     status: 'success',
     data: { 
@@ -64,34 +86,38 @@ const login = catchAsync(async (req, res) => {
         createdAt: user.created_at,
         updatedAt: user.updated_at,
       },
-      token,
+      token: accessToken, // Fix: Use accessToken here
       refreshToken,
     },
   });
+  
+  logger.info('END: User login process completed', { email, tokenStatus: accessToken ? 'issued' : 'not issued' });
 });
 
 /**
  * Refreshes the JWT access token using a refresh token.
  */
 const refreshTokenController = catchAsync(async (req, res) => {
+  logger.info('START: Refreshing JWT token', { requestBody: req.body });
   const { refreshToken } = req.body;
   if (!refreshToken) {
-    logger.warn('Refresh token missing');
+    logger.warn('FAILED: Refresh token missing');
     throw new AppError('Refresh token is required', 400);
   }
 
-  logger.info('Refreshing token', { refreshToken: refreshToken.slice(0, 10) + '...' });
+  logger.info('Validating refresh token', { refreshToken: refreshToken.slice(0, 10) + '...' });
   let decoded;
   try {
     decoded = verifyRefreshToken(refreshToken);
+    logger.info('SUCCESS: Refresh token verified', { userId: decoded.id });
   } catch (error) {
-    logger.warn('Invalid refresh token', { error: error.message });
+    logger.warn('FAILED: Invalid refresh token', { error: error.message });
     throw new AppError('Invalid refresh token', 401);
   }
 
   const newToken = generateToken({ id: decoded.id, role: decoded.role });
   const newRefreshToken = generateRefreshToken({ id: decoded.id, role: decoded.role });
-  logger.info('Token refreshed successfully', { userId: decoded.id });
+  logger.info('SUCCESS: New tokens generated', { userId: decoded.id });
 
   res.status(200).json({
     status: 'success',
@@ -100,29 +126,32 @@ const refreshTokenController = catchAsync(async (req, res) => {
       refreshToken: newRefreshToken,
     },
   });
+  logger.info('END: Token refresh process completed', { userId: decoded.id });
 });
 
 /**
  * Registers a new user with non-customer roles (Merchant, Staff, Driver) - Admin Only.
  */
 const registerNonCustomer = catchAsync(async (req, res) => {
+  logger.info('START: Registering non-customer', { requestUser: req.user, requestBody: req.body });
   // Assuming req.user.role_id is set by authenticate middleware
   if (req.user.role_id !== 1) { // Assume 1 is Admin role_id, adjust as needed
-    logger.warn('Non-admin attempted to register non-customer', { userId: req.user.id });
+    logger.warn('FAILED: Non-admin attempted to register non-customer', { userId: req.user.id });
     throw new AppError('Only Admins can register non-customer roles', 403);
   }
 
   const { role, ...userData } = req.body;
-  logger.info('Registering non-customer', { role, email: userData.email });
+  logger.info('Mapping role for registration', { providedRole: role });
   
   // Map role string to role_id (adjust based on your roles table)
   const roleMap = { 'Merchant': 19, 'Staff': 20, 'Driver': 21 }; // Example mapping
   if (!roleMap[role]) {
+    logger.error('FAILED: Invalid role provided for non-customer registration', { providedRole: role });
     throw new AppError('Invalid role for registration', 400);
   }
 
   const user = await registerUser({ ...userData, role: roleMap[role] });
-  logger.info('Non-customer registered successfully', { userId: user.id });
+  logger.info('SUCCESS: Non-customer registered', { userId: user.id, role: role });
 
   res.status(201).json({
     status: 'success',
@@ -140,6 +169,7 @@ const registerNonCustomer = catchAsync(async (req, res) => {
       updatedAt: user.updated_at,
     },
   });
+  logger.info('END: Non-customer registration process completed', { userId: user.id });
 });
 
 /**
@@ -147,23 +177,25 @@ const registerNonCustomer = catchAsync(async (req, res) => {
  */
 const merchantLogin = catchAsync(async (req, res) => {
   const { email, password, deviceId, deviceType, rememberMe } = req.body;
-  logger.info('ENTERING MERCHANT LOGIN CONTROLLER', { email, deviceId });
-
+  logger.info('START: Merchant login attempt', { email, deviceId, deviceType, rememberMe });
+  
   // Use dynamic model access
   const { User } = req.app.locals.models || getModels();
-  logger.info('User model in controller', { User: !!User });
+  logger.info('User model fetched in controller', { modelAvailable: !!User });
 
-  logger.info('Merchant login: Before DB test', { email });
+  // DB test to ensure connection is active
+  logger.info('Performing database connection test', { email });
   try {
     await User.findOne({ where: { id: 1 } });
-    logger.info('DB test successful');
+    logger.info('SUCCESS: Database connection test passed');
   } catch (dbError) {
-    logger.error('DB connection failed', { error: dbError.message });
+    logger.error('FAILED: Database connection test failed', { error: dbError.message });
     throw new AppError('Database unavailable', 500);
   }
-  logger.info('Merchant login attempt', { email, deviceId, deviceType, rememberMe });
+
+  logger.info('Proceeding with merchant login', { email });
   const result = await loginMerchant(email, password, { deviceId, deviceType }, rememberMe);
-  logger.info('Merchant login successful', { userId: result.user.id });
+  logger.info('SUCCESS: Merchant logged in', { userId: result.user.id });
 
   res.status(200).json({
     status: 'success',
@@ -188,6 +220,7 @@ const merchantLogin = catchAsync(async (req, res) => {
       rememberTokenExpiry: result.rememberTokenExpiry
     }
   });
+  logger.info('END: Merchant login process completed', { userId: result.user.id });
 });
 
 /**
@@ -195,15 +228,16 @@ const merchantLogin = catchAsync(async (req, res) => {
  */
 const logout = catchAsync(async (req, res) => {
   const { deviceId, clearAllDevices } = req.body;
-  logger.info('Merchant logout attempt', { userId: req.user.id, deviceId, clearAllDevices });
+  logger.info('START: Merchant logout attempt', { userId: req.user.id, deviceId, clearAllDevices });
 
   await logoutMerchant(req.user.id, deviceId, clearAllDevices);
-  logger.info('Merchant logout successful', { userId: req.user.id });
+  logger.info('SUCCESS: Merchant logged out', { userId: req.user.id });
 
   res.status(200).json({
     status: 'success',
     message: 'Successfully logged out'
   });
+  logger.info('END: Merchant logout process completed', { userId: req.user.id });
 });
 
 module.exports = { 
