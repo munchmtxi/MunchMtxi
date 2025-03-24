@@ -103,10 +103,47 @@ const validateMerchantLogout = (req, res, next) => {
   next();
 };
 
+// New validator for driver login
+const validateDriverLogin = (req, res, next) => {
+  const schema = Joi.object({
+    email: Joi.string().email().required(),
+    password: Joi.string().required(),
+    deviceId: Joi.string().uuid().required(),
+    deviceType: Joi.string().valid('mobile', 'desktop', 'tablet').required()
+  });
+  logger.info('Validating driver login', { body: req.body });
+  const { error } = schema.validate(req.body || {}, { abortEarly: false }); // Fallback to empty object
+  if (error) {
+    const details = error.details.map(detail => detail.message);
+    logger.warn('Validation failed', { errors: details });
+    return next(new AppError(`Validation Error: ${details.join('. ')}`, 400));
+  }
+  logger.info('Validation passed');
+  next();
+};
+
+// New validator for driver logout
+const validateDriverLogout = (req, res, next) => {
+  const schema = Joi.object({
+    deviceId: Joi.string().uuid().required()
+  });
+
+  const { error } = schema.validate(req.body, { abortEarly: false });
+  
+  if (error) {
+    const details = error.details.map(detail => detail.message);
+    return next(new AppError(`Validation Error: ${details.join('. ')}`, 400));
+  }
+
+  next();
+};
+
 module.exports = { 
   validateRegister, 
   validateLogin,
   validateRegisterNonCustomer,
   validateMerchantLogin,
-  validateMerchantLogout
+  validateMerchantLogout,
+  validateDriverLogin, 
+  validateDriverLogout 
 };

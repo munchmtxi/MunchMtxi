@@ -34,7 +34,8 @@ const setupBranchProfileSecurity = require('@setup/merchant/branch/branchProfile
 const setupMerchantProducts = require('@setup/merchant/products/products');
 const setupInventory = require('@setup/merchant/products/inventorySetup');
 const setupReservationRoutes = require('@setup/merchant/reservation/reservationRoutesSetup');
-const { setupStaffProfile } = require('@setup/staff/profile/staffProfileSetup'); // New import
+const { setupStaffProfile } = require('@setup/staff/profile/staffProfileSetup');
+const { setupDriverProfile } = require('@setup/driver/driverSetup'); // New import
 
 const REQUIRED_ENV = [
   'PORT',
@@ -218,7 +219,7 @@ async function startServer() {
     setupReservationRoutes(app);
     logRouterStack(app, 'setupReservationRoutes');
 
-    logger.info('👷 Setting up staff profile...'); // New setup
+    logger.info('👷 Setting up staff profile...');
     setupStaffProfile(app);
     logRouterStack(app, 'setupStaffProfile');
 
@@ -241,6 +242,10 @@ async function startServer() {
     logger.info('🌐 Setting up public profile...');
     setupPublicProfile(app);
     logRouterStack(app, 'setupPublicProfile');
+
+    logger.info('🚗 Setting up driver profile...'); // New setup
+    setupDriverProfile(app);
+    logRouterStack(app, 'setupDriverProfile');
 
     app.use((req, res, next) => {
       logger.warn(`🚫 404: ${req.method} ${req.url}`);

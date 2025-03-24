@@ -19,11 +19,11 @@ const getModels = () => require('@models');
  */
 const TokenService = {
   /**
- * Generates access and refresh tokens for a user.
- * @param {Object} user - User object containing `id`, `role_id`, and optionally `merchant_profile`.
- * @param {String} deviceId - Unique identifier for the user's device.
- * @returns {Object} - Object containing `accessToken` and `refreshToken`.
- */
+   * Generates access and refresh tokens for a user.
+   * @param {Object} user - User object containing `id`, `role_id`, and optionally `merchant_profile`.
+   * @param {String} deviceId - Unique identifier for the user's device.
+   * @returns {Object} - Object containing `accessToken` and `refreshToken`.
+   */
   generateTokens: async (user, deviceId) => {
     const { Device } = getModels();
     const payload = { id: user.id, role: user.role_id };
@@ -307,6 +307,93 @@ const logoutMerchant = async (userId, deviceId = null, clearAllDevices = false) 
   }
 };
 
+/**
+ * Logs in a driver with device tracking
+ * @param {String} email - Driver's email
+ * @param {String} password - Driver's password
+ * @param {Object} deviceInfo - Device details (`deviceId`, `deviceType`)
+ * @returns {Object} - User, tokens
+ */
+const loginDriver = async (email, password, deviceInfo) => {
+  try {
+    const { User, Driver, Device } = getModels();
+    logger.info('Attempting driver login', { email, deviceInfo });
+
+    const user = await User.scope(null).findOne({
+      where: { email, role_id: 3 }, // Assuming 3 is driver role_id
+      include: [{ model: Driver, as: 'driver_profile', required: true }],
+    });
+
+    if (!user) {
+      logger.warn('User not found or not a driver', { email });
+      throw new AppError('Invalid driver credentials', 401);
+    }
+
+    const passwordMatch = await bcrypt.compare(password, user.password);
+    if (!passwordMatch) {
+      logger.warn('Password mismatch', { email });
+      throw new AppError('Invalid driver credentials', 401);
+    }
+
+    if (!user.is_verified) {
+      logger.warn('User not verified', { email });
+      throw new AppError('Please verify your account first', 403);
+    }
+
+    if (user.status !== 'active') {
+      logger.warn('User account inactive', { email });
+      throw new AppError('User account is inactive', 403);
+    }
+
+    const { accessToken, refreshToken } = await TokenService.generateTokens(user, deviceInfo.deviceId);
+
+    const [device, created] = await Device.findOrCreate({
+      where: { user_id: user.id, device_id: deviceInfo.deviceId },
+      defaults: {
+        user_id: user.id,
+        device_id: deviceInfo.deviceId,
+        device_type: deviceInfo.deviceType,
+        platform: 'web',
+        last_active_at: new Date(),
+      },
+    });
+
+    await device.update({ last_active_at: new Date() });
+
+    logger.info('Driver login successful', { userId: user.id });
+    return {
+      user: { ...user.toJSON(), driver: user.driver_profile },
+      accessToken,
+      refreshToken,
+    };
+  } catch (error) {
+    logger.error('Login driver failed', { error: error.message, stack: error.stack });
+    if (error instanceof AppError) throw error;
+    throw new AppError('Failed to login driver', 500);
+  }
+};
+
+/**
+ * Logs out a driver, clearing device session
+ * @param {Number} userId - Driver's user ID
+ * @param {String} deviceId - Specific device ID to clear
+ */
+const logoutDriver = async (userId, deviceId) => {
+  try {
+    const { Device } = getModels();
+    const device = await Device.findOne({ where: { user_id: userId, device_id: deviceId } });
+    if (device) {
+      await TokenService.logoutUser(userId, deviceId);
+      logger.info('Driver logout successful', { userId, deviceId });
+    } else {
+      logger.warn('No matching device found, proceeding with logout', { userId, deviceId });
+    }
+  } catch (error) {
+    logger.error('Logout driver failed', { error: error.message, stack: error.stack });
+    throw new AppError('Failed to logout driver', 500);
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
@@ -318,4 +405,6 @@ module.exports = {
   verifyRefreshToken: (token) => jwt.verify(token, jwtConfig.refreshSecret),
   loginMerchant,
   logoutMerchant,
+  loginDriver,
+  logoutDriver,
 };

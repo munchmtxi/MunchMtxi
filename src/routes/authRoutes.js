@@ -1,4 +1,3 @@
-// src/routes/authRoutes.js
 const express = require('express');
 const { 
   register, 
@@ -6,14 +5,18 @@ const {
   refreshToken, 
   registerNonCustomer,
   merchantLogin,
-  logout
+  logout,
+  driverLogin, // New import
+  driverLogout // New import
 } = require('@controllers/authController');
 const { 
   validateRegister, 
   validateLogin,
   validateRegisterNonCustomer,
   validateMerchantLogin,
-  validateMerchantLogout
+  validateMerchantLogout,
+  validateDriverLogin, // New import
+  validateDriverLogout // New import
 } = require('@validators/authValidators');
 const rateLimit = require('express-rate-limit');
 const { 
@@ -72,6 +75,18 @@ router.post(
   authorizeRoles(19), // Use role_id: 19 for Merchant, adjust as needed
   validateMerchantLogout,
   logout
+);
+
+// Log in a driver
+router.post('/driver/login', validateDriverLogin, driverLogin);
+
+// Log out a driver
+router.post(
+  '/driver/logout',
+  authenticate,
+  authorizeRoles(3), // Use role_id: 3 for Driver, adjust as needed
+  validateDriverLogout,
+  driverLogout
 );
 
 module.exports = router;

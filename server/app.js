@@ -1,8 +1,8 @@
-// server/app.js
 'use strict';
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
+const cookieParser = require('cookie-parser'); // Add this
 const { setupPassport } = require('@config/passport');
 const { setupSwagger } = require('@config/swagger');
 const InitMonitoring = require('@config/monitoring');
@@ -20,10 +20,10 @@ module.exports.setupApp = async (app) => {
   logger.info('Setting up core app middleware...');
 
   const corsOptions = {
-    origin: 'http://localhost:5173', // Match your Vite server origin
-    credentials: true, // Allow cookies and auth headers
+    origin: 'http://localhost:5173',
+    credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'], // Include CSRF token header
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-XSRF-TOKEN'], // Match frontend
   };
   app.use(cors(corsOptions));
   logger.info('CORS middleware applied with credentials support');
@@ -37,6 +37,9 @@ module.exports.setupApp = async (app) => {
   });
   logger.info('Request timeout middleware applied');
 
+  app.use(cookieParser()); // Add cookie-parser before CSRF
+  logger.info('Cookie parser middleware applied');
+
   app.use(express.json(), (req, res, next) => {
     logger.info('JSON parser executed', { body: req.body });
     next();
@@ -49,11 +52,6 @@ module.exports.setupApp = async (app) => {
 
   securityMiddleware(app);
   logger.info('Security middleware applied');
-
-  app.use((req, res, next) => {
-    logger.info('Post-security middleware', { path: req.path });
-    next();
-  });
 
   app.use(requestLogger());
   logger.info('Request logger middleware applied');
@@ -91,7 +89,7 @@ module.exports.setupApp = async (app) => {
   setupSwagger(app);
   logger.info('Swagger setup applied');
 
-  setupAuthRoutes(app);
+  setupAuthRoutes(app); // CSRF setup happens here
   logger.info('Authentication routes setup complete');
 
   app.use(errorHandler);

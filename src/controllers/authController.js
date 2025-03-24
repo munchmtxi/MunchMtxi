@@ -1,4 +1,3 @@
-// src/controllers/authController.js
 const { 
   registerUser, 
   loginUser, 
@@ -6,7 +5,9 @@ const {
   generateToken, 
   generateRefreshToken,
   loginMerchant,
-  logoutMerchant 
+  logoutMerchant,
+  loginDriver, // Added
+  logoutDriver // Added
 } = require('@services/common/authService');
 const catchAsync = require('@utils/catchAsync');
 const AppError = require('@utils/AppError');
@@ -240,11 +241,63 @@ const logout = catchAsync(async (req, res) => {
   logger.info('END: Merchant logout process completed', { userId: req.user.id });
 });
 
+/**
+ * Logs in a driver
+ */
+const driverLogin = catchAsync(async (req, res) => {
+  const { email, password, deviceId, deviceType } = req.body;
+  logger.info('START: Driver login attempt', { email, deviceId, deviceType });
+
+  const result = await loginDriver(email, password, { deviceId, deviceType });
+  logger.info('SUCCESS: Driver logged in', { userId: result.user.id });
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      user: {
+        id: result.user.id,
+        firstName: result.user.first_name,
+        lastName: result.user.last_name,
+        email: result.user.email,
+        phone: result.user.phone,
+        country: result.user.country,
+        roleId: result.user.role_id,
+        isVerified: result.user.is_verified,
+        driver: result.user.driver,
+        createdAt: result.user.created_at,
+        updatedAt: result.user.updated_at,
+      },
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+    },
+  });
+  logger.info('END: Driver login process completed', { userId: result.user.id });
+});
+
+/**
+ * Logs out a driver
+ */
+const driverLogout = catchAsync(async (req, res) => {
+  const { deviceId } = req.body;
+  logger.info('START: Driver logout attempt', { userId: req.user.id, deviceId });
+
+  await logoutDriver(req.user.id, deviceId);
+  logger.info('SUCCESS: Driver logged out', { userId: req.user.id });
+
+  res.status(200).json({
+    status: 'success',
+    message: 'Successfully logged out',
+  });
+  logger.info('END: Driver logout process completed', { userId: req.user.id });
+});
+
 module.exports = { 
   register, 
   login, 
   refreshToken: refreshTokenController, 
   registerNonCustomer, 
   merchantLogin, 
-  logout 
+  logout,
+  driverLogin,
+  driverLogout,
 };
