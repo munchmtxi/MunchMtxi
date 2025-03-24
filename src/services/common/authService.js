@@ -173,21 +173,96 @@ const registerUser = async (userData) => {
  * @param {String} password - User's password.
  * @returns {Object} - User and JWT tokens.
  */
-const loginUser = async (email, password) => {
+const loginUser = async (email, password, deviceInfo = null) => {
   try {
-    const { User } = getModels();
-    const user = await User.scope(null).findOne({ where: { email } });
-    if (!user || !(await bcrypt.compare(password, user.password))) {
+    const { User, Device, Customer } = getModels();
+    logger.info('START: loginUser', { email, hasDeviceInfo: !!deviceInfo });
+
+    // Step 1: Find user
+    logger.debug('Querying user', { email });
+    const user = await User.scope(null).findOne({
+      where: { email },
+      include: [{ model: Customer, as: 'customer_profile' }],
+    });
+    if (!user) {
+      logger.warn('User not found', { email });
+      throw new AppError('Invalid email or password', 401);
+    }
+    logger.debug('User found', { userId: user.id, roleId: user.role_id });
+
+    // Step 2: Verify password
+    logger.debug('Verifying password', { email });
+    const isValid = await bcrypt.compare(password, user.password);
+    if (!isValid) {
+      logger.warn('Invalid password', { email });
       throw new AppError('Invalid email or password', 401);
     }
     if (user.status !== 'active') {
+      logger.warn('User inactive', { email });
       throw new AppError('User account is inactive', 403);
     }
-    const { accessToken, refreshToken } = await TokenService.generateTokens(user, null); // No deviceId for general login
+    logger.debug('Password verified', { email });
+
+    // Step 3: Handle device if provided
+    let accessToken, refreshToken;
+    if (deviceInfo) {
+      const { deviceId, deviceType } = deviceInfo;
+      logger.debug('Processing device info', { deviceId, deviceType });
+
+      // Generate tokens
+      logger.debug('Generating tokens with device', { userId: user.id });
+      ({ accessToken, refreshToken } = await TokenService.generateTokens(user, deviceId));
+      logger.debug('Tokens generated', { accessTokenLength: accessToken?.length, refreshTokenLength: refreshToken?.length });
+
+      // Find or create device
+      logger.debug('Finding/creating device', { userId: user.id, deviceId });
+      const [device, created] = await Device.findOrCreate({
+        where: { user_id: user.id, device_id: deviceId },
+        defaults: {
+          user_id: user.id,
+          device_id: deviceId,
+          device_type: deviceType,
+          platform: 'web',
+          last_active_at: new Date(),
+        },
+      });
+      logger.debug('Device processed', { deviceId, created });
+
+      // Update device
+      logger.debug('Updating device last_active_at', { deviceId });
+      await device.update({ last_active_at: new Date() });
+      logger.debug('Device updated', { deviceId });
+    } else {
+      logger.debug('No device info, generating tokens without device', { userId: user.id });
+      ({ accessToken, refreshToken } = await TokenService.generateTokens(user, null));
+    }
+
+    logger.info('SUCCESS: loginUser', { userId: user.id });
     return { user, accessToken, refreshToken };
   } catch (error) {
+    logger.error('FAILED: loginUser', { error: error.message, stack: error.stack, email });
     if (error instanceof AppError) throw error;
     throw new AppError('Failed to login', 500);
+  }
+};
+
+const logoutUser = async (userId, deviceId = null) => {
+  try {
+    const { Device } = getModels();
+    if (deviceId) {
+      const device = await Device.findOne({ where: { user_id: userId, device_id: deviceId } });
+      if (device) {
+        await TokenService.logoutUser(userId, deviceId);
+        logger.info('User logout successful', { userId, deviceId });
+      } else {
+        logger.warn('No matching device found, proceeding with logout', { userId, deviceId });
+      }
+    } else {
+      logger.info('No deviceId provided, logout without device action', { userId });
+    }
+  } catch (error) {
+    logger.error('Logout user failed', { error: error.message, stack: error.stack });
+    throw new AppError('Failed to logout user', 500);
   }
 };
 
@@ -397,6 +472,7 @@ const logoutDriver = async (userId, deviceId) => {
 module.exports = {
   registerUser,
   loginUser,
+  logoutUser,
   generateToken: (payload, expiresIn = jwtConfig.expiresIn) =>
     jwt.sign(payload, jwtConfig.secretOrKey, { expiresIn, algorithm: jwtConfig.algorithm }),
   verifyToken: (token) => jwt.verify(token, jwtConfig.secretOrKey),

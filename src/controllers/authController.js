@@ -46,17 +46,16 @@ const register = catchAsync(async (req, res) => {
  * Logs in a user and provides JWT tokens.
  */
 const login = catchAsync(async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, deviceInfo } = req.body; // Add deviceInfo
   logger.info('START: User login attempt initiated', { email });
   
-  logger.debug('Input received for login', { email, passwordLength: password?.length });
+  logger.debug('Input received for login', { email, passwordLength: password?.length, deviceInfo });
   
-  const loginResult = await loginUser(email, password);
-  
-  const { user, accessToken, refreshToken } = loginResult; // Fix: Use accessToken instead of token
+  const loginResult = await loginUser(email, password, deviceInfo); // Pass deviceInfo
+  const { user, accessToken, refreshToken } = loginResult;
   logger.info('Login service response received', {
     userId: user?.id,
-    tokenStatus: accessToken ? 'present' : 'missing', // Update logging
+    tokenStatus: accessToken ? 'present' : 'missing',
     refreshTokenStatus: refreshToken ? 'present' : 'missing'
   });
   
@@ -87,7 +86,7 @@ const login = catchAsync(async (req, res) => {
         createdAt: user.created_at,
         updatedAt: user.updated_at,
       },
-      token: accessToken, // Fix: Use accessToken here
+      token: accessToken,
       refreshToken,
     },
   });

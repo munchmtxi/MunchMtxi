@@ -28,6 +28,10 @@ const validateLogin = (req, res, next) => {
   const schema = Joi.object({
     email: Joi.string().email().required(),
     password: Joi.string().required(),
+    deviceInfo: Joi.object({
+      deviceId: Joi.string().optional(),
+      deviceType: Joi.string().valid('mobile', 'desktop', 'tablet').optional(),
+    }).optional(),
   });
 
   const { error } = schema.validate(req.body, { abortEarly: false });

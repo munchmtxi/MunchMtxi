@@ -13,3 +13,6 @@ logs/
 # Ignore yarn lock file
 yarn.lock
 node_modules
+
+# Ignore old service files
+oldservicefiles/
