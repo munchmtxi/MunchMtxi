@@ -29,6 +29,13 @@ module.exports = {
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL',
       },
+      template_id: {
+        type: Sequelize.UUID,
+        allowNull: true, // Nullable for now; set to false later with a default template
+        references: { model: 'templates', key: 'id' },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL',
+      },
       type: {
         type: Sequelize.STRING,
         allowNull: false,
@@ -65,6 +72,7 @@ module.exports = {
     await queryInterface.addIndex('notifications', ['user_id'], { name: 'notifications_user_id_index' });
     await queryInterface.addIndex('notifications', ['order_id'], { name: 'notifications_order_id_index' });
     await queryInterface.addIndex('notifications', ['booking_id'], { name: 'notifications_booking_id_index' });
+    await queryInterface.addIndex('notifications', ['template_id'], { name: 'notifications_template_id_index' });
   },
 
   down: async (queryInterface, Sequelize) => {

@@ -36,7 +36,8 @@ const setupInventory = require('@setup/merchant/products/inventorySetup');
 const setupReservationRoutes = require('@setup/merchant/reservation/reservationRoutesSetup');
 const { setupStaffProfile } = require('@setup/staff/profile/staffProfileSetup');
 const { setupDriverProfile } = require('@setup/driver/driverSetup');
-const { setupProfileRoutes } = require('@setup/customer/profile/profileRouteSetup'); // New import
+const { setupProfileRoutes } = require('@setup/customer/profile/profileRouteSetup');
+const setupBooking = require('@setup/customer/bookingSetup'); // New import
 
 const REQUIRED_ENV = [
   'PORT',
@@ -163,10 +164,14 @@ async function startServer() {
     setupAuthRoutes(app);
     logRouterStack(app, 'setupAuthRoutes');
 
-    // Add customer profile routes here, after auth but before merchant-specific routes
+    // Customer-related setups
     logger.info('👤 Setting up customer profile routes...');
     setupProfileRoutes(app);
     logRouterStack(app, 'setupProfileRoutes');
+
+    logger.info('🍽️ Setting up customer booking routes...');
+    setupBooking(app); // New customer booking setup
+    logRouterStack(app, 'setupBooking');
 
     // Products before Profile to ensure precedence
     logger.info('🛍️ Setting up merchant products...');
