@@ -40,6 +40,7 @@ const { setupDriverProfile } = require('@setup/driver/driverSetup');
 const { setupProfileRoutes } = require('@setup/customer/profile/profileRouteSetup');
 const setupBooking = require('@setup/customer/bookingSetup');
 const setupRideRoutes = require('@setup/customer/rideSetup');
+const setupCartRoutes = require('@setup/customer/cartSetup'); // New import for cart setup
 
 const REQUIRED_ENV = [
   'PORT',
@@ -157,6 +158,10 @@ async function startServer() {
     logger.info('🍽️ Setting up customer booking routes...');
     setupBooking(app);
     logRouterStack(app, 'setupBooking');
+
+    logger.info('🛒 Setting up customer cart routes...'); // New cart setup
+    setupCartRoutes(app);
+    logRouterStack(app, 'setupCartRoutes');
 
     logger.info('🔐 Setting up auth routes...');
     setupAuthRoutes(app);
