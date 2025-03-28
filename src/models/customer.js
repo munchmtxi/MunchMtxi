@@ -25,10 +25,9 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'user_id',
         as: 'notifications',
       });
-      // Added new association
       this.belongsTo(models.Address, {
         foreignKey: 'default_address_id',
-        as: 'defaultAddress'
+        as: 'defaultAddress',
       });
     }
 
@@ -91,6 +90,15 @@ module.exports = (sequelize, DataTypes) => {
         notEmpty: { msg: 'Address is required' },
       },
     },
+    country: { // Added country field
+      type: DataTypes.STRING(3),
+      allowNull: false,
+      defaultValue: 'MWI', // Default to Malawi
+      validate: {
+        notEmpty: { msg: 'Country is required' },
+        len: [2, 3], // ISO Alpha-2 or Alpha-3 codes
+      },
+    },
     preferences: {
       type: DataTypes.JSON,
       allowNull: true,
@@ -99,39 +107,38 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.JSON,
       allowNull: true,
     },
-    // Added new fields
     saved_addresses: {
       type: DataTypes.JSONB,
-      allowNull: true
+      allowNull: true,
     },
     default_address_id: {
       type: DataTypes.INTEGER,
       allowNull: true,
       references: {
         model: 'addresses',
-        key: 'id'
+        key: 'id',
       },
       onUpdate: 'CASCADE',
-      onDelete: 'SET NULL'
+      onDelete: 'SET NULL',
     },
     last_known_location: {
       type: DataTypes.JSONB,
-      allowNull: true
+      allowNull: true,
     },
     created_at: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: sequelize.literal('CURRENT_TIMESTAMP')
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP'),
     },
     updated_at: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: sequelize.literal('CURRENT_TIMESTAMP')
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP'),
     },
     deleted_at: {
       type: DataTypes.DATE,
-      allowNull: true
-    }
+      allowNull: true,
+    },
   }, {
     sequelize,
     modelName: 'Customer',
@@ -142,17 +149,17 @@ module.exports = (sequelize, DataTypes) => {
       {
         unique: true,
         fields: ['user_id'],
-        name: 'customers_user_id_unique'
+        name: 'customers_user_id_unique',
       },
       {
         unique: true,
         fields: ['phone_number'],
-        name: 'customers_phone_number_unique'
+        name: 'customers_phone_number_unique',
       },
       {
         fields: ['default_address_id'],
-        name: 'customers_default_address_id_index'
-      }
+        name: 'customers_default_address_id_index',
+      },
     ],
   });
 

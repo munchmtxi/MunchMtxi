@@ -2,6 +2,7 @@ const { Client } = require('@googlemaps/google-maps-services-js');
 const AppError = require('@utils/AppError');
 const { logger } = require('@utils/logger');
 const countries = require('@config/countryConfigs');
+const config = require('@config/config');
 
 class Geolocation1Service {
   constructor() {
@@ -13,20 +14,16 @@ class Geolocation1Service {
     });
   }
 
-  /**
-   * Validates an address using Google Maps API with enhanced verification.
-   * @param {string} address - The address to validate.
-   * @param {string} countryCode - The country code (ISO Alpha-3).
-   * @returns {Promise<Object>} - Formatted address details with validation status.
-   * @throws {AppError} - Throws error if validation fails.
-   */
   async validateAddress(address, countryCode) {
     try {
       const countryConfig = countries[countryCode];
       if (!countryConfig) {
         throw new AppError('Unsupported country code', 400);
       }
-
+  
+      // Log the Google Maps API Key
+      logger.info('Google Maps API Key', { key: process.env.GOOGLE_MAPS_API_KEY });
+  
       const response = await this.client.geocode({
         params: {
           address,
@@ -36,46 +33,47 @@ class Geolocation1Service {
         },
         timeout: 5000,
       });
-
+  
+      logger.info('Google Maps response', { response: response.data });
+  
+      // Check if no exact match was found and perform fuzzy matching
       if (response.data.results.length === 0) {
-        // Try to find nearby valid addresses as suggestions
+        logger.warn('No exact match found for address', { address, countryCode, status: response.data.status });
         const fuzzyResponse = await this.client.geocode({
           params: {
             address: this._extractMainComponents(address),
             region: countryCode,
             components: `country:${countryCode}`,
             key: process.env.GOOGLE_MAPS_API_KEY,
-          }
+          },
         });
-
+  
         return {
-          status: 'INVALID',
+          validationStatus: { status: 'INVALID' },
           originalAddress: address,
           suggestions: fuzzyResponse.data.results.slice(0, 5).map(result => 
             this._formatAddressResponse(result, countryConfig)
           ),
-          message: 'Address not found. Consider the suggested alternatives.'
+          message: 'Address not found. Consider the suggested alternatives.',
         };
       }
-
+  
       const mainResult = response.data.results[0];
       const validationStatus = this._determineValidationStatus(mainResult);
       const formattedResponse = this._formatAddressResponse(mainResult, countryConfig);
-
-      // If address is valid but not exact, get nearby suggestions
+  
       let suggestions = [];
       if (validationStatus.confidence !== 'HIGH') {
         suggestions = await this._getNearbyAddresses(mainResult.geometry.location, countryCode);
       }
-
+  
       return {
         ...formattedResponse,
         validationStatus,
         suggestions: suggestions.slice(0, 5),
       };
-
     } catch (error) {
-      logger.error('Address validation error:', { error: error.message, address, countryCode });
+      logger.error('Address validation error', { error: error.message, address, countryCode });
       if (error instanceof AppError) throw error;
       throw new AppError('Address validation service unavailable', 503);
     }

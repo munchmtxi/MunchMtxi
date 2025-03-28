@@ -43,6 +43,7 @@ module.exports = {
     app.use((req, res, next) => {
       logger.info('CSRF Check', { path: req.path, method: req.method });
       if (
+        req.method === 'OPTIONS' || // Bypass OPTIONS for CORS preflight
         (req.method === 'POST' && req.path.startsWith('/auth')) ||
         req.method === 'GET' ||
         req.headers['user-agent']?.toLowerCase().includes('curl')

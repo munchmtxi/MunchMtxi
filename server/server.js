@@ -1,4 +1,5 @@
 'use strict';
+
 require('module-alias/register');
 require('dotenv').config();
 const { createServer } = require('http');
@@ -37,7 +38,8 @@ const setupReservationRoutes = require('@setup/merchant/reservation/reservationR
 const { setupStaffProfile } = require('@setup/staff/profile/staffProfileSetup');
 const { setupDriverProfile } = require('@setup/driver/driverSetup');
 const { setupProfileRoutes } = require('@setup/customer/profile/profileRouteSetup');
-const setupBooking = require('@setup/customer/bookingSetup'); // New import
+const setupBooking = require('@setup/customer/bookingSetup');
+const setupRideRoutes = require('@setup/customer/rideSetup');
 
 const REQUIRED_ENV = [
   'PORT',
@@ -88,8 +90,9 @@ const setupErrorHandlers = (server, io, sequelize) => {
     shutdownServer(server, io, sequelize).then(() => process.exit(1));
   });
   process.on('unhandledRejection', (reason) => {
-    logger.error(`❌ Unhandled Rejection: ${reason.message || reason}`);
-    shutdownServer(server, io, sequelize).then(() => process.exit(1));
+    logger.error(`❌ Unhandled Rejection: ${reason.message || reason}`, { stack: reason.stack });
+    // Comment out shutdown for debugging
+    // shutdownServer(server, io, sequelize).then(() => process.exit(1));
   });
   process.on('SIGTERM', () => {
     logger.info('👋 SIGTERM received, shutting down...');
@@ -122,8 +125,42 @@ async function startServer() {
     app.use(express.json());
     logger.info('📋 JSON parser active');
 
+    // Setup core middleware (CORS, CSRF, etc.)
     await setupApp(app);
     logRouterStack(app, 'setupApp');
+
+    // Create server and initialize Socket.IO
+    const server = createServer(app);
+    const io = await setupSocket(server);
+
+    // Initialize services before route setups
+    const { whatsappService, emailService, smsService } = setupCommonServices();
+    const notificationService = setupNotificationService(io, whatsappService, emailService, smsService);
+
+    // Attach services to app.locals
+    app.locals.notificationService = notificationService;
+    app.locals.authService = authService;
+    app.locals.sequelize = sequelize;
+    app.locals.models = models;
+
+    // Mount all routes after middleware and services
+    logger.info('🛤️ Mounting routes...');
+
+    logger.info('🚗 Setting up customer ride routes...');
+    setupRideRoutes(app);
+    logRouterStack(app, 'setupRideRoutes');
+
+    logger.info('👤 Setting up customer profile routes...');
+    setupProfileRoutes(app);
+    logRouterStack(app, 'setupProfileRoutes');
+
+    logger.info('🍽️ Setting up customer booking routes...');
+    setupBooking(app);
+    logRouterStack(app, 'setupBooking');
+
+    logger.info('🔐 Setting up auth routes...');
+    setupAuthRoutes(app);
+    logRouterStack(app, 'setupAuthRoutes');
 
     logger.info('🎨 Setting up banner...');
     setupBanner(app);
@@ -141,39 +178,6 @@ async function startServer() {
     app.use('/api/v1/merchants/:merchantId/profile', trackAnalytics());
     logger.info('📈 Analytics added');
 
-    app.use((req, res, next) => {
-      if (req.headers['user-agent']?.includes('curl')) {
-        logger.info('🌀 CSRF skipped for curl', { path: req.path });
-        return next();
-      }
-      next();
-    });
-
-    const server = createServer(app);
-    const io = await setupSocket(server);
-
-    const { whatsappService, emailService, smsService } = setupCommonServices();
-    const notificationService = setupNotificationService(io, whatsappService, emailService, smsService);
-
-    app.locals.notificationService = notificationService;
-    app.locals.authService = authService;
-    app.locals.sequelize = sequelize;
-    app.locals.models = models;
-
-    logger.info('🛤️ Mounting routes...');
-    setupAuthRoutes(app);
-    logRouterStack(app, 'setupAuthRoutes');
-
-    // Customer-related setups
-    logger.info('👤 Setting up customer profile routes...');
-    setupProfileRoutes(app);
-    logRouterStack(app, 'setupProfileRoutes');
-
-    logger.info('🍽️ Setting up customer booking routes...');
-    setupBooking(app); // New customer booking setup
-    logRouterStack(app, 'setupBooking');
-
-    // Products before Profile to ensure precedence
     logger.info('🛍️ Setting up merchant products...');
     setupMerchantProducts(app);
     logRouterStack(app, 'setupMerchantProducts');
@@ -258,6 +262,16 @@ async function startServer() {
     setupDriverProfile(app);
     logRouterStack(app, 'setupDriverProfile');
 
+    // Curl bypass for CSRF
+    app.use((req, res, next) => {
+      if (req.headers['user-agent']?.includes('curl')) {
+        logger.info('🌀 CSRF skipped for curl', { path: req.path });
+        return next();
+      }
+      next();
+    });
+
+    // 404 handler
     app.use((req, res, next) => {
       logger.warn(`🚫 404: ${req.method} ${req.url}`);
       res.status(404).json({ status: 'fail', message: `Route ${req.url} not found` });

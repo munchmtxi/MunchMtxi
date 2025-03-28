@@ -41,7 +41,7 @@ module.exports = (sequelize, DataTypes) => {
     sequelize,
     modelName: 'RouteOptimization',
     tableName: 'route_optimizations',
-    underscored: true,
+    underscored: false,
     indexes: [
       { fields: ['created_at'] }
     ]

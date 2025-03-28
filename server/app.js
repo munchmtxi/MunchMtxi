@@ -2,7 +2,7 @@
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
-const cookieParser = require('cookie-parser'); // Add this
+const cookieParser = require('cookie-parser');
 const { setupPassport } = require('@config/passport');
 const { setupSwagger } = require('@config/swagger');
 const InitMonitoring = require('@config/monitoring');
@@ -23,21 +23,14 @@ module.exports.setupApp = async (app) => {
     origin: 'http://localhost:5173',
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-XSRF-TOKEN'], // Match frontend
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
   };
   app.use(cors(corsOptions));
+  app.options('*', cors(corsOptions));
   logger.info('CORS middleware applied with credentials support');
 
-  app.use((req, res, next) => {
-    res.setTimeout(10000, () => {
-      logger.error('Request timed out', { path: req.path });
-      res.status(504).json({ status: 'error', message: 'Request timed out' });
-    });
-    next();
-  });
-  logger.info('Request timeout middleware applied');
-
-  app.use(cookieParser()); // Add cookie-parser before CSRF
+  // Move other middleware after CORS
+  app.use(cookieParser());
   logger.info('Cookie parser middleware applied');
 
   app.use(express.json(), (req, res, next) => {
@@ -49,6 +42,15 @@ module.exports.setupApp = async (app) => {
 
   app.use(morgan('combined', { stream: { write: msg => logger.info(msg.trim()) } }));
   logger.info('Morgan logging middleware applied');
+
+  app.use((req, res, next) => {
+    res.setTimeout(10000, () => {
+      logger.error('Request timed out', { path: req.path });
+      res.status(504).json({ status: 'error', message: 'Request timed out' });
+    });
+    next();
+  });
+  logger.info('Request timeout middleware applied');
 
   securityMiddleware(app);
   logger.info('Security middleware applied');
@@ -89,7 +91,7 @@ module.exports.setupApp = async (app) => {
   setupSwagger(app);
   logger.info('Swagger setup applied');
 
-  setupAuthRoutes(app); // CSRF setup happens here
+  setupAuthRoutes(app);
   logger.info('Authentication routes setup complete');
 
   app.use(errorHandler);

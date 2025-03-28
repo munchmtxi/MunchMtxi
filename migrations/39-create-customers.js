@@ -25,6 +25,11 @@ module.exports = {
         type: Sequelize.STRING,
         allowNull: false,
       },
+      country: { // Added country field
+        type: Sequelize.STRING(3),
+        allowNull: false,
+        defaultValue: 'MWI', // Default to Malawi
+      },
       preferences: {
         type: Sequelize.JSON,
         allowNull: true,

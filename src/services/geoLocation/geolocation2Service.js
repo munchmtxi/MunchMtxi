@@ -12,27 +12,24 @@ class Geolocation2Service {
     });
   }
 
-  /**
-   * Calculates a route for a driver.
-   * @param {string} origin - The starting location.
-   * @param {string} destination - The ending location.
-   * @param {string[]} waypoints - Optional waypoints.
-   * @returns {Promise<Object>} - Route details.
-   * @throws {AppError} - Throws error if route calculation fails.
-   */
   async calculateRouteForDriver(origin, destination, waypoints = []) {
     try {
+      const params = {
+        origin,
+        destination,
+        mode: 'driving',
+        key: process.env.GOOGLE_MAPS_API_KEY,
+      };
+      if (waypoints.length) {
+        params.waypoints = waypoints;
+        params.optimize = true;
+      }
+  
       const response = await this.client.directions({
-        params: {
-          origin,
-          destination,
-          waypoints: waypoints.length ? waypoints : undefined,
-          optimize: true,
-          mode: 'driving',
-          key: process.env.GOOGLE_MAPS_API_KEY,
-        },
+        params,
         timeout: 5000,
       });
+  
       if (!response.data.routes.length) {
         throw new AppError('No route found', 400);
       }
