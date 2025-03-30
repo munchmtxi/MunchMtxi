@@ -41,8 +41,9 @@ const { setupProfileRoutes } = require('@setup/customer/profile/profileRouteSetu
 const setupBooking = require('@setup/customer/bookingSetup');
 const setupRideRoutes = require('@setup/customer/rideSetup');
 const setupCartRoutes = require('@setup/customer/cartSetup');
-const setupMenuRoutes = require('@setup/customer/menuSetup'); 
+const setupMenuRoutes = require('@setup/customer/menuSetup');
 const setupOrder = require('@setup/customer/orderSetup');
+const setupSubscriptions = require('@setup/customer/subscriptionSetup'); // New import
 
 const REQUIRED_ENV = [
   'PORT',
@@ -165,13 +166,17 @@ async function startServer() {
     setupCartRoutes(app);
     logRouterStack(app, 'setupCartRoutes');
 
-    logger.info('🍔 Setting up customer menu routes...'); 
+    logger.info('🍔 Setting up customer menu routes...');
     setupMenuRoutes(app);
     logRouterStack(app, 'setupMenuRoutes');
 
     logger.info('📦 Setting up customer order routes...');
-    setupOrder(app); 
+    setupOrder(app);
     logRouterStack(app, 'setupOrder');
+
+    logger.info('📋 Setting up customer subscription routes...'); // New setup
+    setupSubscriptions(app);
+    logRouterStack(app, 'setupSubscriptions');
 
     logger.info('🔐 Setting up auth routes...');
     setupAuthRoutes(app);
