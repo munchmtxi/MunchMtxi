@@ -1,5 +1,6 @@
-// src/utils/catchAsync.js
-const { logger } = require('./logger');
+'use strict';
+const loggerModule = require('@utils/logger');
+const logger = loggerModule.logger || loggerModule; // Handle both { logger } and direct export
 
 module.exports = (fn) => {
   return (req, res, next) => {
@@ -12,7 +13,7 @@ module.exports = (fn) => {
           error: process.env.NODE_ENV === 'development' ? err.message : undefined,
         });
       } else {
-        next(err); // Pass to global error handler if res isn’t available
+        next(err);
       }
     });
   };

@@ -43,7 +43,9 @@ const setupRideRoutes = require('@setup/customer/rideSetup');
 const setupCartRoutes = require('@setup/customer/cartSetup');
 const setupMenuRoutes = require('@setup/customer/menuSetup');
 const setupOrder = require('@setup/customer/orderSetup');
-const setupSubscriptions = require('@setup/customer/subscriptionSetup'); // New import
+const setupSubscriptions = require('@setup/customer/subscriptionSetup');
+const { setupInDiningOrder } = require('@setup/customer/inDiningOrderSetup');
+const setupFriendSetup = require('@setup/customer/friendSetup');
 
 const REQUIRED_ENV = [
   'PORT',
@@ -90,13 +92,11 @@ const shutdownServer = async (server, io, sequelize) => {
 
 const setupErrorHandlers = (server, io, sequelize) => {
   process.on('uncaughtException', (error) => {
-    logger.error(`💥 Uncaught Exception: ${error.message}`);
+    logger.error(`💥 Uncaught Exception: ${error.message}`, { stack: error.stack });
     shutdownServer(server, io, sequelize).then(() => process.exit(1));
   });
   process.on('unhandledRejection', (reason) => {
     logger.error(`❌ Unhandled Rejection: ${reason.message || reason}`, { stack: reason.stack });
-    // Comment out shutdown for debugging
-    // shutdownServer(server, io, sequelize).then(() => process.exit(1));
   });
   process.on('SIGTERM', () => {
     logger.info('👋 SIGTERM received, shutting down...');
@@ -129,25 +129,20 @@ async function startServer() {
     app.use(express.json());
     logger.info('📋 JSON parser active');
 
-    // Setup core middleware (CORS, CSRF, etc.)
     await setupApp(app);
     logRouterStack(app, 'setupApp');
 
-    // Create server and initialize Socket.IO
     const server = createServer(app);
     const io = await setupSocket(server);
 
-    // Initialize services before route setups
     const { whatsappService, emailService, smsService } = setupCommonServices();
     const notificationService = setupNotificationService(io, whatsappService, emailService, smsService);
 
-    // Attach services to app.locals
     app.locals.notificationService = notificationService;
     app.locals.authService = authService;
     app.locals.sequelize = sequelize;
     app.locals.models = models;
 
-    // Mount all routes after middleware and services
     logger.info('🛤️ Mounting routes...');
 
     logger.info('🚗 Setting up customer ride routes...');
@@ -174,9 +169,24 @@ async function startServer() {
     setupOrder(app);
     logRouterStack(app, 'setupOrder');
 
-    logger.info('📋 Setting up customer subscription routes...'); // New setup
+    logger.info('🍽️ Setting up in-dining order routes...');
+logger.debug('Resolved path for setupInDiningOrder:', require.resolve('@setup/customer/inDiningOrderSetup'));
+const setupInDiningOrder = require('@setup/customer/inDiningOrderSetup');
+logger.debug('Imported setupInDiningOrder:', setupInDiningOrder);
+if (typeof setupInDiningOrder !== 'function') {
+  logger.error('setupInDiningOrder is not a function:', setupInDiningOrder);
+  throw new Error('setupInDiningOrder import failed');
+}
+setupInDiningOrder(app, io);
+logRouterStack(app, 'setupInDiningOrder');
+
+    logger.info('📋 Setting up customer subscription routes...');
     setupSubscriptions(app);
     logRouterStack(app, 'setupSubscriptions');
+
+    logger.info('👥 Setting up friend routes...');
+    setupFriendSetup(app, io);
+    logRouterStack(app, 'setupFriendSetup');
 
     logger.info('🔐 Setting up auth routes...');
     setupAuthRoutes(app);
@@ -282,7 +292,6 @@ async function startServer() {
     setupDriverProfile(app);
     logRouterStack(app, 'setupDriverProfile');
 
-    // Curl bypass for CSRF
     app.use((req, res, next) => {
       if (req.headers['user-agent']?.includes('curl')) {
         logger.info('🌀 CSRF skipped for curl', { path: req.path });
@@ -291,7 +300,6 @@ async function startServer() {
       next();
     });
 
-    // 404 handler
     app.use((req, res, next) => {
       logger.warn(`🚫 404: ${req.method} ${req.url}`);
       res.status(404).json({ status: 'fail', message: `Route ${req.url} not found` });
