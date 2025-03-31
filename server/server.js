@@ -46,6 +46,8 @@ const setupOrder = require('@setup/customer/orderSetup');
 const setupSubscriptions = require('@setup/customer/subscriptionSetup');
 const { setupInDiningOrder } = require('@setup/customer/inDiningOrderSetup');
 const setupFriendSetup = require('@setup/customer/friendSetup');
+const { setupQuickLinkRoutes } = require('@setup/customer/quickLinkSetup');
+
 
 const REQUIRED_ENV = [
   'PORT',
@@ -187,6 +189,10 @@ logRouterStack(app, 'setupInDiningOrder');
     logger.info('👥 Setting up friend routes...');
     setupFriendSetup(app, io);
     logRouterStack(app, 'setupFriendSetup');
+
+    logger.info('🔗 Setting up customer quick link routes...'); // New setup
+    setupQuickLinkRoutes(app);
+    logRouterStack(app, 'setupQuickLinkRoutes');
 
     logger.info('🔐 Setting up auth routes...');
     setupAuthRoutes(app);
