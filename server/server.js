@@ -37,6 +37,15 @@ const setupInventory = require('@setup/merchant/products/inventorySetup');
 const setupReservationRoutes = require('@setup/merchant/reservation/reservationRoutesSetup');
 const { setupStaffProfile } = require('@setup/staff/profile/staffProfileSetup');
 const { setupDriverProfile } = require('@setup/driver/driverSetup');
+
+// Debug import
+logger.info('Resolving @setup/driver/driverAvailabilitySetup:', require.resolve('@setup/driver/driverAvailabilitySetup'));
+const setupDriverAvailability = require('@setup/driver/driverAvailabilitySetup');
+logger.info('Imported setupDriverAvailability:', typeof setupDriverAvailability);
+
+const setupDriverOrder = require('@setup/driver/driverOrderSetup');
+const setupDriverRide = require('@setup/driver/driverridersetup');
+const setupDriverPayment = require('@setup/driver/driverPaymentSetup');
 const { setupProfileRoutes } = require('@setup/customer/profile/profileRouteSetup');
 const setupBooking = require('@setup/customer/bookingSetup');
 const setupRideRoutes = require('@setup/customer/rideSetup');
@@ -47,7 +56,6 @@ const setupSubscriptions = require('@setup/customer/subscriptionSetup');
 const { setupInDiningOrder } = require('@setup/customer/inDiningOrderSetup');
 const setupFriendSetup = require('@setup/customer/friendSetup');
 const { setupQuickLinkRoutes } = require('@setup/customer/quickLinkSetup');
-
 
 const REQUIRED_ENV = [
   'PORT',
@@ -172,15 +180,16 @@ async function startServer() {
     logRouterStack(app, 'setupOrder');
 
     logger.info('🍽️ Setting up in-dining order routes...');
-logger.debug('Resolved path for setupInDiningOrder:', require.resolve('@setup/customer/inDiningOrderSetup'));
-const setupInDiningOrder = require('@setup/customer/inDiningOrderSetup');
-logger.debug('Imported setupInDiningOrder:', setupInDiningOrder);
-if (typeof setupInDiningOrder !== 'function') {
-  logger.error('setupInDiningOrder is not a function:', setupInDiningOrder);
-  throw new Error('setupInDiningOrder import failed');
-}
-setupInDiningOrder(app, io);
-logRouterStack(app, 'setupInDiningOrder');
+    logger.debug('Resolved path for setupInDiningOrder:', require.resolve('@setup/customer/inDiningOrderSetup'));
+    const setupInDiningOrder = require('@setup/customer/inDiningOrderSetup');
+    logger.debug('Imported setupInDiningOrder:', setupInDiningOrder);
+    if (typeof setupInDiningOrder !== 'function') {
+      logger.error('setupInDiningOrder is not a function:', setupInDiningOrder);
+      throw new Error('setupInDiningOrder import failed');
+    }
+    setupInDiningOrder(app, io);
+    logRouterStack(app, 'setupInDiningOrder');
+    logger.info('In-dining order routes set up successfully');
 
     logger.info('📋 Setting up customer subscription routes...');
     setupSubscriptions(app);
@@ -190,7 +199,7 @@ logRouterStack(app, 'setupInDiningOrder');
     setupFriendSetup(app, io);
     logRouterStack(app, 'setupFriendSetup');
 
-    logger.info('🔗 Setting up customer quick link routes...'); // New setup
+    logger.info('🔗 Setting up customer quick link routes...');
     setupQuickLinkRoutes(app);
     logRouterStack(app, 'setupQuickLinkRoutes');
 
@@ -274,6 +283,26 @@ logRouterStack(app, 'setupInDiningOrder');
     setupStaffProfile(app);
     logRouterStack(app, 'setupStaffProfile');
 
+    logger.info('🚗 Setting up driver profile...');
+    setupDriverProfile(app);
+    logRouterStack(app, 'setupDriverProfile');
+
+    logger.info('⏰ Setting up driver availability...');
+    setupDriverAvailability(app);
+    logRouterStack(app, 'setupDriverAvailability');
+
+    logger.info('🚚 Setting up driver order routes...');
+    setupDriverOrder(app);
+    logRouterStack(app, 'setupDriverOrder');
+
+    logger.info('🚗 Setting up driver ride routes...');
+    setupDriverRide(app, server);
+    logRouterStack(app, 'setupDriverRide');
+
+    logger.info('💰 Setting up driver payment routes...');
+    setupDriverPayment(app);
+    logRouterStack(app, 'setupDriverPayment');
+
     logger.info('🔔 Setting up notification routes...');
     setupNotificationRoutes(app);
     logRouterStack(app, 'setupNotificationRoutes');
@@ -293,10 +322,6 @@ logRouterStack(app, 'setupInDiningOrder');
     logger.info('🌐 Setting up public profile...');
     setupPublicProfile(app);
     logRouterStack(app, 'setupPublicProfile');
-
-    logger.info('🚗 Setting up driver profile...');
-    setupDriverProfile(app);
-    logRouterStack(app, 'setupDriverProfile');
 
     app.use((req, res, next) => {
       if (req.headers['user-agent']?.includes('curl')) {

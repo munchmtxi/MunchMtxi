@@ -138,6 +138,26 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.JSONB,
       allowNull: true
     },
+    // New fields added for enhancements
+    status: {
+      type: DataTypes.ENUM('active', 'busy'),
+      allowNull: false,
+      defaultValue: 'active',
+    },
+    rating: {
+      type: DataTypes.DECIMAL,
+      allowNull: true,
+    },
+    total_rides: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    total_deliveries: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
     created_at: {
       type: DataTypes.DATE,
       allowNull: false,

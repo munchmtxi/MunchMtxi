@@ -72,6 +72,26 @@ module.exports = {
         type: Sequelize.JSONB,
         allowNull: true,
       },
+      // New columns added for enhanced functionality
+      status: {
+        type: Sequelize.ENUM('active', 'busy'),
+        allowNull: false,
+        defaultValue: 'active',
+      },
+      rating: {
+        type: Sequelize.DECIMAL,
+        allowNull: true,
+      },
+      total_rides: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+      },
+      total_deliveries: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+      },
       created_at: {
         type: Sequelize.DATE,
         allowNull: false,

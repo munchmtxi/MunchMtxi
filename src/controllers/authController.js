@@ -260,9 +260,9 @@ const driverLogin = catchAsync(async (req, res) => {
         email: result.user.email,
         phone: result.user.phone,
         country: result.user.country,
-        roleId: result.user.role_id,
+        roleId: result.user.role_id, // Now receives 3 from loginDriver
         isVerified: result.user.is_verified,
-        driver: result.user.driver,
+        driver: result.user.driver_profile, // Updated to match service naming
         createdAt: result.user.created_at,
         updatedAt: result.user.updated_at,
       },

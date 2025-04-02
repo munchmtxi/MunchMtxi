@@ -395,7 +395,7 @@ const loginDriver = async (email, password, deviceInfo) => {
     logger.info('Attempting driver login', { email, deviceInfo });
 
     const user = await User.scope(null).findOne({
-      where: { email, role_id: 3 }, // Assuming 3 is driver role_id
+      where: { email, role_id: 3 }, // 3 = driver from roles table
       include: [{ model: Driver, as: 'driver_profile', required: true }],
     });
 
@@ -437,7 +437,21 @@ const loginDriver = async (email, password, deviceInfo) => {
 
     logger.info('Driver login successful', { userId: user.id });
     return {
-      user: { ...user.toJSON(), driver: user.driver_profile },
+      user: {
+        id: user.id,
+        first_name: user.first_name, // Match controller naming
+        last_name: user.last_name,
+        email: user.email,
+        phone: user.phone,
+        country: user.country,
+        role_id: user.role_id, // Return role_id: 3 instead of role: 'driver'
+        is_verified: user.is_verified,
+        driver_profile: {
+          id: user.driver_profile.id,
+        },
+        created_at: user.created_at,
+        updated_at: user.updated_at,
+      },
       accessToken,
       refreshToken,
     };
@@ -455,13 +469,20 @@ const loginDriver = async (email, password, deviceInfo) => {
  */
 const logoutDriver = async (userId, deviceId) => {
   try {
-    const { Device } = getModels();
+    const { Device, Driver } = getModels();
+    const driver = await Driver.findOne({ where: { user_id: userId } });
+    if (!driver) {
+      logger.warn('Driver not found for logout', { userId });
+      throw new AppError('Driver not found', 404);
+    }
+
     const device = await Device.findOne({ where: { user_id: userId, device_id: deviceId } });
     if (device) {
       await TokenService.logoutUser(userId, deviceId);
-      logger.info('Driver logout successful', { userId, deviceId });
+      logger.info('Driver logout successful', { userId, deviceId, driverId: driver.id });
     } else {
       logger.warn('No matching device found, proceeding with logout', { userId, deviceId });
+      await TokenService.logoutUser(userId, deviceId); // Still clear token
     }
   } catch (error) {
     logger.error('Logout driver failed', { error: error.message, stack: error.stack });
