@@ -11,10 +11,7 @@ module.exports = {
       merchant_id: {
         type: Sequelize.INTEGER,
         allowNull: false,
-        references: {
-          model: 'merchants',
-          key: 'id',
-        },
+        references: { model: 'merchants', key: 'id' },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE',
       },
@@ -51,9 +48,6 @@ module.exports = {
       delivery_radius: {
         type: Sequelize.FLOAT,
         allowNull: true,
-        validate: {
-          min: 0,
-        },
       },
       is_active: {
         type: Sequelize.BOOLEAN,
@@ -68,19 +62,12 @@ module.exports = {
       media: {
         type: Sequelize.JSONB,
         allowNull: false,
-        defaultValue: {
-          logo: null,
-          banner: null,
-          gallery: [],
-        },
+        defaultValue: { logo: null, banner: null, gallery: [] },
       },
       geofence_id: {
         type: Sequelize.INTEGER,
         allowNull: true,
-        references: {
-          model: 'geofences',
-          key: 'id',
-        },
+        references: { model: 'geofences', key: 'id' },
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL',
       },
@@ -105,6 +92,7 @@ module.exports = {
       },
       two_factor_enabled: {
         type: Sequelize.BOOLEAN,
+        allowNull: false,
         defaultValue: false,
       },
       two_factor_secret: {
@@ -113,6 +101,7 @@ module.exports = {
       },
       login_attempts: {
         type: Sequelize.INTEGER,
+        allowNull: false,
         defaultValue: 0,
       },
       last_login_at: {
@@ -125,6 +114,7 @@ module.exports = {
       },
       trusted_devices: {
         type: Sequelize.JSONB,
+        allowNull: false,
         defaultValue: [],
       },
       autonomy_settings: {
@@ -199,14 +189,12 @@ module.exports = {
       },
     });
 
-    // Add unique index for branch_code
     await queryInterface.addIndex('merchant_branches', {
       fields: ['branch_code'],
       unique: true,
       name: 'merchant_branches_branch_code_unique',
     });
 
-    // Add GIST index for location (spatial data)
     await queryInterface.addIndex('merchant_branches', {
       fields: ['location'],
       using: 'GIST',
@@ -215,7 +203,6 @@ module.exports = {
   },
 
   down: async (queryInterface, Sequelize) => {
-    // Drop the merchant_branches table if the migration is rolled back
     await queryInterface.dropTable('merchant_branches');
   },
 };

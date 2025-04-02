@@ -1,15 +1,15 @@
 'use strict';
-const { Model, Sequelize } = require('sequelize');
+const { Model } = require('sequelize');
 module.exports = (sequelize, DataTypes) => {
   class Route extends Model {
     static associate(models) {
       // A Route can be linked to Orders and Drivers.
       Route.hasMany(models.Order, {
-        foreignKey: 'routeId',
+        foreignKey: 'route_id', // Match the Order model and database
         as: 'orders'
       });
       Route.hasMany(models.Driver, {
-        foreignKey: 'activeRouteId',
+        foreignKey: 'active_route_id', // Match the Driver model and database
         as: 'drivers'
       });
     }
@@ -65,7 +65,6 @@ module.exports = (sequelize, DataTypes) => {
     ],
     scopes: {
       active: {
-        // Returns routes created in the last 24 hours.
         where: sequelize.literal(`"routes"."created_at" >= NOW() - INTERVAL '24 hours'`)
       }
     }

@@ -1,7 +1,7 @@
 'use strict';
 const { Model } = require('sequelize');
 const libphonenumber = require('google-libphonenumber');
-const { logger } = require('@utils/logger'); // Add this import
+const { logger } = require('@utils/logger');
 
 module.exports = (sequelize, DataTypes) => {
   class MerchantBranch extends Model {
@@ -13,8 +13,8 @@ module.exports = (sequelize, DataTypes) => {
       this.hasMany(models.BranchMetrics, { foreignKey: 'branch_id', as: 'metrics' });
       this.hasMany(models.BranchActivity, { foreignKey: 'branch_id', as: 'activities' });
       this.belongsTo(models.Geofence, { foreignKey: 'geofence_id', as: 'geofence' });
-      this.hasMany(models.Order, { foreignKey: 'branch_id', as: 'orders' });
       this.hasMany(models.BranchInsights, { foreignKey: 'branch_id', as: 'insights' });
+      // Removed: this.hasMany(models.Order, { foreignKey: 'branch_id', as: 'orders' });
     }
   }
 
@@ -26,23 +26,23 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         references: { model: 'merchants', key: 'id' },
         onUpdate: 'CASCADE',
-        onDelete: 'CASCADE'
+        onDelete: 'CASCADE',
       },
       name: {
         type: DataTypes.STRING,
         allowNull: false,
-        validate: { notEmpty: { msg: 'Branch name is required' } }
+        validate: { notEmpty: { msg: 'Branch name is required' } },
       },
       branch_code: {
         type: DataTypes.STRING,
         allowNull: false,
         unique: true,
-        validate: { notEmpty: { msg: 'Branch code is required' } }
+        validate: { notEmpty: { msg: 'Branch code is required' } },
       },
       contact_email: {
         type: DataTypes.STRING,
         allowNull: false,
-        validate: { isEmail: { msg: 'Invalid email format' } }
+        validate: { isEmail: { msg: 'Invalid email format' } },
       },
       contact_phone: {
         type: DataTypes.STRING,
@@ -52,7 +52,7 @@ module.exports = (sequelize, DataTypes) => {
             const phoneUtil = libphonenumber.PhoneNumberUtil.getInstance();
             try {
               const number = phoneUtil.parseAndKeepRawInput(value, 'MW');
-              if (!phoneUtil.isPossibleNumber(number)) { // Less strict check
+              if (!phoneUtil.isPossibleNumber(number)) {
                 logger.error('Phone validation failed', {
                   input: value,
                   nationalNumber: number.getNationalNumber(),
@@ -65,8 +65,8 @@ module.exports = (sequelize, DataTypes) => {
               logger.error('Phone validation error:', { message: error.message, input: value });
               throw new Error('Invalid phone number format');
             }
-          }
-        }
+          },
+        },
       },
       address: { type: DataTypes.STRING, allowNull: false },
       location: { type: DataTypes.GEOMETRY('POINT'), allowNull: false },
@@ -85,8 +85,8 @@ module.exports = (sequelize, DataTypes) => {
                 }
               }
             }
-          }
-        }
+          },
+        },
       },
       delivery_radius: { type: DataTypes.FLOAT, allowNull: true, validate: { min: 0 } },
       is_active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
@@ -94,12 +94,12 @@ module.exports = (sequelize, DataTypes) => {
       media: {
         type: DataTypes.JSONB,
         allowNull: false,
-        defaultValue: { logo: null, banner: null, gallery: [] }
+        defaultValue: { logo: null, banner: null, gallery: [] },
       },
       geofence_id: {
         type: DataTypes.INTEGER,
         allowNull: true,
-        references: { model: 'geofences', key: 'id' }
+        references: { model: 'geofences', key: 'id' },
       },
       created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: sequelize.literal('CURRENT_TIMESTAMP') },
       updated_at: { type: DataTypes.DATE, allowNull: false, defaultValue: sequelize.literal('CURRENT_TIMESTAMP') },
@@ -114,17 +114,17 @@ module.exports = (sequelize, DataTypes) => {
       autonomy_settings: {
         type: DataTypes.JSONB,
         allowNull: false,
-        defaultValue: { order_management: false, inventory_management: false, pricing_control: false, staff_management: false }
+        defaultValue: { order_management: false, inventory_management: false, pricing_control: false, staff_management: false },
       },
       routing_preferences: {
         type: DataTypes.JSONB,
         allowNull: false,
-        defaultValue: { max_order_capacity: 100, delivery_radius: 5000, auto_accept_orders: true, priority_level: 1 }
+        defaultValue: { max_order_capacity: 100, delivery_radius: 5000, auto_accept_orders: true, priority_level: 1 },
       },
       real_time_metrics: {
         type: DataTypes.JSONB,
         allowNull: false,
-        defaultValue: { current_order_load: 0, available_delivery_slots: 100, avg_preparation_time: 0 }
+        defaultValue: { current_order_load: 0, available_delivery_slots: 100, avg_preparation_time: 0 },
       },
       reservation_settings: {
         type: DataTypes.JSONB,
@@ -154,11 +154,11 @@ module.exports = (sequelize, DataTypes) => {
           cancellation_deadline_hours: 2,
           late_cancellation_fee: null,
           no_show_fee: null,
-          special_requests_enabled: true
-        }
+          special_requests_enabled: true,
+        },
       },
       table_management_enabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
-      floorplan_layout: { type: DataTypes.JSONB, allowNull: true, comment: 'Visual layout of tables in the restaurant' }
+      floorplan_layout: { type: DataTypes.JSONB, allowNull: true, comment: 'Visual layout of tables in the restaurant' },
     },
     {
       sequelize,
@@ -168,8 +168,8 @@ module.exports = (sequelize, DataTypes) => {
       paranoid: true,
       indexes: [
         { unique: true, fields: ['branch_code'] },
-        { fields: ['location'], using: 'GIST' }
-      ]
+        { fields: ['location'], using: 'GIST' },
+      ],
     }
   );
 

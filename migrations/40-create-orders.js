@@ -22,10 +22,24 @@ module.exports = {
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE',
       },
+      branch_id: {
+        type: Sequelize.INTEGER,
+        allowNull: true,
+        references: { model: 'merchant_branches', key: 'id' },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL',
+      },
       driver_id: {
         type: Sequelize.INTEGER,
         allowNull: true,
         references: { model: 'drivers', key: 'id' },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL',
+      },
+      subscription_id: {
+        type: Sequelize.INTEGER,
+        allowNull: true,
+        references: { model: 'subscriptions', key: 'id' },
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL',
       },
@@ -135,7 +149,9 @@ module.exports = {
 
     await queryInterface.addIndex('orders', ['customer_id'], { name: 'orders_customer_id_index' });
     await queryInterface.addIndex('orders', ['merchant_id'], { name: 'orders_merchant_id_index' });
+    await queryInterface.addIndex('orders', ['branch_id'], { name: 'orders_branch_id_index' });
     await queryInterface.addIndex('orders', ['driver_id'], { name: 'orders_driver_id_index' });
+    await queryInterface.addIndex('orders', ['subscription_id'], { name: 'orders_subscription_id_index' });
     await queryInterface.addIndex('orders', ['order_number'], { name: 'orders_order_number_unique', unique: true });
     await queryInterface.addIndex('orders', ['currency'], { name: 'orders_currency_index' });
     await queryInterface.addIndex('orders', ['route_id'], { name: 'orders_route_id_index' });

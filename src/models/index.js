@@ -39,7 +39,7 @@ fs.readdirSync(__dirname)
 // Define model association order to handle dependencies correctly
 const associationOrder = [
   // Base/independent models first
-  'User', 'Customer', 'Merchant', 'Driver', 
+  'User', 'Customer', 'Merchant', 'Driver', 'Route', // Added Route here
   
   // Product and category models
   'MenuInventory', 'ProductCategory',
@@ -55,7 +55,7 @@ const associationOrder = [
   
   // Any remaining models not explicitly listed
   ...Object.keys(db).filter(model => 
-    !['User', 'Customer', 'Merchant', 'Driver', 'MenuInventory', 'ProductCategory', 
+    !['User', 'Customer', 'Merchant', 'Driver', 'Route', 'MenuInventory', 'ProductCategory', 
       'ProductPromotion', 'PromotionRule', 'Order', 'Payment', 'OrderItems', 
       'PromotionRedemption'].includes(model)
   )
