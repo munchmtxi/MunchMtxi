@@ -24,7 +24,7 @@ module.exports = (sequelize, DataTypes) => {
       // Added new association
       this.belongsTo(models.Route, {
         foreignKey: 'active_route_id',
-        as: 'activeRoute'
+        as: 'activeRoute',
       });
     }
 
@@ -107,36 +107,36 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
     },
     availability_status: {
-      type: DataTypes.ENUM('available', 'unavailable'),
+      type: DataTypes.ENUM('available', 'unavailable', 'busy'), // Updated to include 'busy'
       allowNull: false,
       defaultValue: 'available',
     },
     // Modified and added location tracking fields
     current_location: {
       type: DataTypes.JSONB,
-      allowNull: true
+      allowNull: true,
     },
     last_location_update: {
       type: DataTypes.DATE,
-      allowNull: true
+      allowNull: true,
     },
     active_route_id: {
       type: DataTypes.INTEGER,
       allowNull: true,
       references: {
         model: 'routes',
-        key: 'id'
+        key: 'id',
       },
       onUpdate: 'CASCADE',
-      onDelete: 'SET NULL'
+      onDelete: 'SET NULL',
     },
     service_area: {
       type: DataTypes.JSONB,
-      allowNull: true
+      allowNull: true,
     },
     preferred_zones: {
       type: DataTypes.JSONB,
-      allowNull: true
+      allowNull: true,
     },
     // New fields added for enhancements
     status: {
@@ -161,16 +161,16 @@ module.exports = (sequelize, DataTypes) => {
     created_at: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: sequelize.literal('CURRENT_TIMESTAMP')
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP'),
     },
     updated_at: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: sequelize.literal('CURRENT_TIMESTAMP')
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP'),
     },
     deleted_at: {
       type: DataTypes.DATE,
-      allowNull: true
+      allowNull: true,
     }
   }, {
     sequelize,
@@ -182,23 +182,47 @@ module.exports = (sequelize, DataTypes) => {
       {
         unique: true,
         fields: ['user_id'],
-        name: 'drivers_user_id_unique'
+        name: 'drivers_user_id_unique',
       },
       {
         unique: true,
         fields: ['phone_number'],
-        name: 'drivers_phone_number_unique'
+        name: 'drivers_phone_number_unique',
       },
       {
         unique: true,
         fields: ['license_number'],
-        name: 'drivers_license_number_unique'
+        name: 'drivers_license_number_unique',
       },
       {
         fields: ['active_route_id'],
-        name: 'drivers_active_route_id_index'
+        name: 'drivers_active_route_id_index',
       }
     ],
+  });
+
+  // Add hook to update availability_status based on DriverAvailability
+  Driver.addHook('afterUpdate', async (driver, options) => {
+    const now = new Date();
+    const currentDate = now.toISOString().split('T')[0];
+    const currentTime = now.toTimeString().split(' ')[0];
+    const { Op } = sequelize;
+    const { DriverAvailability } = sequelize.models;
+
+    const availability = await DriverAvailability.findOne({
+      where: {
+        driver_id: driver.id,
+        date: currentDate,
+        start_time: { [Op.lte]: currentTime },
+        end_time: { [Op.gte]: currentTime },
+      },
+      order: [['lastUpdated', 'DESC']],
+    });
+
+    if (availability) {
+      driver.availability_status = availability.status === 'available' ? 'available' : 'unavailable';
+      await driver.save({ hooks: false }); // Avoid infinite loop
+    }
   });
 
   return Driver;

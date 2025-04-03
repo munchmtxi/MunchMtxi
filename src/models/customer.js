@@ -29,6 +29,11 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'default_address_id',
         as: 'defaultAddress',
       });
+
+      this.hasMany(models.Ride, {  // Added
+        foreignKey: 'customerId',
+        as: 'rides',
+      });
     }
 
     format_phone_for_whatsapp() {

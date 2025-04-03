@@ -12,6 +12,10 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'active_route_id', // Match the Driver model and database
         as: 'drivers'
       });
+      Route.belongsTo(models.Ride, {
+        foreignKey: 'rideId',
+        as: 'ride' // Added association to Ride
+      });
     }
   }
   Route.init({
@@ -52,6 +56,17 @@ module.exports = (sequelize, DataTypes) => {
     trafficModel: {
       type: DataTypes.STRING,
       allowNull: true
+    },
+    rideId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'rides',
+        key: 'id',
+      },
+      onUpdate: 'CASCADE',
+      onDelete: 'SET NULL',
+      field: 'ride_id', // Added rideId field
     }
   }, {
     sequelize,

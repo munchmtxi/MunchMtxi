@@ -42,7 +42,8 @@ module.exports = {
         allowNull: true,
       },
       availability_status: {
-        type: Sequelize.ENUM('available', 'unavailable'),
+        // Updated enum to include 'busy'
+        type: Sequelize.ENUM('available', 'unavailable', 'busy'),
         allowNull: false,
         defaultValue: 'available',
       },

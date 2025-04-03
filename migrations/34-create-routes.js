@@ -40,6 +40,16 @@ module.exports = {
         type: Sequelize.STRING,
         allowNull: true,
       },
+      ride_id: {
+        type: Sequelize.INTEGER,
+        allowNull: true,
+        references: {
+          model: 'rides',
+          key: 'id',
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL',
+      },
       created_at: {
         type: Sequelize.DATE,
         allowNull: false,

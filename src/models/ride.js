@@ -20,6 +20,10 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'routeOptimizationId',
         as: 'routeOptimization',
       });
+      this.hasOne(models.Route, {
+        foreignKey: 'rideId',
+        as: 'route', // Added Route association
+      });
     }
   }
 
@@ -119,6 +123,17 @@ module.exports = (sequelize, DataTypes) => {
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL',
         field: 'route_optimization_id',
+      },
+      routeId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+          model: 'routes',
+          key: 'id',
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL',
+        field: 'route_id',
       },
       created_at: {
         type: DataTypes.DATE,

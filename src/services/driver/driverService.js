@@ -1,13 +1,14 @@
 'use strict';
 
-const { Driver, Ride, Route, Payment, Notification, DriverRatings, Device } = require('@models');
+const { Driver, Ride, Route, Payment, Notification, DriverRatings, Device, DriverAvailability, Customer } = require('@models');
 const PaymentService = require('@services/common/paymentService');
 const NotificationService = require('@services/notifications/core/notificationService');
-const TokenService = require('@services/common/tokenService'); // Assuming this is where your TokenService lives
+const TokenService = require('@services/common/tokenService');
 const Geolocation2Service = require('@services/geoLocation/Geolocation2Service');
 const AppError = require('@utils/AppError');
 const { logger, PerformanceMonitor } = require('@utils/logger');
 const mathUtils = require('@utils/mathUtils');
+const { Op } = require('sequelize');
 
 /**
  * DriverService handles the driver-side logic for ride-hailing operations,
@@ -22,11 +23,8 @@ const DriverService = {
   matchDriverToRide: async (rideId) => {
     logger.info('Matching driver to ride', { rideId });
 
-    // Fetch the ride with necessary details
     const ride = await Ride.findByPk(rideId, {
-      include: [
-        { model: Route, as: 'route', attributes: ['distance'] },
-      ],
+      include: [{ model: Route, as: 'route', attributes: ['distance'] }],
     });
     if (!ride) {
       logger.error('Ride not found for matching', { rideId });
@@ -37,18 +35,32 @@ const DriverService = {
       throw new AppError('Ride is not available for matching', 400);
     }
 
-    // Find available drivers
+    const now = new Date();
+    const currentDate = now.toISOString().split('T')[0];
+    const currentTime = now.toTimeString().split(' ')[0];
+
     const drivers = await Driver.findAll({
-      where: { availability_status: 'AVAILABLE' },
+      include: [{
+        model: DriverAvailability,
+        as: 'availability',
+        where: {
+          date: currentDate,
+          start_time: { [Op.lte]: currentTime },
+          end_time: { [Op.gte]: currentTime },
+          status: 'available',
+          isOnline: true,
+        },
+        required: true,
+      }],
       attributes: ['id', 'name', 'current_location', 'vehicle_info', 'last_location_update'],
       order: [['last_location_update', 'DESC']],
     });
+
     if (!drivers.length) {
       logger.warn('No available drivers found', { rideId });
       throw new AppError('No available drivers at this time', 503);
     }
 
-    // Calculate distances and match the closest driver
     const pickupCoords = ride.pickupLocation.coordinates;
     let closestDriver = null;
     let minDistance = Infinity;
@@ -68,7 +80,6 @@ const DriverService = {
       );
       logger.debug('Distance calculated', { driverId: driver.id, distance });
 
-      // Check vehicle compatibility
       const vehicleType = driver.vehicle_info.type;
       const isCompatible = DriverService.isVehicleCompatible(vehicleType, ride.rideType);
       if (!isCompatible) {
@@ -87,25 +98,22 @@ const DriverService = {
       throw new AppError('No compatible drivers available', 503);
     }
 
-    // Assign driver to ride
     ride.driverId = closestDriver.id;
     ride.status = 'ACCEPTED';
     await ride.save();
 
-    // Calculate route
     const route = await Geolocation2Service.calculateRouteForDriver(
       `${closestDriver.current_location.lat},${closestDriver.current_location.lng}`,
       ride.pickupLocation.address
     );
     await Route.create({
       rideId: ride.id,
-      distance: route.distance.value / 1000, // Convert meters to km
+      distance: route.distance.value / 1000,
       polyline: route.polyline,
     });
 
-    // Log the match
     logger.logApiEvent('Driver matched to ride', { rideId, driverId: closestDriver.id, distance: minDistance });
-    PerformanceMonitor.trackRequest('/driver/match', 'POST', 100, 200, closestDriver.id); // Example duration
+    PerformanceMonitor.trackRequest('/driver/match', 'POST', 100, 200, closestDriver.id);
 
     return { ride, driver: closestDriver, route };
   },
@@ -133,22 +141,42 @@ const DriverService = {
       throw new AppError('Ride cannot be accepted at this stage', 400);
     }
 
-    const driver = await Driver.findByPk(driverId);
-    if (!driver || driver.availability_status !== 'AVAILABLE') {
-      logger.warn('Driver unavailable or not found', { driverId });
+    const now = new Date();
+    const currentDate = now.toISOString().split('T')[0];
+    const currentTime = now.toTimeString().split(' ')[0];
+
+    const availability = await DriverAvailability.findOne({
+      where: {
+        driver_id: driverId,
+        date: currentDate,
+        start_time: { [Op.lte]: currentTime },
+        end_time: { [Op.gte]: currentTime },
+        status: 'available',
+        isOnline: true,
+      },
+    });
+
+    if (!availability) {
+      logger.warn('Driver not available or not found', { driverId });
       throw new AppError('Driver unavailable', 400);
     }
 
-    // Update ride status and driver availability
     ride.status = 'IN_PROGRESS';
-    driver.availability_status = 'BUSY';
-    await Promise.all([ride.save(), driver.save()]);
+    availability.status = 'busy';
+    availability.lastUpdated = now;
+    await Promise.all([ride.save(), availability.save()]);
 
-    // Notify customer
+    const driver = await Driver.findByPk(driverId);
+    const customer = await Customer.findByPk(ride.customerId);
+    if (!customer || !customer.user_id) {
+      logger.error('Customer user mapping not found', { customerId: ride.customerId });
+      throw new AppError('Customer user mapping not found', 400);
+    }
+
     await NotificationService.sendThroughChannel('WHATSAPP', {
       notification: { templateName: 'ride_accepted', parameters: { driverName: driver.name } },
       content: `Your ride has been accepted by ${driver.name}`,
-      recipient: ride.customerId, // Assuming customerId links to a user
+      recipient: customer.user_id, // Use user_id from Customer
     });
 
     logger.logApiEvent('Ride accepted by driver', { rideId, driverId });
@@ -185,47 +213,63 @@ const DriverService = {
       throw new AppError('Ride cannot be completed at this stage', 400);
     }
 
-    const driver = await Driver.findByPk(driverId);
-    if (!driver) {
-      logger.error('Driver not found', { driverId });
-      throw new AppError('Driver not found', 404);
+    const now = new Date();
+    const currentDate = now.toISOString().split('T')[0];
+    const currentTime = now.toTimeString().split(' ')[0];
+
+    const availability = await DriverAvailability.findOne({
+      where: {
+        driver_id: driverId,
+        date: currentDate,
+        start_time: { [Op.lte]: currentTime },
+        end_time: { [Op.gte]: currentTime },
+        status: 'busy',
+      },
+    });
+
+    if (!availability) {
+      logger.error('Driver availability record not found', { driverId });
+      throw new AppError('Driver availability record not found', 400);
     }
 
-    // Calculate fare (simplified; could integrate with RideBookingService.calculateFare)
     const baseFare = 5.0;
     const distanceFare = (ride.route?.distance || 0) * 1.5;
     const fare = mathUtils.roundToDecimal(baseFare + distanceFare, 2);
 
-    // Process payment
     const paymentData = {
       amount: fare,
       customer_id: ride.customerId,
       driver_id: driverId,
-      order_id: null, // No order for ride-hailing
+      order_id: null,
       merchant_id: null,
-      bank_name: 'DefaultBank', // Placeholder; adjust as needed
-      card_details: {}, // Placeholder; assumes pre-saved payment method
+      bank_name: 'DefaultBank',
+      card_details: {},
     };
     const payment = await PaymentService.initiateBankCardPayment(paymentData);
     await PaymentService.verifyPayment(payment.id);
 
     ride.paymentId = payment.id;
     ride.status = 'COMPLETED';
-    driver.availability_status = 'AVAILABLE';
-    await Promise.all([ride.save(), driver.save()]);
+    availability.status = 'available';
+    availability.lastUpdated = now;
+    await Promise.all([ride.save(), availability.save()]);
 
-    // Rate driver (example rating)
     await DriverRatings.create({
       driver_id: driverId,
       ride_id: rideId,
-      rating: 5.0, // Placeholder; could be customer-provided
+      rating: 5.0,
     });
 
-    // Notify customer
+    const customer = await Customer.findByPk(ride.customerId);
+    if (!customer || !customer.user_id) {
+      logger.error('Customer user mapping not found', { customerId: ride.customerId });
+      throw new AppError('Customer user mapping not found', 400);
+    }
+
     await NotificationService.sendThroughChannel('WHATSAPP', {
       notification: { templateName: 'ride_completed', parameters: { fare } },
       content: `Your ride is completed. Total fare: $${fare}`,
-      recipient: ride.customerId,
+      recipient: customer.user_id, // Use user_id from Customer
     });
 
     logger.logTransactionEvent('Ride completed and payment processed', { rideId, driverId, paymentId: payment.id, fare });
@@ -242,7 +286,7 @@ const DriverService = {
    */
   isVehicleCompatible(vehicleType, rideType) {
     const compatibility = {
-      BICYCLE: ['STANDARD'], // Example ride types
+      BICYCLE: ['STANDARD'],
       MOTORBIKE: ['STANDARD', 'QUICK'],
       CAR: ['STANDARD', 'PREMIUM'],
       VAN: ['GROUP'],

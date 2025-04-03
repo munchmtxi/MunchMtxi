@@ -2,10 +2,11 @@
 
 const passport = require('passport');
 const jwt = require('jsonwebtoken');
-const { Driver, Ride } = require('@models');
+const { Driver, Ride, DriverAvailability } = require('@models');
 const TokenService = require('@services/common/tokenService');
 const AppError = require('@utils/AppError');
 const { logger } = require('@utils/logger');
+const { Op } = require('sequelize');
 
 /**
  * DriverMiddleware provides authentication, authorization, and validation
@@ -28,21 +29,24 @@ const DriverMiddleware = {
         return next(new AppError('Authentication token required', 401));
       }
 
-      // Verify token
-      const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
-      logger.debug('Token decoded', { driverId: decoded.sub, jti: decoded.jti });
+      // Log the token and secret for debugging
+      logger.debug('Verifying token', { token, secret: process.env.JWT_SECRET });
 
-      // Check if token is blacklisted
-      const isBlacklisted = await TokenService.isTokenBlacklisted(decoded.sub);
+      // Verify token using JWT_SECRET (matches your current token signing)
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      logger.debug('Token decoded', { driverId: decoded.id, role: decoded.role, iat: decoded.iat });
+
+      // Check if token is blacklisted (adjust if TokenService uses different logic)
+      const isBlacklisted = await TokenService.isTokenBlacklisted(decoded.id);
       if (isBlacklisted) {
-        logger.warn('Blacklisted token used', { driverId: decoded.sub });
+        logger.warn('Blacklisted token used', { driverId: decoded.id });
         return next(new AppError('Token is no longer valid', 401));
       }
 
-      // Fetch driver
-      const driver = await Driver.findByPk(decoded.sub);
+      // Fetch driver using user_id (assuming Driver.user_id links to User.id)
+      const driver = await Driver.findOne({ where: { user_id: decoded.id } });
       if (!driver) {
-        logger.warn('Driver not found for token', { driverId: decoded.sub });
+        logger.warn('Driver not found for token', { driverId: decoded.id });
         return next(new AppError('Driver not found', 404));
       }
 
@@ -50,7 +54,7 @@ const DriverMiddleware = {
       req.driver = {
         id: driver.id,
         name: driver.name,
-        role: 'driver', // Hardcoded as this is driver-specific middleware
+        role: 'driver',
       };
       req.user = req.driver; // For compatibility with controllers expecting req.user
       next();
@@ -73,11 +77,10 @@ const DriverMiddleware = {
 
   /**
    * Ensures the driver owns the ride (i.e., is assigned to it).
-   * @param {string} paramId - The name of the ride ID parameter in req.params.
    */
   restrictToRideOwner: async (req, res, next) => {
     try {
-      const rideId = req.params[paramId] || req.params.rideId;
+      const rideId = req.params.rideId; // Fixed to match route param
       if (!rideId) {
         logger.warn('Ride ID not provided', { path: req.path });
         return next(new AppError('Ride ID required', 400));
@@ -94,7 +97,7 @@ const DriverMiddleware = {
         return next(new AppError('You are not assigned to this ride', 403));
       }
 
-      req.ride = ride; // Attach ride for downstream use
+      req.ride = ride;
       next();
     } catch (error) {
       logger.error('Ride ownership check failed', { error: error.message, rideId });
@@ -148,13 +151,13 @@ const DriverMiddleware = {
   rateLimitDriver: async (req, res, next) => {
     try {
       const key = `rate-limit:driver:${req.driver.id}`;
-      const limit = 100; // Example: 100 requests per hour
+      const limit = 100;
       const windowMs = 60 * 60 * 1000; // 1 hour
       const redisKey = `${key}:${Math.floor(Date.now() / windowMs)}`;
 
-      const currentCount = await TokenService.incrementRateLimit(redisKey); // Assumes TokenService has this method
+      const currentCount = await TokenService.incrementRateLimit(redisKey);
       if (currentCount === 1) {
-        await TokenService.setExpiration(redisKey, windowMs / 1000); // Set TTL
+        await TokenService.setExpiration(redisKey, windowMs / 1000);
       }
 
       if (currentCount > limit) {
@@ -174,9 +177,23 @@ const DriverMiddleware = {
    */
   ensureDriverAvailable: async (req, res, next) => {
     try {
-      const driver = await Driver.findByPk(req.driver.id);
-      if (driver.availability_status !== 'AVAILABLE') {
-        logger.warn('Driver not available', { driverId: req.driver.id, status: driver.availability_status });
+      const now = new Date();
+      const currentDate = now.toISOString().split('T')[0];
+      const currentTime = now.toTimeString().split(' ')[0];
+
+      const availability = await DriverAvailability.findOne({
+        where: {
+          driver_id: req.driver.id,
+          date: currentDate,
+          start_time: { [Op.lte]: currentTime },
+          end_time: { [Op.gte]: currentTime },
+          status: 'available',
+          isOnline: true,
+        },
+      });
+
+      if (!availability) {
+        logger.warn('Driver not available', { driverId: req.driver.id });
         return next(new AppError('Driver is currently unavailable', 400));
       }
       next();
@@ -188,8 +205,7 @@ const DriverMiddleware = {
 };
 
 /**
- * Helper method for TokenService to increment rate limit (if not already implemented).
- * This is a placeholder; you may need to adjust TokenService accordingly.
+ * Helper method for TokenService to increment rate limit.
  */
 TokenService.incrementRateLimit = async (key) => {
   const redis = require('ioredis');
@@ -200,7 +216,7 @@ TokenService.incrementRateLimit = async (key) => {
 };
 
 /**
- * Helper method for TokenService to set expiration (if not already implemented).
+ * Helper method for TokenService to set expiration.
  */
 TokenService.setExpiration = async (key, seconds) => {
   const redis = require('ioredis');

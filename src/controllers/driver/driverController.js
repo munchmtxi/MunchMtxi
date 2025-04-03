@@ -1,5 +1,6 @@
 'use strict';
 
+const { Ride, Route } = require('@models'); // Add Ride and Route imports
 const DriverService = require('@services/driver/driverService');
 const catchAsync = require('@utils/catchAsync');
 const { logger, PerformanceMonitor } = require('@utils/logger');
@@ -129,16 +130,16 @@ const DriverController = {
    * @route GET /api/v1/driver/rides/active
    */
   getActiveRide: catchAsync(async (req, res, next) => {
-    const driverId = req.user.id; // Assumes driver ID from auth middleware
+    const driverId = req.driver.id; // Use req.driver.id from middleware
     logger.info('Fetching active ride for driver', { driverId });
 
     const ride = await Ride.findOne({
       where: {
-        driverId,
-        status: ['ACCEPTED', 'IN_PROGRESS'],
+        driverId, // Matches column name in your Ride model
+        status: ['ACCEPTED', 'IN_PROGRESS'], // Adjust statuses as per your schema
       },
       include: [
-        { model: Route, as: 'route', attributes: ['distance', 'polyline'] },
+        { model: Route, as: 'route', attributes: ['distance', 'polyline'] }, // Include Route model
       ],
     });
 

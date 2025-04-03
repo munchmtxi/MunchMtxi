@@ -71,6 +71,16 @@ module.exports = {
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL',
       },
+      route_id: {
+        type: Sequelize.INTEGER,
+        allowNull: true,
+        references: {
+          model: 'routes',
+          key: 'id',
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL',
+      },
       created_at: {
         type: Sequelize.DATE,
         allowNull: false,
@@ -106,6 +116,7 @@ module.exports = {
       queryInterface.addIndex('rides', ['driver_id'], { name: 'rides_driver_id_idx' }),
       queryInterface.addIndex('rides', ['payment_id'], { name: 'rides_payment_id_idx' }),
       queryInterface.addIndex('rides', ['route_optimization_id'], { name: 'rides_route_optimization_id_idx' }),
+      queryInterface.addIndex('rides', ['route_id'], { name: 'rides_route_id_idx' }), // Added index for route_id
       queryInterface.addIndex('rides', ['status'], { name: 'rides_status_idx' }),
     ]);
   },
