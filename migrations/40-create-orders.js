@@ -1,6 +1,9 @@
 'use strict';
 module.exports = {
   up: async (queryInterface, Sequelize) => {
+    const { DataTypes } = Sequelize;
+
+    // Create the orders table
     await queryInterface.createTable('orders', {
       id: {
         type: Sequelize.INTEGER,
@@ -56,20 +59,9 @@ module.exports = {
         allowNull: false,
         unique: true,
       },
-      estimated_arrival: {
-        type: Sequelize.DATE,
-        allowNull: true,
-      },
+      estimated_arrival: { type: Sequelize.DATE, allowNull: true },
       status: {
-        type: Sequelize.ENUM(
-          'pending',
-          'confirmed',
-          'preparing',
-          'ready',
-          'out_for_delivery',
-          'completed',
-          'cancelled'
-        ),
+        type: Sequelize.ENUM('pending', 'confirmed', 'preparing', 'ready', 'out_for_delivery', 'completed', 'cancelled'),
         allowNull: false,
         defaultValue: 'pending',
       },
@@ -90,22 +82,10 @@ module.exports = {
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL',
       },
-      optimized_route_position: {
-        type: Sequelize.INTEGER,
-        allowNull: true,
-      },
-      estimated_delivery_time: {
-        type: Sequelize.DATE,
-        allowNull: true,
-      },
-      actual_delivery_time: {
-        type: Sequelize.DATE,
-        allowNull: true,
-      },
-      delivery_distance: {
-        type: Sequelize.DECIMAL,
-        allowNull: true,
-      },
+      optimized_route_position: { type: Sequelize.INTEGER, allowNull: true },
+      estimated_delivery_time: { type: Sequelize.DATE, allowNull: true },
+      actual_delivery_time: { type: Sequelize.DATE, allowNull: true },
+      delivery_distance: { type: Sequelize.DECIMAL, allowNull: true },
       created_at: {
         type: Sequelize.DATE,
         allowNull: false,
@@ -123,6 +103,7 @@ module.exports = {
       applied_promotions: {
         type: Sequelize.JSON,
         allowNull: true,
+        comment: 'JSON array of applied promotion details',
       },
       total_discount: {
         type: Sequelize.DECIMAL(10, 2),
@@ -132,21 +113,24 @@ module.exports = {
       routing_info: {
         type: Sequelize.JSONB,
         allowNull: true,
-        defaultValue: {
-          original_branch_id: null,
-          routed_branch_id: null,
-          routing_timestamp: null,
-          routing_reason: null,
-          routing_metrics: { distance: null, estimated_time: null, branch_load: null },
-        },
+        defaultValue: { original_branch_id: null, routed_branch_id: null, routing_timestamp: null, routing_reason: null, routing_metrics: { distance: null, estimated_time: null, branch_load: null } },
       },
       routing_history: {
         type: Sequelize.JSONB,
         allowNull: true,
         defaultValue: [],
       },
+      // New field for staff assignment
+      staff_id: {
+        type: Sequelize.INTEGER,
+        allowNull: true,
+        references: { model: 'staff', key: 'id' },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL',
+      },
     });
 
+    // Add indexes
     await queryInterface.addIndex('orders', ['customer_id'], { name: 'orders_customer_id_index' });
     await queryInterface.addIndex('orders', ['merchant_id'], { name: 'orders_merchant_id_index' });
     await queryInterface.addIndex('orders', ['branch_id'], { name: 'orders_branch_id_index' });
@@ -158,6 +142,8 @@ module.exports = {
   },
 
   down: async (queryInterface, Sequelize) => {
+    // Drop the orders table
     await queryInterface.dropTable('orders');
+    // Optionally, drop ENUM types if needed
   },
 };

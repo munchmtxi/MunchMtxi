@@ -1,3 +1,5 @@
+'use strict';
+
 /**
  * Logger Module for the Black Lotus Clan
  *
@@ -238,11 +240,23 @@ class PerformanceMonitor {
       endpoints: new Map(),
       performance: new Map()
     };
-    /**
-     * Retention period for metrics in milliseconds.
-     * @type {number}
-     */
     this.retentionPeriod = 3600000; // 1 hour
+  }
+
+  /**
+   * Starts a performance measurement.
+   * @param {string} operation - The operation being measured.
+   * @returns {Object} An object with an `end` method to stop the measurement.
+   */
+  start(operation) {
+    const startTime = Date.now();
+    return {
+      end: () => {
+        const duration = Date.now() - startTime;
+        this.recordMetric(operation, duration, { operation });
+        logger.debug(`${operation} took ${duration}ms`);
+      }
+    };
   }
 
   /**
@@ -277,7 +291,6 @@ class PerformanceMonitor {
     const key = `${method}:${endpoint}`;
     const now = Date.now();
 
-    // Update endpoint metrics
     const endpointMetrics = this.apiMetrics.endpoints.get(key) || {
       count: 0,
       totalDuration: 0,
@@ -290,11 +303,9 @@ class PerformanceMonitor {
     endpointMetrics.totalDuration += duration;
     endpointMetrics.timestamps.push(now);
 
-    // Update status codes
     const statusCount = endpointMetrics.statusCodes.get(status) || 0;
     endpointMetrics.statusCodes.set(status, statusCount + 1);
 
-    // Update user counts
     const userCount = endpointMetrics.userCounts.get(userId) || 0;
     endpointMetrics.userCounts.set(userId, userCount + 1);
 
@@ -449,5 +460,5 @@ module.exports = {
   logVerboseEvent,
   logWithCorrelation,
   logDeprecation,
-  PerformanceMonitor: performanceMonitor
+  PerformanceMonitor: performanceMonitor // Export the instance
 };

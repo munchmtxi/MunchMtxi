@@ -1,0 +1,271 @@
+MUNCH MTXI STAFF OPERATIONS SUITE
+A real-time, comprehensive staff management system designed to empower merchants and staff with tools for performance tracking, task management, profile control, availability scheduling, device integration, and driver coordination. Built with Sequelize models and real-time controllers, this suite integrates with merchant workflows (e.g., orders, bookings, in-dining orders, table management, customer service requests, and driver-managed deliveries) for seamless operations across all roles, including mobile and branch-specific functionalities.
+
+Sources Used:
+Sequelize Models: Staff, StaffPermissions, Order, InDiningOrder, Booking, Notification, Merchant, MerchantBranch, BranchRole, User, TableLayoutSection, Table, Permission, MenuInventory, Device, Driver, Route, Payment, DriverRatings (for data structure and associations).
+Real-Time Controllers: staffRecruitmentController.js, staffRoleManagementController.js, staffRemovalController.js, staffPerformanceController.js, staffReportController.js, DriverOrderController (for real-time functionality).
+Services: QuickLinkService, OrderService, InDiningOrderService, bookingService, DriverOrderService, PaymentService, NotificationService, TokenService, Geolocation1Service, Geolocation2Service (for customer-facing interactions, staff task triggers, and driver coordination).
+Middleware: DriverOrderMiddleware (for authentication, authorization, and validation).
+Utilities: AppError, logger, PerformanceMonitor (for error handling, logging, and performance tracking).
+Updated Features: Enhanced with gamification, feedback loops, mobile integration, table management, device tracking, customer service integration, and driver order management from the latest input.
+1. Staff Report Management
+1.1 Staff Report Management Controller (staffReportController.js)
+Empowers merchants and HR to create and review detailed staff performance reports, capturing key performance indicators (KPIs) vital for operational success. Integrates with Staff, Order, InDiningOrder, Table, Notification, Device, Driver, and Route models for comprehensive data, including driver-related and device-specific performance metrics.
+
+✅ Key Features:
+
+Generate Performance Report:
+Summarizes metrics: tasks completed (Order.status = 'completed' or InDiningOrder.status = 'closed'), hours worked (calculated from Staff.created_at and shift logs in Staff.work_location), tips earned (Order.total_amount or InDiningOrder.total_amount with custom tip field from InDiningOrderService.addTip), task completion rate (derived from Order, InDiningOrder, or Table.status updates), average task time (Order.estimated_delivery_time vs. actual_delivery_time or InDiningOrderService.calculateETA), driver coordination efficiency (DriverOrderService.assignOrder completion times), and customer feedback scores (Notification.message linked to Order, InDiningOrder, DriverRatings, or QuickLinkService.requestBill).
+Includes device usage stats: active devices (Device.last_active_at, Device.platform), network performance (Device.network_type, Device.connection_quality), and task efficiency per device type, with driver device tracking (Driver linked to Device).
+Features gamification: badges and leaderboards stored in Staff.performance_metrics (JSONB field) for staff and driver-related tasks.
+Source: Staff, Order, InDiningOrder, Table, Notification, Device, Driver, Route, DriverRatings models; staffPerformanceController.js, DriverOrderController for real-time data; QuickLinkService, InDiningOrderService, DriverOrderService for interactions.
+Efficiency Insights:
+Analyzes trends in productivity (task completion rates), punctuality (Staff.created_at vs. shift start in Staff.work_location), work quality (feedback from Notification, Table.status, or DriverRatings), device reliability (Device.connection_quality, Device.hardware_concurrency), and driver assignment efficiency (Route.duration, Driver.availability_status).
+Provides visual tools (charts, graphs) via integrated libraries, enhanced with PerformanceMonitor metrics.
+Source: staffReportController.js, Staff, Notification, Table, Device, Driver, Route models; PerformanceMonitor.
+Export Staff Report PDF:
+Creates detailed reports (weekly, monthly, quarterly) with visualizations (bar charts, pie charts, heatmaps) from performance data, including table assignments (TableLayoutSection.assigned_staff_id), branch-specific metrics (MerchantBranch.real_time_metrics), and driver delivery stats (Route.distance, Order.actual_delivery_time).
+Formats for compliance/appraisals with optional digital signatures or watermarks (stored in Staff.metadata).
+Source: staffReportController.js, Staff, TableLayoutSection, MerchantBranch, Driver, Route.
+Schedule Staff Reports:
+Automates report generation and delivery via email (Notification linked to User.email) or WhatsApp (NotificationService.sendThroughChannel) at set intervals, with customizable recipient lists, including driver performance updates.
+Source: Notification, Device, MerchantBranch, Driver models; staffReportController.js, NotificationService.
+View Staff Report:
+Offers real-time, mobile-friendly dashboards for staff to track KPIs (Staff linked to Order, InDiningOrder, Table, Driver, or Device), monitor progress, and set goals (stored in Staff.performance_metrics), with driver coordination visibility.
+Source: staffReportController.js, Staff, Order, InDiningOrder, Table, Device, Driver, Route models.
+🛠 Implementation Checklist:
+
+Build endpoints for fetching, computing, and exporting metrics (staffReportController.js, DriverOrderController).
+Integrate visualization libraries (e.g., Chart.js) for charts/graphs, enhanced with PerformanceMonitor.
+Add scheduling and multi-channel notification features (Notification, NotificationService, QuickLinkService).
+Enable digital signatures/watermarks for PDFs (Staff.metadata).
+Create a responsive dashboard for real-time viewing (Staff, Order, InDiningOrder, Table, Device, Driver data).
+2. Task Assignment & Management
+2.1 Task Assignment & Management Controller
+Streamlines task distribution and tracking, ensuring precision in assigning, monitoring, and completing tasks—including incoming orders (Order), diner requests (InDiningOrder), bookings (Booking), table management (Table, TableLayoutSection), customer service requests (QuickLinkService), and driver-related workflows (DriverOrderService). Uses staffRoleManagementController.js and DriverOrderController for real-time updates.
+
+✅ Key Features:
+
+Receive Assigned Tasks:
+Displays task details: description (Order.items, InDiningOrder.orderItems, QuickLinkService.callStaff.requestType, or DriverOrderService.assignOrder details), priority (Notification.priority), deadlines (Order.estimated_delivery_time, InDiningOrderService.calculateETA, Booking.booking_time, or Route.duration), and resources (e.g., MerchantBranch.location, TableLayoutSection.position, Device.platform, or Driver.current_location).
+Includes real-time tasks like orders (OrderService.notifyMerchant), diner requests (InDiningOrderService.addItem), bookings (bookingService.reserveTable), table assignments (Table.status), staff assistance requests (QuickLinkService.callStaff), and driver pickups (DriverOrderService.confirmPickup), with an optional calendar view (Booking.booking_date).
+Source: Order, InDiningOrder, Booking, Table, TableLayoutSection, Notification, Device, MerchantBranch, Driver, Route models; OrderService, InDiningOrderService, bookingService, QuickLinkService, DriverOrderService.
+Task Categorization:
+Groups tasks (e.g., delivery prep, driver handoff, preparation, cleaning, table service, bill requests) with color-coding or labels for urgency (Order.status, InDiningOrder.preparation_status, Table.status, QuickLinkService.requestBill, or Driver.availability_status).
+Source: Order, InDiningOrder, Table, MerchantBranch, Driver models.
+Accept/Reject Tasks:
+Allows staff to confirm or decline tasks with reasons logged in Order.notes, InDiningOrder.notes, or a custom field, plus optional deadline negotiation via WebSocket (staffRoleManagementController.js), including driver-related tasks (DriverOrderService.assignOrder).
+Source: staffRoleManagementController.js, Order, InDiningOrder, Driver models.
+Task Reassignment:
+Auto-reassigns declined tasks to available staff (Staff with availability_status or TableLayoutSection.assigned_staff_id) or drivers (Driver with availability_status = 'AVAILABLE'), alerting admins (Notification), factoring in device capabilities (Device.hardware_concurrency) and branch load (MerchantBranch.real_time_metrics), with an optional “swap task” feature.
+Source: staffRoleManagementController.js, Staff, TableLayoutSection, Device, MerchantBranch, Driver models; DriverOrderService.
+Complete Tasks:
+Lets staff mark tasks as done (Order.status = 'completed', InDiningOrder.status = 'closed', Table.status = 'available', QuickLinkService.checkIn, or DriverOrderService.confirmPickup completion), updating workflows. Optional sub-task checklists stored in Order.items, InDiningOrder.orderItems, or a custom JSONB field.
+Source: Order, InDiningOrder, Table, MerchantBranch, Driver models; QuickLinkService, DriverOrderService.
+Post-Completion Actions:
+Triggers payments (Order.payment_status = 'paid', InDiningOrder.payment_status = 'paid' via InDiningOrderService.payOrder, or PaymentService.processDriverPayment), tips, or bonuses (Staff.performance_metrics), with options for staff notes (Order.notes, InDiningOrder.notes) and customer ratings (Notification, OrderService.requestFeedback, or DriverRatings).
+Source: Order, InDiningOrder, Notification, Staff, Device, Driver, Payment, DriverRatings models; OrderService, InDiningOrderService, QuickLinkService, DriverOrderService, PaymentService.
+🛠 Implementation Checklist:
+
+Create endpoints for fetching, updating, and reassigning tasks (staffRoleManagementController.js, DriverOrderController).
+Add accept/reject functionality with logging (Order.notes, InDiningOrder.notes).
+Automate workflow updates and follow-up actions (Order, InDiningOrder, Notification, QuickLinkService, DriverOrderService).
+Develop optional calendar views (Booking), task swapping, and checklists (Order.items, InDiningOrder.orderItems).
+3. Staff Profile Management
+3.1 Profile Management Controller
+Gives staff control over personal info, security settings, and device management, ensuring accurate data and secure account operations, with driver-specific profile enhancements. Leverages Staff, User, Permission, Device, and Driver models.
+
+✅ Key Features:
+
+Update Personal Info:
+Edit User.first_name, User.last_name, User.email, User.phone, Staff.position, and upload documents to Staff.assigned_area, with optional verification (User.is_verified).
+Source: Staff, User models.
+Vehicle Information (For Delivery Staff or Drivers):
+Manage vehicle details (license plate, make, model) and maintenance records in Staff.work_location, Driver custom JSONB field, or linked to delivery tasks (OrderService.assignDriver, DriverOrderService.assignOrder).
+Source: Staff, Driver models; OrderService, DriverOrderService.
+Change Password:
+Securely update User.password with bcrypt hashing (User hooks), verification, and strong password rules, plus confirmation via NotificationService.sendThroughChannel (e.g., WhatsApp, SMS).
+Source: User, Notification, Device models; NotificationService.
+Toggle Two-Factor Authentication (2FA):
+Enable/disable 2FA (User.two_factor_secret, MerchantBranch.two_factor_enabled, or Device.remember_token) via SMS, email, or apps (NotificationService), with change notifications and device tracking (Device.trusted_devices, TokenService.validateRememberToken).
+Source: User, MerchantBranch, Notification, Device models; NotificationService, TokenService.
+Permission Overview:
+Displays assigned permissions (StaffPermissions linked to Permission.action and Permission.resource) for transparency on role capabilities, including branch-specific autonomy (MerchantBranch.autonomy_settings) and driver task permissions.
+Source: StaffPermissions, Permission, MerchantBranch models.
+Device Management:
+Registers and tracks staff/driver devices (Device.device_id, Device.platform, Device.last_active_at) for task assignments and notifications, with options to remove untrusted devices (Device.remember_token_expires_at, TokenService.clearRememberToken).
+Source: Device, Driver models; QuickLinkService, OrderService, DriverOrderService, TokenService.
+🛠 Implementation Checklist:
+
+Build secure endpoints for updating info, vehicle details, and device registration (Staff, User, Device, Driver).
+Validate uploaded document sizes/formats (Staff.assigned_area).
+Create password change endpoints with strength checks (User hooks, NotificationService).
+Implement 2FA toggling with notifications and device trust management (NotificationService, MerchantBranch, Device, TokenService).
+Add permission and device display logic (StaffPermissions, Permission, Device).
+4. Availability & Shift Management
+4.1 Availability & Shift Management Controller
+Manages staff and driver availability and shifts in real time, balancing workloads while accommodating incoming orders (Order), diner requests (InDiningOrder), bookings (Booking), table assignments (TableLayoutSection), customer service tasks (QuickLinkService), and driver deliveries (DriverOrderService). Uses staffRoleManagementController.js and DriverOrderController.
+
+✅ Key Features:
+
+Set Availability Status:
+Staff/drivers mark themselves as “Available,” “Busy,” “On Break,” or “Offline” in Staff.availability_status or Driver.availability_status, with optional geolocation statuses like “On Route” (Staff.geofence_id, Driver.current_location, or Device.network_type) for delivery (OrderService.assignDriver, DriverOrderService.assignOrder).
+Updates reflect capacity for orders/bookings/tables (TableLayoutSection.assigned_staff_id) and branch/driver load (MerchantBranch.real_time_metrics, Driver.active_route_id).
+Source: Staff, TableLayoutSection, Device, MerchantBranch, Driver, Route models; OrderService, DriverOrderService.
+Real-Time Updates:
+Instantly shares availability with merchants/admins via WebSocket (staffRoleManagementController.js, DriverOrderController), with device-specific push notifications (Device.preferred_response_format, NotificationService.sendThroughChannel) and an optional “Do Not Disturb” mode (Staff/Driver custom field).
+Source: staffRoleManagementController.js, DriverOrderController, Device, NotificationService.
+Manage Shifts:
+Allows shift coordination, requests, and swaps (Booking.booking_date, TableLayoutSection assignments, MerchantBranch.operating_hours, or Driver schedules), with an optional bidding system (Staff/Driver custom field) and branch-specific settings (MerchantBranch.reservation_settings).
+Source: Booking, TableLayoutSection, MerchantBranch, Driver models; bookingService.
+Shift Notifications:
+Sends auto-notifications (NotificationService) for scheduled shifts, changes, or cancellations (e.g., bookingService.cancelBooking, DriverOrderService.assignOrder), with reminders (15–30 minutes prior) via preferred channels (Device.preferred_language).
+Source: Notification, Device, Driver models; QuickLinkService, NotificationService.
+Conflict Resolution:
+Flags scheduling conflicts (Booking vs. Staff/Driver availability, TableLayoutSection overlaps, or MerchantBranch.real_time_metrics.capacity_alert_threshold) for admin review and offers resolution tools, including driver route conflicts (Route overlap).
+Source: Booking, Staff, TableLayoutSection, MerchantBranch, Driver, Route models.
+🛠 Implementation Checklist:
+
+Build endpoints for availability updates and shift management (staffRoleManagementController.js, DriverOrderController).
+Add real-time push notifications for schedules (NotificationService, Device).
+Implement conflict detection and resolution tools (Booking, Staff, TableLayoutSection, MerchantBranch, Driver, Route).
+Optionally include “Do Not Disturb” mode and reminders (NotificationService, Device).
+5. Additional Features & Enhancements
+5.1 Performance Incentives
+Boosts morale and productivity with rewards for top performance, tracked via staffPerformanceController.js and DriverOrderController.
+
+✅ Key Features:
+
+Reward System:
+Awards points/bonuses for efficient task completion (Order.status = 'completed', InDiningOrder.status = 'closed', Table.status updates, QuickLinkService.checkIn, or DriverOrderService.completeOrder) and positive feedback (Notification, OrderService.requestFeedback, DriverRatings), redeemable for gift cards, time off, or cash (Staff.performance_metrics).
+Includes tips from customer payments (InDiningOrderService.addTip, PaymentService.processDriverPayment).
+Source: Order, InDiningOrder, Table, Notification, Staff, Driver, Payment, DriverRatings models; OrderService, InDiningOrderService, QuickLinkService, DriverOrderService, PaymentService.
+Tiered Rewards:
+Offers levels (Bronze, Silver, Gold) based on performance metrics (Staff.performance_metrics), factoring in device usage (Device.last_used_at) and driver delivery efficiency (Route.duration).
+Source: staffPerformanceController.js, DriverOrderController, Device, Driver, Route.
+🛠 Implementation Checklist:
+
+Build a reward system with point tracking/redemption (Staff, Driver).
+Log metrics to trigger rewards and track tiers (staffPerformanceController.js, DriverOrderController, Device).
+5.2 Training & Development
+Supports staff and driver growth with accessible training modules.
+
+✅ Key Features:
+
+Skill Development:
+Provides courses (e.g., customer service, time management, table management, device troubleshooting, driver safety) via the platform (future Training model or Staff/Driver extension), tailored to branch needs (MerchantBranch.autonomy_settings).
+Source: Custom extension of Staff, Driver, MerchantBranch models.
+Progress Tracking:
+Monitors completion and awards certifications/badges (Staff.performance_metrics), with device compatibility checks (Device.supported_apis) and driver-specific training validation.
+Source: Future Training model, Staff, Driver, Device.
+🛠 Implementation Checklist:
+
+Develop training modules for the staff/driver dashboard.
+Track progress and issue certificates/badges (Staff, Driver, Device).
+5.3 Feedback Loop
+Improves performance and service quality with continuous feedback.
+
+✅ Key Features:
+
+Customer Feedback Integration:
+Shows real-time feedback/ratings (Notification.message linked to Order, InDiningOrder, Table, DriverRatings, or OrderService.requestFeedback) in staff reports (staffReportController.js), including customer service (QuickLinkService) and driver interactions.
+Source: Notification, Order, InDiningOrder, Table, DriverRatings models; OrderService, QuickLinkService, DriverOrderService.
+Actionable Insights:
+Offers improvement recommendations based on feedback (Staff.performance_metrics), device performance (Device.connection_quality), branch metrics (MerchantBranch.real_time_metrics), and driver efficiency (Route.distance, DriverOrderService.trackDelivery).
+Source: staffReportController.js, Device, MerchantBranch, Driver, Route.
+Anonymous Feedback Options:
+Enables honest, anonymous reviews (Notification with anonymized sender) via multiple channels (Device.preferred_response_format, NotificationService.sendThroughChannel).
+Source: Notification, Device models; NotificationService.
+🛠 Implementation Checklist:
+
+Create endpoints for fetching/displaying feedback (Notification, DriverRatings).
+Develop tools for insights and recommendations (staffReportController.js, Device, MerchantBranch, Driver).
+5.4 Mobile App Integration
+Ensures all features are accessible on the go via a mobile app, leveraging device-specific capabilities for staff and drivers.
+
+✅ Key Features:
+
+Mobile-Friendly Interface:
+Optimizes dashboards for mobile task management (Order, InDiningOrder, Table, DriverOrderService.trackDelivery), report viewing (staffReportController.js), profile updates (Staff/User/Driver), and device settings (Device.platform, Device.screen_resolution).
+Source: All models and controllers; Device, Driver.
+Push Notifications:
+Sends real-time alerts for tasks (QuickLinkService.callStaff, DriverOrderService.assignOrder), shifts (bookingService.checkInBooking), and performance updates (NotificationService), tailored to device preferences (Device.preferred_language, Device.supports_webp).
+Source: Notification, Device, Driver models; QuickLinkService, bookingService, NotificationService.
+🛠 Implementation Checklist:
+
+Develop mobile-responsive views for all modules, optimizing for device specs (Device).
+Integrate push notifications for real-time alerts (NotificationService, Device).
+5.5 Table Management Integration
+Enhances staff operations with real-time table assignment and tracking, tied to customer bookings, in-dining workflows, and driver pickups.
+
+✅ Key Features:
+
+Table Assignment:
+Assigns staff to tables or sections (TableLayoutSection.assigned_staff_id, Table.status) based on availability (Staff.availability_status), geolocation (Staff.geofence_id, Device.network_type), and branch settings (MerchantBranch.table_management_enabled), with driver pickup coordination (DriverOrderService.confirmPickup).
+Source: TableLayoutSection, Table, Staff, Device, MerchantBranch, Driver models; bookingService, DriverOrderService.
+Table Status Updates:
+Tracks table states (Table.status: available, reserved, occupied, maintenance) and links to in-dining orders (InDiningOrder.table_id), bookings (bookingService.checkInBooking), and driver handoffs (Order.status = 'OUT_FOR_DELIVERY').
+Source: Table, InDiningOrder, MerchantBranch, Driver models; bookingService, QuickLinkService, DriverOrderService.
+Floor Plan Visualization:
+Displays table layouts (TableLayoutSection.position, MerchantBranch.floorplan_layout) for staff to manage seating efficiently, with real-time updates from customer check-ins (QuickLinkService.checkIn) and driver pickups (DriverOrderService.confirmPickup).
+Source: TableLayoutSection, MerchantBranch, Driver models; QuickLinkService, DriverOrderService.
+🛠 Implementation Checklist:
+
+Build endpoints for table assignment and status updates (staffRoleManagementController.js, DriverOrderController).
+Integrate floor plan visualization (TableLayoutSection, MerchantBranch).
+Link table management to in-dining, booking, and driver workflows (InDiningOrder, bookingService, QuickLinkService, DriverOrderService).
+5.6 Customer Service Integration
+Enhances staff responsiveness to customer requests, integrating real-time service triggers and driver coordination.
+
+✅ Key Features:
+
+Check-In Handling:
+Assigns staff to handle customer check-ins (QuickLinkService.checkIn), updating booking status (Booking.status = 'seated') and notifying staff via NotificationService (e.g., WhatsApp).
+Source: Booking, Table, Staff, Notification, Device models; QuickLinkService, NotificationService.
+Staff Assistance Requests:
+Alerts staff to customer requests (QuickLinkService.callStaff) with details (e.g., table number, request type), tracked in Notification and linked to Table.status, with driver pickup notifications (DriverOrderService.confirmPickup).
+Source: Table, Notification, Staff, Device, Driver models; QuickLinkService, DriverOrderService.
+Bill Processing:
+Notifies staff of bill requests (QuickLinkService.requestBill), facilitating payment processing (InDiningOrder.payment_status, PaymentService.processDriverPayment) and tip allocation (InDiningOrderService.addTip), with driver completion updates (DriverOrderService.completeOrder).
+Source: InDiningOrder, Notification, Staff, Device, Driver, Payment models; QuickLinkService, InDiningOrderService, DriverOrderService, PaymentService.
+🛠 Implementation Checklist:
+
+Build endpoints for handling check-ins, assistance requests, bill processing, and driver coordination (staffRoleManagementController.js, DriverOrderController).
+Integrate real-time notifications for customer service tasks (NotificationService, Device, QuickLinkService).
+Link payment and tip workflows to staff/driver actions (InDiningOrder, QuickLinkService, DriverOrderService, PaymentService).
+5.7 Driver Order Management Integration
+Enables staff to coordinate with drivers for order pickups and deliveries, leveraging DriverOrderService and related infrastructure.
+
+✅ Key Features:
+
+Driver Assignment:
+Staff initiate driver assignment (DriverOrderService.assignOrder) for delivery orders, selecting drivers based on availability (Driver.availability_status = 'AVAILABLE'), proximity (Driver.current_location via Geolocation2Service), and device readiness (Device.last_active_at).
+Updates Order.driver_id, Route.id, and notifies drivers/customers via NotificationService.sendThroughChannel.
+Source: Order, Driver, Route, Notification, Device models; DriverOrderService, Geolocation2Service, NotificationService.
+Pickup Confirmation:
+Staff confirm order readiness for pickup, triggering DriverOrderService.confirmPickup with driver validation (TokenService.verifyToken), updating Order.status = 'OUT_FOR_DELIVERY' and notifying customers.
+Source: Order, Driver, Notification, Device models; DriverOrderService, TokenService, NotificationService.
+Delivery Tracking:
+Staff monitor driver progress (DriverOrderService.trackDelivery), viewing real-time updates (Driver.current_location, validated by Geolocation1Service) and ensuring delivery accuracy.
+Logs tracked via logger.logApiEvent and PerformanceMonitor.trackRequest.
+Source: Order, Driver, Route, Device models; DriverOrderService, Geolocation1Service, logger, PerformanceMonitor.
+Order Completion:
+Staff finalize delivery orders upon driver completion (DriverOrderService.completeOrder), processing payments (PaymentService), updating Order.status = 'COMPLETED', and notifying customers (NotificationService).
+Source: Order, Driver, Payment, Notification, Device models; DriverOrderService, PaymentService, NotificationService.
+Driver Order Overview:
+Provides staff with a dashboard to view all driver-assigned orders (Order with driver_id), routes (Route), and statuses, accessible via the GET / route in driverOrderRoutes.
+Source: Order, Driver, Route, Device models; DriverOrderController.
+🛠 Implementation Checklist:
+
+Build endpoints for driver assignment, pickup confirmation, tracking, and completion (DriverOrderController).
+Integrate geolocation services for route calculation and validation (Geolocation1Service, Geolocation2Service).
+Add real-time notifications for driver workflows (NotificationService, Device).
+Develop a driver order overview dashboard (Order, Driver, Route).
+Summary of Sources and Usage
+Sequelize Models: Provide the backbone for data storage and relationships (Staff, User, Order, InDiningOrder, Booking, Notification, TableLayoutSection, Table, Permission, MerchantBranch, Device, Driver, Route, Payment, DriverRatings), ensuring all features are grounded in the database.
+Real-Time Controllers: Enable live updates and interactions (staffReportController.js, staffRoleManagementController.js, DriverOrderController, etc.) via WebSocket technology, enhancing responsiveness.
+Services: Drive customer-facing and driver workflows (QuickLinkService, OrderService, InDiningOrderService, bookingService, DriverOrderService, PaymentService, NotificationService, TokenService, Geolocation1Service, Geolocation2Service), triggering staff tasks and integrating with operational data.
+Middleware: Enforce security and validation (DriverOrderMiddleware) for driver-related operations.
+Utilities: Enhance error handling (AppError), logging (logger), and performance tracking (PerformanceMonitor) across all features.
+Updated Features: Incorporate specific enhancements (e.g., gamification, feedback loops, mobile integration, table management, device tracking, customer service integration, and driver order management) from the latest input, aligning with merchant-staff-driver workflows and customer interactions.
+This final suite leverages the additional driver-related models, services, and utilities to provide a fully integrated staff management system, connecting performance tracking, task management, customer service, and driver coordination with device-specific and branch-level operations.

@@ -61,13 +61,13 @@ module.exports = {
     // Create the bookings table
     await queryInterface.createTable('bookings', {
       id: {
-        type: DataTypes.INTEGER,
+        type: Sequelize.INTEGER,
         allowNull: false,
         autoIncrement: true,
         primaryKey: true,
       },
       customer_id: {
-        type: DataTypes.INTEGER,
+        type: Sequelize.INTEGER,
         allowNull: false,
         references: {
           model: 'customers',
@@ -77,7 +77,7 @@ module.exports = {
         onDelete: 'CASCADE',
       },
       merchant_id: {
-        type: DataTypes.INTEGER,
+        type: Sequelize.INTEGER,
         allowNull: false,
         references: {
           model: 'merchants',
@@ -87,16 +87,16 @@ module.exports = {
         onDelete: 'CASCADE',
       },
       reference: {
-        type: DataTypes.STRING,
+        type: Sequelize.STRING,
         allowNull: false,
         unique: true,
       },
       booking_date: {
-        type: DataTypes.DATEONLY,
+        type: Sequelize.DATEONLY,
         allowNull: false,
       },
       booking_time: {
-        type: DataTypes.TIME,
+        type: Sequelize.TIME,
         allowNull: false,
       },
       booking_type: {
@@ -104,15 +104,15 @@ module.exports = {
         allowNull: false,
       },
       guest_count: {
-        type: DataTypes.INTEGER,
+        type: Sequelize.INTEGER,
         allowNull: true,
       },
       special_requests: {
-        type: DataTypes.TEXT,
+        type: Sequelize.TEXT,
         allowNull: true,
       },
       details: {
-        type: DataTypes.JSON,
+        type: Sequelize.JSON,
         allowNull: true,
       },
       status: {
@@ -120,8 +120,19 @@ module.exports = {
         allowNull: false,
         defaultValue: 'pending',
       },
+      // New additional field for staff assignment
+      staff_id: {
+        type: Sequelize.INTEGER,
+        allowNull: true,
+        references: {
+          model: 'staff',
+          key: 'id',
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL',
+      },
       branch_id: {
-        type: DataTypes.INTEGER,
+        type: Sequelize.INTEGER,
         allowNull: true,
         references: {
           model: 'merchant_branches',
@@ -131,7 +142,7 @@ module.exports = {
         onDelete: 'CASCADE',
       },
       table_id: {
-        type: DataTypes.INTEGER,
+        type: Sequelize.INTEGER,
         allowNull: true,
         references: {
           model: 'tables',
@@ -141,15 +152,15 @@ module.exports = {
         onDelete: 'SET NULL',
       },
       waitlist_position: {
-        type: DataTypes.INTEGER,
+        type: Sequelize.INTEGER,
         allowNull: true,
       },
       waitlisted_at: {
-        type: DataTypes.DATE,
+        type: Sequelize.DATE,
         allowNull: true,
       },
       approval_reason: {
-        type: DataTypes.TEXT,
+        type: Sequelize.TEXT,
         allowNull: true,
       },
       notification_status: {
@@ -158,23 +169,23 @@ module.exports = {
         defaultValue: 'not_sent',
       },
       last_notification_sent: {
-        type: DataTypes.DATE,
+        type: Sequelize.DATE,
         allowNull: true,
       },
       estimated_arrival: {
-        type: DataTypes.TIME,
+        type: Sequelize.TIME,
         allowNull: true,
       },
       arrived_at: {
-        type: DataTypes.DATE,
+        type: Sequelize.DATE,
         allowNull: true,
       },
       seated_at: {
-        type: DataTypes.DATE,
+        type: Sequelize.DATE,
         allowNull: true,
       },
       departed_at: {
-        type: DataTypes.DATE,
+        type: Sequelize.DATE,
         allowNull: true,
       },
       seating_preference: {
@@ -183,11 +194,11 @@ module.exports = {
         defaultValue: 'no_preference',
       },
       party_notes: {
-        type: DataTypes.TEXT,
+        type: Sequelize.TEXT,
         allowNull: true,
       },
       check_in_code: {
-        type: DataTypes.STRING,
+        type: Sequelize.STRING,
         allowNull: true,
       },
       source: {
@@ -196,50 +207,50 @@ module.exports = {
         defaultValue: 'app',
       },
       occasion: {
-        type: DataTypes.STRING,
+        type: Sequelize.STRING,
         allowNull: true,
       },
       booking_modified_at: {
-        type: DataTypes.DATE,
+        type: Sequelize.DATE,
         allowNull: true,
       },
       booking_modified_by: {
-        type: DataTypes.INTEGER,
+        type: Sequelize.INTEGER,
         allowNull: true,
       },
       booking_metadata: {
-        type: DataTypes.JSONB,
+        type: Sequelize.JSONB,
         allowNull: true,
         defaultValue: {},
       },
       pickup_location: {
-        type: DataTypes.JSONB,
+        type: Sequelize.JSONB,
         allowNull: true,
       },
       dropoff_location: {
-        type: DataTypes.JSONB,
+        type: Sequelize.JSONB,
         allowNull: true,
       },
       estimated_distance: {
-        type: DataTypes.DECIMAL,
+        type: Sequelize.DECIMAL,
         allowNull: true,
       },
       estimated_duration: {
-        type: DataTypes.INTEGER,
+        type: Sequelize.INTEGER,
         allowNull: true,
       },
       created_at: {
-        type: DataTypes.DATE,
+        type: Sequelize.DATE,
         allowNull: false,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP'),
       },
       updated_at: {
-        type: DataTypes.DATE,
+        type: Sequelize.DATE,
         allowNull: false,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP'),
       },
       deleted_at: {
-        type: DataTypes.DATE,
+        type: Sequelize.DATE,
         allowNull: true,
       },
     });
@@ -262,7 +273,7 @@ module.exports = {
   },
 
   down: async (queryInterface, Sequelize) => {
-    // Drop the table
+    // Drop the bookings table
     await queryInterface.dropTable('bookings');
 
     // Drop the ENUM types

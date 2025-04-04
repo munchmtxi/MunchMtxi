@@ -63,6 +63,21 @@ module.exports = {
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL',
       },
+      availability_status: {
+        type: Sequelize.ENUM('available', 'busy', 'on_break', 'offline'),
+        allowNull: false,
+        defaultValue: 'offline',
+      },
+      branch_id: {
+        type: Sequelize.INTEGER,
+        allowNull: true,
+        references: {
+          model: 'merchant_branches',
+          key: 'id',
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL',
+      },
       created_at: {
         type: Sequelize.DATE,
         allowNull: false,

@@ -26,7 +26,6 @@ module.exports = (sequelize, DataTypes) => {
         otherKey: 'permission_id',
         as: 'permissions',
       });
-      // Added new association
       this.belongsTo(models.Geofence, {
         foreignKey: 'geofence_id',
         as: 'geofence'
@@ -87,7 +86,6 @@ module.exports = (sequelize, DataTypes) => {
       onUpdate: 'CASCADE',
       onDelete: 'SET NULL',
     },
-    // Added new geo-location fields
     assigned_area: {
       type: DataTypes.JSONB,
       allowNull: true,
@@ -107,6 +105,21 @@ module.exports = (sequelize, DataTypes) => {
       },
       onUpdate: 'CASCADE',
       onDelete: 'SET NULL'
+    },
+    availability_status: {
+      type: DataTypes.ENUM('available', 'busy', 'on_break', 'offline'),
+      allowNull: false,
+      defaultValue: 'offline',
+    },
+    branch_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'merchant_branches',
+        key: 'id',
+      },
+      onUpdate: 'CASCADE',
+      onDelete: 'SET NULL',
     },
     created_at: {
       type: DataTypes.DATE,

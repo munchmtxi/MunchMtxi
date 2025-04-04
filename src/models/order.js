@@ -38,6 +38,10 @@ module.exports = (sequelize, DataTypes) => {
       if (models.PromotionRedemption) {
         this.hasMany(models.PromotionRedemption, { foreignKey: 'order_id', as: 'promotionRedemptions' });
       }
+      // New association for staff assignment
+      if (models.Staff) {
+        this.belongsTo(models.Staff, { foreignKey: 'staff_id', as: 'staff' });
+      }
     }
 
     get_whatsapp_template_for_status() {
@@ -59,7 +63,12 @@ module.exports = (sequelize, DataTypes) => {
   }
 
   Order.init({
-    id: { type: DataTypes.INTEGER, allowNull: false, autoIncrement: true, primaryKey: true },
+    id: { 
+      type: DataTypes.INTEGER, 
+      allowNull: false, 
+      autoIncrement: true, 
+      primaryKey: true 
+    },
     customer_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
@@ -98,13 +107,21 @@ module.exports = (sequelize, DataTypes) => {
       onUpdate: 'CASCADE',
       onDelete: 'SET NULL',
     },
-    items: { type: DataTypes.JSON, allowNull: false, validate: { notEmpty: { msg: 'Items are required' } } },
+    items: { 
+      type: DataTypes.JSON, 
+      allowNull: false, 
+      validate: { notEmpty: { msg: 'Items are required' } } 
+    },
     total_amount: {
       type: DataTypes.FLOAT,
       allowNull: false,
       validate: { min: { args: [0], msg: 'Total amount must be positive' } },
     },
-    order_number: { type: DataTypes.STRING, allowNull: false, unique: true },
+    order_number: { 
+      type: DataTypes.STRING, 
+      allowNull: false, 
+      unique: true 
+    },
     estimated_arrival: { type: DataTypes.DATE, allowNull: true },
     status: {
       type: DataTypes.ENUM('pending', 'confirmed', 'preparing', 'ready', 'out_for_delivery', 'completed', 'cancelled'),
@@ -133,10 +150,22 @@ module.exports = (sequelize, DataTypes) => {
     estimated_delivery_time: { type: DataTypes.DATE, allowNull: true },
     actual_delivery_time: { type: DataTypes.DATE, allowNull: true },
     delivery_distance: { type: DataTypes.DECIMAL, allowNull: true },
-    created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: sequelize.literal('CURRENT_TIMESTAMP') },
-    updated_at: { type: DataTypes.DATE, allowNull: false, defaultValue: sequelize.literal('CURRENT_TIMESTAMP') },
+    created_at: { 
+      type: DataTypes.DATE, 
+      allowNull: false, 
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP') 
+    },
+    updated_at: { 
+      type: DataTypes.DATE, 
+      allowNull: false, 
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP') 
+    },
     deleted_at: { type: DataTypes.DATE, allowNull: true },
-    applied_promotions: { type: DataTypes.JSON, allowNull: true, comment: 'JSON array of applied promotion details' },
+    applied_promotions: { 
+      type: DataTypes.JSON, 
+      allowNull: true, 
+      comment: 'JSON array of applied promotion details' 
+    },
     total_discount: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
@@ -149,6 +178,14 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: { original_branch_id: null, routed_branch_id: null, routing_timestamp: null, routing_reason: null, routing_metrics: { distance: null, estimated_time: null, branch_load: null } },
     },
     routing_history: { type: DataTypes.JSONB, allowNull: true, defaultValue: [] },
+    // New field for staff assignment
+    staff_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: { model: 'staff', key: 'id' },
+      onUpdate: 'CASCADE',
+      onDelete: 'SET NULL',
+    },
   }, {
     sequelize,
     modelName: 'Order',

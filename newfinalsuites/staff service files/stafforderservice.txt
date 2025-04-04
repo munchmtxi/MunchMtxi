@@ -1,0 +1,507 @@
+Here’s the new StaffDriverCoordinationService.js:
+
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+'use strict';
+
+const { Order, Driver, Route, Notification, Device, Staff, User, Payment } = require('@models');
+const NotificationService = require('@services/notificationService');
+const Geolocation1Service = require('@services/geolocation1Service'); // For tracking
+const Geolocation2Service = require('@services/geolocation2Service'); // For proximity
+const PaymentService = require('@services/paymentService');
+const TokenService = require('@services/tokenService'); // For driver validation
+const AvailabilityShiftService = require('@services/availabilityShiftService'); // For staff availability
+const { logger, PerformanceMonitor } = require('@utils/logger');
+const AppError = require('@utils/appError');
+const { Op } = require('sequelize');
+const { io } = require('@server'); // Assumes Socket.IO initialized in server.js
+
+class StaffDriverCoordinationService {
+  constructor() {
+    this.performanceMonitor = PerformanceMonitor;
+  }
+
+  /**
+   * Assigns a driver to an order based on availability and proximity.
+   * @param {string} staffId - The ID of the staff initiating the assignment.
+   * @param {string} orderId - The ID of the order.
+   * @param {string} [driverId] - Optional specific driver ID; if null, auto-selects.
+   * @returns {Promise<Order>} The updated order.
+   */
+  async assignDriver(staffId, orderId, driverId = null) {
+    try {
+      const staff = await Staff.findByPk(staffId, { include: [{ model: User, as: 'user' }] });
+      if (!staff) throw new AppError('Staff not found', 404, 'STAFF_NOT_FOUND');
+
+      const order = await Order.findByPk(orderId, {
+        include: [{ model: MerchantBranch, as: 'branch' }],
+      });
+      if (!order) throw new AppError('Order not found', 404, 'ORDER_NOT_FOUND');
+      if (order.status !== 'preparing') {
+        throw new AppError('Order not ready for driver assignment', 400, 'INVALID_ORDER_STATUS');
+      }
+
+      let selectedDriver;
+      if (driverId) {
+        selectedDriver = await Driver.findByPk(driverId, {
+          include: [{ model: Device, as: 'device' }],
+        });
+        if (!selectedDriver) throw new AppError('Driver not found', 404, 'DRIVER_NOT_FOUND');
+        if (selectedDriver.availability_status !== 'AVAILABLE') {
+          throw new AppError('Driver not available', 400, 'DRIVER_UNAVAILABLE');
+        }
+      } else {
+        const drivers = await Driver.findAll({
+          where: { availability_status: 'AVAILABLE' },
+          include: [{ model: Device, as: 'device' }],
+        });
+        if (!drivers.length) throw new AppError('No available drivers found', 404, 'NO_DRIVERS_AVAILABLE');
+
+        const branchLocation = order.branch.location; // Assumes GeoJSON or similar
+        selectedDriver = await this.selectNearestDriver(drivers, branchLocation);
+      }
+
+      if (!selectedDriver.device?.last_active_at || new Date() - new Date(selectedDriver.device.last_active_at) > 15 * 60 * 1000) {
+        throw new AppError('Driver device not recently active', 400, 'DEVICE_INACTIVE');
+      }
+
+      order.driver_id = selectedDriver.id;
+      await order.save();
+
+      const route = await Route.create({
+        order_id: orderId,
+        driver_id: selectedDriver.id,
+        start_location: order.branch.location,
+        end_location: order.delivery_location, // Assumes Order has delivery_location
+        status: 'assigned',
+      });
+
+      const message = {
+        title: 'Driver Assignment',
+        body: `You are assigned to order ${order.order_number} for pickup at ${order.branch.name}.`,
+        data: { type: 'driver_assignment', orderId, driverId: selectedDriver.id, routeId: route.id },
+      };
+
+      io.to(`driver:${selectedDriver.id}`).emit('orderAssigned', {
+        orderId,
+        routeId: route.id,
+        timestamp: new Date(),
+      });
+
+      await NotificationService.sendThroughChannel({
+        userId: selectedDriver.user_id,
+        message,
+        channel: selectedDriver.device.preferred_response_format || 'push',
+      });
+
+      await NotificationService.sendThroughChannel({
+        userId: order.customer_id,
+        message: {
+          title: 'Driver Assigned',
+          body: `A driver has been assigned to your order ${order.order_number}.`,
+          data: { type: 'driver_assignment', orderId },
+        },
+        channel: 'push',
+      });
+
+      logger.info('Driver assigned to order', { staffId, orderId, driverId: selectedDriver.id });
+      return order;
+    } catch (error) {
+      logger.error('Error assigning driver', { error: error.message, staffId, orderId, driverId });
+      throw error instanceof AppError ? error : new AppError('Failed to assign driver', 500);
+    }
+  }
+
+  /**
+   * Confirms order readiness for pickup and notifies the driver.
+   * @param {string} staffId - The ID of the staff confirming pickup.
+   * @param {string} orderId - The ID of the order.
+   * @param {string} driverToken - The driver’s authentication token.
+   * @returns {Promise<Order>} The updated order.
+   */
+  async confirmPickup(staffId, orderId, driverToken) {
+    try {
+      const staff = await Staff.findByPk(staffId);
+      if (!staff) throw new AppError('Staff not found', 404, 'STAFF_NOT_FOUND');
+
+      const order = await Order.findByPk(orderId, {
+        include: [{ model: Driver, as: 'driver', include: [{ model: Device, as: 'device' }] }],
+      });
+      if (!order) throw new AppError('Order not found', 404, 'ORDER_NOT_FOUND');
+      if (!order.driver_id) throw new AppError('No driver assigned to order', 400, 'NO_DRIVER_ASSIGNED');
+      if (order.status !== 'preparing') {
+        throw new AppError('Order not ready for pickup', 400, 'INVALID_ORDER_STATUS');
+      }
+
+      const driver = order.driver;
+      const tokenPayload = await TokenService.verifyToken(driverToken);
+      if (tokenPayload.user_id !== driver.user_id) {
+        throw new AppError('Invalid driver token', 403, 'INVALID_TOKEN');
+      }
+
+      order.status = 'OUT_FOR_DELIVERY';
+      await order.save();
+
+      await Route.update(
+        { status: 'in_progress' },
+        { where: { order_id: orderId, driver_id: driver.id } }
+      );
+
+      const message = {
+        title: 'Order Ready for Pickup',
+        body: `Order ${order.order_number} is ready for pickup at ${order.branch.name}.`,
+        data: { type: 'pickup_confirmation', orderId },
+      };
+
+      io.to(`driver:${driver.id}`).emit('pickupConfirmed', {
+        orderId,
+        timestamp: new Date(),
+      });
+
+      await NotificationService.sendThroughChannel({
+        userId: driver.user_id,
+        message,
+        channel: driver.device.preferred_response_format || 'push',
+      });
+
+      await NotificationService.sendThroughChannel({
+        userId: order.customer_id,
+        message: {
+          title: 'Order Out for Delivery',
+          body: `Your order ${order.order_number} is on its way!`,
+          data: { type: 'pickup_confirmation', orderId },
+        },
+        channel: 'push',
+      });
+
+      logger.info('Pickup confirmed', { staffId, orderId, driverId: driver.id });
+      return order;
+    } catch (error) {
+      logger.error('Error confirming pickup', { error: error.message, staffId, orderId });
+      throw error instanceof AppError ? error : new AppError('Failed to confirm pickup', 500);
+    }
+  }
+
+  /**
+   * Tracks the delivery progress of an order.
+   * @param {string} staffId - The ID of the staff monitoring the delivery.
+   * @param {string} orderId - The ID of the order.
+   * @returns {Promise<Object>} The tracking details.
+   */
+  async trackDelivery(staffId, orderId) {
+    try {
+      const staff = await Staff.findByPk(staffId);
+      if (!staff) throw new AppError('Staff not found', 404, 'STAFF_NOT_FOUND');
+
+      const order = await Order.findByPk(orderId, {
+        include: [{ model: Driver, as: 'driver' }, { model: Route, as: 'route' }],
+      });
+      if (!order) throw new AppError('Order not found', 404, 'ORDER_NOT_FOUND');
+      if (!order.driver_id) throw new AppError('No driver assigned to order', 400, 'NO_DRIVER_ASSIGNED');
+      if (order.status !== 'OUT_FOR_DELIVERY') {
+        throw new AppError('Order not out for delivery', 400, 'INVALID_ORDER_STATUS');
+      }
+
+      const driverLocation = await Geolocation1Service.trackDriver(order.driver.id);
+      const route = order.route;
+
+      const trackingData = {
+        orderId,
+        driverId: order.driver_id,
+        currentLocation: driverLocation,
+        routeStatus: route.status,
+        estimatedDeliveryTime: route.estimated_delivery_time, // Assumes Route has this field
+      };
+
+      io.to(`branch:${order.branch_id}`).emit('deliveryUpdate', {
+        ...trackingData,
+        timestamp: new Date(),
+      });
+
+      logger.info('Delivery tracked', { staffId, orderId, driverId: order.driver_id });
+      return trackingData;
+    } catch (error) {
+      logger.error('Error tracking delivery', { error: error.message, staffId, orderId });
+      throw error instanceof AppError ? error : new AppError('Failed to track delivery', 500);
+    }
+  }
+
+  /**
+   * Finalizes an order upon driver completion.
+   * @param {string} staffId - The ID of the staff finalizing the order.
+   * @param {string} orderId - The ID of the order.
+   * @returns {Promise<Order>} The completed order.
+   */
+  async completeOrder(staffId, orderId) {
+    try {
+      const staff = await Staff.findByPk(staffId);
+      if (!staff) throw new AppError('Staff not found', 404, 'STAFF_NOT_FOUND');
+
+      const order = await Order.findByPk(orderId, {
+        include: [{ model: Driver, as: 'driver' }, { model: Payment, as: 'payment' }],
+      });
+      if (!order) throw new AppError('Order not found', 404, 'ORDER_NOT_FOUND');
+      if (order.status !== 'OUT_FOR_DELIVERY') {
+        throw new AppError('Order not out for delivery', 400, 'INVALID_ORDER_STATUS');
+      }
+
+      order.status = 'COMPLETED';
+      await order.save();
+
+      await Route.update(
+        { status: 'completed', completed_at: new Date() },
+        { where: { order_id: orderId } }
+      );
+
+      if (order.payment && order.payment.payment_status !== 'paid') {
+        await PaymentService.processPayment({
+          paymentId: order.payment.id,
+          amount: order.total_amount,
+          customer_id: order.customer_id,
+          merchant_id: order.merchant_id,
+        });
+      }
+
+      const message = {
+        title: 'Order Completed',
+        body: `Your order ${order.order_number} has been delivered!`,
+        data: { type: 'order_completion', orderId },
+      };
+
+      io.to(`branch:${order.branch_id}`).emit('orderCompleted', {
+        orderId,
+        driverId: order.driver_id,
+        timestamp: new Date(),
+      });
+
+      await NotificationService.sendThroughChannel({
+        userId: order.customer_id,
+        message,
+        channel: 'push',
+      });
+
+      await NotificationService.sendThroughChannel({
+        userId: order.driver.user_id,
+        message: {
+          title: 'Delivery Completed',
+          body: `Order ${order.order_number} marked as completed.`,
+          data: { type: 'order_completion', orderId },
+        },
+        channel: order.driver.device.preferred_response_format || 'push',
+      });
+
+      logger.info('Order completed', { staffId, orderId, driverId: order.driver_id });
+      return order;
+    } catch (error) {
+      logger.error('Error completing order', { error: error.message, staffId, orderId });
+      throw error instanceof AppError ? error : new AppError('Failed to complete order', 500);
+    }
+  }
+
+  /**
+   * Provides an overview of all driver-assigned orders for staff.
+   * @param {string} staffId - The ID of the staff requesting the overview.
+   * @param {string} branchId - The ID of the branch.
+   * @returns {Promise<Object[]>} Array of order details.
+   */
+  async getDriverOrderOverview(staffId, branchId) {
+    try {
+      const staff = await Staff.findByPk(staffId);
+      if (!staff) throw new AppError('Staff not found', 404, 'STAFF_NOT_FOUND');
+
+      const orders = await Order.findAll({
+        where: {
+          branch_id: branchId,
+          driver_id: { [Op.ne]: null },
+          status: { [Op.in]: ['preparing', 'OUT_FOR_DELIVERY', 'COMPLETED'] },
+        },
+        include: [
+          { model: Driver, as: 'driver', include: [{ model: Device, as: 'device' }] },
+          { model: Route, as: 'route' },
+        ],
+      });
+
+      const overview = orders.map(order => ({
+        orderId: order.id,
+        orderNumber: order.order_number,
+        driver: {
+          id: order.driver.id,
+          name: order.driver.user.getFullName(), // Assumes User association
+          availability: order.driver.availability_status,
+          lastActive: order.driver.device?.last_active_at,
+        },
+        route: {
+          id: order.route?.id,
+          status: order.route?.status,
+          estimatedDeliveryTime: order.route?.estimated_delivery_time,
+        },
+        status: order.status,
+        createdAt: order.created_at,
+      }));
+
+      logger.info('Driver order overview retrieved', { staffId, branchId, orderCount: overview.length });
+      return overview;
+    } catch (error) {
+      logger.error('Error retrieving driver order overview', { error: error.message, staffId, branchId });
+      throw error instanceof AppError ? error : new AppError('Failed to retrieve driver order overview', 500);
+    }
+  }
+
+  // Helper Method
+
+  /**
+   * Selects the nearest available driver based on branch location.
+   * @param {Driver[]} drivers - Array of available drivers.
+   * @param {Object} branchLocation - The branch’s GeoJSON location.
+   * @returns {Promise<Driver>} The selected driver.
+   */
+  async selectNearestDriver(drivers, branchLocation) {
+    const distances = await Promise.all(
+      drivers.map(async driver => {
+        const driverLocation = await Geolocation2Service.getDriverLocation(driver.id);
+        const distance = await Geolocation2Service.calculateDistance(branchLocation, driverLocation);
+        return { driver, distance };
+      })
+    );
+
+    const nearest = distances.reduce((prev, curr) => (curr.distance < prev.distance ? curr : prev));
+    return nearest.driver;
+  }
+}
+
+module.exports = new StaffDriverCoordinationService();
+Tailoring to Your System:
+Driver Assignment:
+Logic: Staff can manually assign a driver or auto-select based on Driver.availability_status and proximity via Geolocation2Service.
+Updates: Sets Order.driver_id and creates a Route entry.
+Notifications: Real-time WebSocket updates to driver:${driverId} and notifications to driver/customer.
+Pickup Confirmation:
+Validation: Verifies driver identity with TokenService.
+Status: Updates Order.status to 'OUT_FOR_DELIVERY' and Route.status to 'in_progress'.
+Real-Time: Notifies via Socket.IO and NotificationService.
+Delivery Tracking:
+Monitoring: Uses Geolocation1Service to track driver location.
+Output: Returns real-time data broadcast to branch:${branch_id}.
+Order Completion:
+Finalization: Updates Order.status to 'COMPLETED', processes payment, and marks Route as completed.
+Notifications: Informs customer and driver via WebSocket and preferred channels.
+Driver Order Overview:
+Dashboard: Provides staff with a comprehensive view of driver-assigned orders, including routes and statuses.
+Assumptions and Necessary Adjustments:
+Driver Model:
+Assumes Driver exists with fields:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+availability_status: {
+  type: DataTypes.ENUM('AVAILABLE', 'BUSY', 'OFFLINE'),
+  defaultValue: 'OFFLINE',
+},
+current_location: {
+  type: DataTypes.JSONB, // GeoJSON
+},
+user_id: {
+  type: DataTypes.INTEGER,
+  references: { model: 'users', key: 'id' },
+}
+If removed, reintroduce or adjust to use Staff for delivery roles.
+Route Model:
+Assumes Route exists:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+order_id: { type: DataTypes.INTEGER, references: { model: 'orders', key: 'id' } },
+driver_id: { type: DataTypes.INTEGER, references: { model: 'drivers', key: 'id' } },
+start_location: { type: DataTypes.JSONB },
+end_location: { type: DataTypes.JSONB },
+status: { type: DataTypes.ENUM('assigned', 'in_progress', 'completed') },
+estimated_delivery_time: { type: DataTypes.DATE },
+completed_at: { type: DataTypes.DATE },
+Geolocation Services:
+Assumes Geolocation1Service.trackDriver and Geolocation2Service.getDriverLocation/calculateDistance exist. If not, implement basic versions:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+// geolocation1Service.js
+async trackDriver(driverId) {
+  const driver = await Driver.findByPk(driverId);
+  return driver.current_location;
+}
+
+// geolocation2Service.js
+async getDriverLocation(driverId) {
+  const driver = await Driver.findByPk(driverId);
+  return driver.current_location;
+}
+async calculateDistance(loc1, loc2) {
+  // Simplified Euclidean distance (replace with Haversine if needed)
+  const dx = loc1.coordinates[0] - loc2.coordinates[0];
+  const dy = loc1.coordinates[1] - loc2.coordinates[1];
+  return Math.sqrt(dx * dx + dy * dy);
+}
+Socket.IO:
+Assumes io is available from @server. Verify in server.js.
+Suggestions for Enhancement:
+Driver Efficiency Metrics:
+Add to getDriverOrderOverview:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+driver.efficiency = await this.calculateDriverEfficiency(order.driver);
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+async calculateDriverEfficiency(driver) {
+  const routes = await Route.findAll({ where: { driver_id: driver.id, status: 'completed' } });
+  const totalTime = routes.reduce((sum, r) => sum + (r.completed_at - r.created_at) / 60000, 0);
+  return routes.length / (totalTime || 1); // Deliveries per minute
+}
+Staff Performance Integration:
+Link to PerformanceIncentiveService:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+await PerformanceIncentiveService.calculateRewards(staffId); // After assignDriver/confirmPickup
+Customer Feedback:
+After completeOrder, trigger feedback:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+await NotificationService.sendThroughChannel({
+  userId: order.customer_id,
+  message: { title: 'Rate Your Delivery', body: 'How was your experience?' },
+  channel: 'push',
+});

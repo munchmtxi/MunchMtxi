@@ -36,13 +36,9 @@ const setupMerchantProducts = require('@setup/merchant/products/products');
 const setupInventory = require('@setup/merchant/products/inventorySetup');
 const setupReservationRoutes = require('@setup/merchant/reservation/reservationRoutesSetup');
 const { setupStaffProfile } = require('@setup/staff/profile/staffProfileSetup');
+const setupStaffAvailability = require('@setup/staff/availabilitySetup');
 const { setupDriverProfile } = require('@setup/driver/driverSetup');
-
-// Debug import
-logger.info('Resolving @setup/driver/driverAvailabilitySetup:', require.resolve('@setup/driver/driverAvailabilitySetup'));
 const setupDriverAvailability = require('@setup/driver/driverAvailabilitySetup');
-logger.info('Imported setupDriverAvailability:', typeof setupDriverAvailability);
-
 const setupDriverOrder = require('@setup/driver/driverOrderSetup');
 const setupDriverRide = require('@setup/driver/driverridersetup');
 const setupDriverPayment = require('@setup/driver/driverPaymentSetup');
@@ -144,11 +140,12 @@ async function startServer() {
 
     const server = createServer(app);
     const io = await setupSocket(server);
+    app.locals.io = io; // Store Socket.IO instance
 
     const { whatsappService, emailService, smsService } = setupCommonServices();
     const notificationService = setupNotificationService(io, whatsappService, emailService, smsService);
+    app.locals.notificationService = notificationService; // Store notification service
 
-    app.locals.notificationService = notificationService;
     app.locals.authService = authService;
     app.locals.sequelize = sequelize;
     app.locals.models = models;
@@ -282,6 +279,10 @@ async function startServer() {
     logger.info('👷 Setting up staff profile...');
     setupStaffProfile(app);
     logRouterStack(app, 'setupStaffProfile');
+
+    logger.info('👷 Setting up staff availability routes...');
+    setupStaffAvailability(app);
+    logRouterStack(app, 'setupStaffAvailability');
 
     logger.info('🚗 Setting up driver profile...');
     setupDriverProfile(app);

@@ -1,0 +1,362 @@
+Refined StaffReportService.js
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+'use strict';
+
+const { Staff, User, Order, InDiningOrder, Table, Notification, Device, Merchant, Payment, StaffPermissions, Permission } = require('@models');
+const staffPerformanceController = require('@controllers/staffPerformanceController');
+const NotificationServiceClass = require('@services/notifications/core/notificationService');
+const PDFService = require('@services/pdfService');
+const QuickLinkService = require('@services/quickLinkService');
+const InDiningOrderService = require('@services/inDiningOrderService');
+const { logger, PerformanceMonitor, logWithCorrelation, logErrorEvent, logApiEvent } = require('@utils/logger');
+const AppError = require('@utils/appError');
+const config = require('@config/config');
+const { Op } = require('sequelize');
+const { v4: uuidv4 } = require('uuid');
+
+// Initialize NotificationService (assuming dependencies are injected elsewhere)
+const NotificationService = new NotificationServiceClass(null, null, null, null); // Replace with actual instances if needed
+
+class StaffReportService {
+  constructor() {
+    this.performanceMonitor = PerformanceMonitor;
+    this.pdfService = PDFService;
+  }
+
+  /**
+   * Generates a detailed performance report for a staff member.
+   * @param {string} staffId - The ID of the staff member.
+   * @param {string} period - The time period for the report (e.g., 'weekly', 'monthly').
+   * @param {string} [correlationId] - Optional correlation ID for tracing.
+   * @returns {Promise<Object>} The performance report.
+   */
+  async generatePerformanceReport(staffId, period, correlationId = uuidv4()) {
+    const startTime = Date.now();
+    try {
+      logWithCorrelation('info', 'Starting staff report generation', correlationId, { staffId, period });
+
+      const staff = await Staff.findByPk(staffId, {
+        include: [
+          { model: User, as: 'user', attributes: ['first_name', 'last_name', 'email'] },
+          { model: Merchant, as: 'merchant', attributes: ['business_name', 'currency'] },
+          { model: Permission, as: 'permissions', through: { attributes: [] } },
+        ],
+      });
+      if (!staff) {
+        logErrorEvent('Staff not found', { staffId, correlationId });
+        throw new AppError('Staff not found', 404, 'STAFF_NOT_FOUND');
+      }
+
+      const timeFilter = this.getTimeFilter(period);
+      const [orders, inDiningOrders, tables, devices, payments] = await Promise.all([
+        Order.findAll({
+          where: { staff_id: staffId, status: 'completed', created_at: timeFilter },
+        }),
+        InDiningOrder.findAll({
+          where: { staff_id: staffId, status: 'closed', created_at: timeFilter },
+          include: [{ model: Table, as: 'table' }, { model: Payment, as: 'payment' }],
+        }),
+        Table.findAll({ where: { assigned_staff_id: staffId, status: 'occupied' } }),
+        Device.findAll({ where: { user_id: staff.user_id } }),
+        Payment.findAll({
+          where: {
+            order_id: {
+              [Op.in]: [...orders.map(o => o.id), ...inDiningOrders.map(o => o.id)],
+            },
+            status: 'completed',
+            created_at: timeFilter,
+          },
+        }),
+      ]);
+
+      const metrics = {
+        tasksCompleted: orders.length + inDiningOrders.length,
+        hoursWorked: this.calculateHoursWorked(staff.created_at, staff.work_location),
+        tipsEarned: this.sumTips(payments),
+        taskCompletionRate: this.calculateCompletionRate(orders, inDiningOrders, tables),
+        avgTaskTime: this.calculateAvgTaskTime(orders, inDiningOrders),
+        deviceStats: this.getDeviceStats(devices),
+        permissions: staff.permissions.map(p => p.name),
+        badges: this.assignGamificationBadges(metrics),
+      };
+
+      const visualizations = this.generateCharts(metrics);
+      const report = { staff, metrics, visualizations };
+
+      this.performanceMonitor.recordMetric('staff_report_generation', Date.now() - startTime, { staffId, period });
+      logWithCorrelation('info', 'Performance report generated successfully', correlationId, { staffId, period, tasksCompleted: metrics.tasksCompleted });
+      return report;
+    } catch (error) {
+      logErrorEvent('Error generating performance report', { error: error.message, stack: error.stack, staffId, correlationId });
+      throw error instanceof AppError ? error : new AppError('Failed to generate performance report', 500);
+    }
+  }
+
+  /**
+   * Analyzes efficiency insights for a staff member.
+   * @param {string} staffId - The ID of the staff member.
+   * @param {string} [correlationId] - Optional correlation ID for tracing.
+   * @returns {Promise<Object>} Efficiency insights.
+   */
+  async efficiencyInsights(staffId, correlationId = uuidv4()) {
+    try {
+      logWithCorrelation('info', 'Generating efficiency insights', correlationId, { staffId });
+      const report = await this.generatePerformanceReport(staffId, 'monthly', correlationId);
+      const insights = {
+        productivityTrend: this.analyzeTrend(report.metrics.taskCompletionRate),
+        punctuality: await this.checkPunctuality(staffId),
+        quality: await this.getFeedbackQuality(staffId),
+        deviceReliability: report.metrics.deviceStats,
+      };
+      logWithCorrelation('info', 'Efficiency insights generated', correlationId, { staffId });
+      return insights;
+    } catch (error) {
+      logErrorEvent('Error generating efficiency insights', { error: error.message, staffId, correlationId });
+      throw new AppError('Failed to generate efficiency insights', 500);
+    }
+  }
+
+  /**
+   * Exports a staff report as a PDF.
+   * @param {string} staffId - The ID of the staff member.
+   * @param {string} period - The time period for the report.
+   * @param {string} [correlationId] - Optional correlation ID for tracing.
+   * @returns {Promise<string>} The file path to the generated PDF.
+   */
+  async exportStaffReportPDF(staffId, period, correlationId = uuidv4()) {
+    try {
+      logWithCorrelation('info', 'Exporting staff report as PDF', correlationId, { staffId, period });
+      const report = await this.generatePerformanceReport(staffId, period, correlationId);
+
+      const template = {
+        id: 'staff_report',
+        title: `Staff Performance Report - ${period}`,
+        subtitle: `Staff: ${report.staff.user.getFullName()} | Merchant: ${report.staff.merchant.business_name}`,
+        body: `
+          Tasks Completed: ${report.metrics.tasksCompleted}
+          Hours Worked: ${report.metrics.hoursWorked.toFixed(2)} hours
+          Tips Earned: ${report.staff.merchant.currency || 'USD'} ${report.metrics.tipsEarned.toFixed(2)}
+          Task Completion Rate: ${report.metrics.taskCompletionRate.toFixed(2)}%
+          Average Task Time: ${report.metrics.avgTaskTime.toFixed(2)} minutes
+          Permissions: ${report.metrics.permissions.join(', ')}
+        `,
+        footer: 'Generated by MunchMtxi',
+      };
+
+      const filePath = await this.pdfService.generatePDF(template, report, { size: 'A4' });
+      logWithCorrelation('info', 'PDF report generated', correlationId, { staffId, period, filePath });
+      return filePath;
+    } catch (error) {
+      logErrorEvent('Error exporting PDF report', { error: error.message, staffId, correlationId });
+      throw new AppError('Failed to export PDF report', 500);
+    }
+  }
+
+  /**
+   * Schedules staff reports for multiple staff members and sends notifications.
+   * @param {string[]} staffIds - Array of staff IDs.
+   * @param {string} interval - The scheduling interval (e.g., 'weekly').
+   * @param {string} [correlationId] - Optional correlation ID for tracing.
+   * @returns {Promise<void>}
+   */
+  async scheduleStaffReports(staffIds, interval, correlationId = uuidv4()) {
+    try {
+      logWithCorrelation('info', 'Scheduling staff reports', correlationId, { staffIds, interval });
+      const reports = await Promise.all(staffIds.map(id => this.generatePerformanceReport(id, interval, correlationId)));
+
+      await Promise.all(reports.map(async (report) => {
+        const recipient = report.staff.user.email; // Or phone for SMS/WhatsApp
+        const notification = {
+          templateName: 'staff_performance_report',
+          parameters: {
+            name: report.staff.user.getFullName(),
+            period: interval,
+            tasksCompleted: report.metrics.tasksCompleted,
+            tipsEarned: `${report.staff.merchant.currency || 'USD'} ${report.metrics.tipsEarned.toFixed(2)}`,
+          },
+        };
+        await NotificationService.sendThroughChannel('EMAIL', { notification, content: null, recipient });
+      }));
+
+      logWithCorrelation('info', 'Staff reports scheduled and notifications sent', correlationId, { staffIds, interval });
+    } catch (error) {
+      logErrorEvent('Error scheduling staff reports', { error: error.message, staffIds, correlationId });
+      throw new AppError('Failed to schedule staff reports', 500);
+    }
+  }
+
+  /**
+   * Retrieves a staff report dashboard.
+   * @param {string} staffId - The ID of the staff member.
+   * @param {string} [correlationId] - Optional correlation ID for tracing.
+   * @returns {Promise<Object>} The dashboard data.
+   */
+  async getStaffReportDashboard(staffId, correlationId = uuidv4()) {
+    try {
+      logWithCorrelation('info', 'Retrieving staff report dashboard', correlationId, { staffId });
+      const report = await this.generatePerformanceReport(staffId, 'weekly', correlationId);
+      const dashboard = {
+        kpis: report.metrics,
+        staffDetails: {
+          name: report.staff.user.getFullName(),
+          merchant: report.staff.merchant.business_name,
+          permissions: report.metrics.permissions,
+        },
+      };
+      logApiEvent('Staff dashboard retrieved', { staffId, correlationId });
+      return dashboard;
+    } catch (error) {
+      logErrorEvent('Error retrieving staff report dashboard', { error: error.message, staffId, correlationId });
+      throw new AppError('Failed to retrieve staff dashboard', 500);
+    }
+  }
+
+  // Helper Methods
+  getTimeFilter(period) {
+    const now = new Date();
+    switch (period.toLowerCase()) {
+      case 'weekly':
+        return { [Op.gte]: new Date(now.setDate(now.getDate() - 7)) };
+      case 'monthly':
+        return { [Op.gte]: new Date(now.setMonth(now.getMonth() - 1)) };
+      case 'quarterly':
+        return { [Op.gte]: new Date(now.setMonth(now.getMonth() - 3)) };
+      default:
+        return {};
+    }
+  }
+
+  calculateHoursWorked(createdAt, workLocation) {
+    const start = new Date(createdAt);
+    const now = new Date();
+    const shiftLogs = workLocation?.shift_logs || [];
+    if (shiftLogs.length > 0) {
+      return shiftLogs.reduce((total, log) => {
+        const end = log.end_time ? new Date(log.end_time) : now;
+        return total + (end - new Date(log.start_time)) / (1000 * 60 * 60);
+      }, 0);
+    }
+    return (now - start) / (1000 * 60 * 60); // Fallback to total employment duration
+  }
+
+  sumTips(payments) {
+    return payments.reduce((sum, payment) => sum + (payment.tip_amount || 0), 0);
+  }
+
+  calculateCompletionRate(orders, inDiningOrders, tables) {
+    const totalTasks = orders.length + inDiningOrders.length + tables.length;
+    const completedTasks = orders.length + inDiningOrders.length;
+    return totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+  }
+
+  calculateAvgTaskTime(orders, inDiningOrders) {
+    const orderTimes = orders
+      .filter(o => o.updated_at && o.created_at)
+      .map(o => (new Date(o.updated_at) - new Date(o.created_at)) / (1000 * 60));
+    const diningTimes = inDiningOrders
+      .filter(o => o.updated_at && o.created_at)
+      .map(o => (new Date(o.updated_at) - new Date(o.created_at)) / (1000 * 60));
+    const allTimes = [...orderTimes, ...diningTimes];
+    return allTimes.length > 0 ? allTimes.reduce((a, b) => a + b, 0) / allTimes.length : 0;
+  }
+
+  getDeviceStats(devices) {
+    return devices.map(d => ({
+      lastActive: d.last_active_at,
+      platform: d.platform,
+      network: d.network_type,
+      quality: d.connection_quality,
+      hardwareConcurrency: d.hardware_concurrency,
+    }));
+  }
+
+  assignGamificationBadges(metrics) {
+    const badges = [];
+    if (metrics.tasksCompleted > 50) badges.push('Task Master');
+    if (metrics.taskCompletionRate > 90) badges.push('Efficiency Expert');
+    if (metrics.tipsEarned > 1000) badges.push('Tip Champion');
+    return badges;
+  }
+
+  generateCharts(metrics) {
+    // Simplified; actual Chart.js integration would need canvas or server-side rendering
+    return {
+      taskCompletion: { type: 'bar', data: { labels: ['Tasks'], datasets: [{ data: [metrics.tasksCompleted] }] } },
+      hoursWorked: { type: 'pie', data: { labels: ['Hours'], datasets: [{ data: [metrics.hoursWorked] }] } },
+    };
+  }
+
+  analyzeTrend(rate) {
+    return rate > 75 ? 'Positive' : 'Needs Improvement';
+  }
+
+  async checkPunctuality(staffId) {
+    const staff = await Staff.findByPk(staffId);
+    const shiftLogs = staff.work_location?.shift_logs || [];
+    const lateShifts = shiftLogs.filter(s => new Date(s.start_time) > new Date(s.scheduled_start));
+    return { totalShifts: shiftLogs.length, lateShifts: lateShifts.length };
+  }
+
+  async getFeedbackQuality(staffId) {
+    const staff = await Staff.findByPk(staffId);
+    const notifications = await Notification.findAll({
+      where: { user_id: staff.user_id },
+      include: [{ model: Order, as: 'order' }],
+    });
+    const scores = notifications
+      .filter(n => n.order)
+      .map(n => n.message.rating || 0); // Assuming rating in message JSON
+    return scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+  }
+}
+
+module.exports = new StaffReportService();
+Key Integrations and Enhancements:
+NotificationService Integration:
+Updated scheduleStaffReports to use sendThroughChannel from NotificationService instead of a hypothetical sendScheduledReports. Assumes an email channel for simplicity; adjust to SMS/WhatsApp if preferred.
+Added template parameters for a staff_performance_report template (you’d need to define this in your email/SMS/WhatsApp service).
+PDFService Integration:
+Replaced PDFKit direct usage in exportStaffReportPDF with PDFService.generatePDF. Returns a file path instead of a buffer, aligning with PDFService’s design.
+Used a structured template object to leverage TemplateProcessor (assumed to process string templates; adjust if it uses a different format).
+Logging Enhancements:
+Retained logWithCorrelation and logErrorEvent for traceability.
+Added detailed logging with filePath in PDF generation.
+Constructor Adjustments:
+Added this.pdfService to use the singleton instance from pdfService.js.
+Initialized NotificationService with null dependencies (io, whatsappService, etc.)—replace with actual instances if injected elsewhere (e.g., via dependency injection in your app setup).
+Assumptions and Notes:
+NotificationService Dependencies: Assumed null for io, whatsappService, emailService, and smsService. In a real app, these should be injected properly (e.g., via a DI container or app initialization).
+Chart.js: Simplified to return data structures since server-side rendering requires additional setup (e.g., node-canvas). Let me know if you need full rendering.
+TemplateProcessor: Assumed it processes string templates into formatted content. If it uses a different mechanism, I can adjust exportStaffReportPDF.
+Suggestions Based on NotificationService and pdfService:
+Enhance scheduleStaffReports:
+Add PDF attachment support by generating PDFs with PDFService and attaching them to notifications:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+const pdfPath = await this.exportStaffReportPDF(report.staff.id, interval, correlationId);
+await NotificationService.sendThroughChannel('EMAIL', {
+  notification: { templateName: 'staff_performance_report_with_pdf', parameters: { ...notification.parameters, pdfPath } },
+  content: null,
+  recipient,
+});
+await this.pdfService.cleanup(pdfPath);
+Requires emailService to support attachments.
+Custom PDF Template:
+Define a staff_report template in a separate file (e.g., templates/staffReportTemplate.js) and pass it to PDFService.generatePDF for reusability and customization.
+Notification Channels:
+Add support for multiple channels (e.g., WhatsApp for quick summaries, email for detailed reports) based on staff preferences stored in User or Staff.
+Next Steps:
+Model Sharing: If you can share Order or InDiningOrder, I can refine calculateAvgTaskTime or add order-specific metrics.
+Dependencies: Provide how NotificationService dependencies are typically injected so I can adjust the instantiation.
+Specific Features: Want to add PDF attachments to notifications or enhance charts? Let me know your priorities!

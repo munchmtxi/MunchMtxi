@@ -1,0 +1,725 @@
+Here’s the revised AvailabilityShiftService.js:
+
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+'use strict';
+
+const { Staff, User, MerchantBranch, Table, TableLayoutSection, Booking, Order, InDiningOrder, Notification, Device, BookingTimeSlot } = require('@models');
+const NotificationService = require('@services/notificationService');
+const BookingService = require('@services/bookingService');
+const QuickLinkService = require('@services/quickLinkService');
+const { logger, PerformanceMonitor } = require('@utils/logger');
+const AppError = require('@utils/appError');
+const { Op } = require('sequelize');
+const { io } = require('@server'); // Assuming Socket.IO is initialized in server.js
+const cron = require('node-cron');
+
+class AvailabilityShiftService {
+  constructor() {
+    this.performanceMonitor = PerformanceMonitor;
+    this.setupCronJobs();
+  }
+
+  /**
+   * Sets the availability status for a staff member.
+   * @param {string} staffId - The ID of the staff member.
+   * @param {string} status - The new availability status ('available', 'busy', 'on_break', 'offline').
+   * @returns {Promise<Staff>} The updated staff record.
+   */
+  async setAvailabilityStatus(staffId, status) {
+    try {
+      const validStatuses = ['available', 'busy', 'on_break', 'offline'];
+      if (!validStatuses.includes(status)) {
+        throw new AppError('Invalid availability status', 400, 'INVALID_STATUS');
+      }
+
+      const staff = await Staff.findByPk(staffId, {
+        include: [
+          { model: User, as: 'user', attributes: ['first_name', 'last_name', 'email'] },
+          { model: MerchantBranch, as: 'merchantBranch', through: { attributes: [] } },
+        ],
+      });
+      if (!staff) throw new AppError('Staff not found', 404, 'STAFF_NOT_FOUND');
+
+      staff.availability_status = status; // Assumes added to Staff model
+      await staff.save();
+
+      await this.notifyAvailabilityChange(staff);
+      logger.info('Staff availability status updated', { staffId, status });
+      return staff;
+    } catch (error) {
+      logger.error('Error setting availability status', { error: error.message, staffId, status });
+      throw error instanceof AppError ? error : new AppError('Failed to set availability status', 500);
+    }
+  }
+
+  /**
+   * Updates staff availability in real-time based on current tasks and device status.
+   * @param {string} staffId - The ID of the staff member.
+   * @returns {Promise<void>}
+   */
+  async updateRealTimeAvailability(staffId) {
+    try {
+      const staff = await Staff.findByPk(staffId, {
+        include: [
+          { model: User, as: 'user', include: [{ model: Device, as: 'driver_profile' }] }, // Adjusted to match User associations
+        ],
+      });
+      if (!staff) throw new AppError('Staff not found', 404, 'STAFF_NOT_FOUND');
+
+      const [orders, inDiningOrders, tables, bookings] = await Promise.all([
+        Order.count({ where: { staff_id: staffId, status: { [Op.in]: ['pending', 'confirmed', 'preparing'] } } }),
+        InDiningOrder.count({ where: { staff_id: staffId, status: { [Op.in]: ['pending', 'confirmed', 'preparing'] } } }),
+        Table.count({ where: { assigned_staff_id: staffId, status: 'occupied' } }),
+        Booking.count({
+          where: { staff_id: staffId, status: { [Op.in]: ['approved', 'seated'] }, booking_date: { [Op.gte]: new Date() } },
+        }),
+      ]);
+
+      const activeTasks = orders + inDiningOrders + tables + bookings;
+      const deviceStatus = staff.user.driver_profile?.connection_quality || 'unknown'; // Adjusted to match Device association
+      const newStatus = activeTasks > 0 ? 'busy' : deviceStatus === 'poor' ? 'offline' : 'available';
+
+      if (staff.availability_status !== newStatus) {
+        staff.availability_status = newStatus;
+        await staff.save();
+        await this.notifyAvailabilityChange(staff);
+        logger.info('Real-time availability updated', { staffId, newStatus, activeTasks });
+      }
+    } catch (error) {
+      logger.error('Error updating real-time availability', { error: error.message, staffId });
+      throw new AppError('Failed to update real-time availability', 500);
+    }
+  }
+
+  /**
+   * Manages shift scheduling for a staff member using BookingTimeSlot.
+   * @param {string} staffId - The ID of the staff member.
+   * @param {Object} shiftData - Shift details { branch_id, slot_id, date }.
+   * @returns {Promise<Staff>} The updated staff record.
+   */
+  async manageShifts(staffId, shiftData) {
+    try {
+      const { branch_id, slot_id, date } = shiftData;
+      if (!branch_id || !slot_id || !date) {
+        throw new AppError('Branch ID, slot ID, and date are required', 400, 'INVALID_SHIFT_DATA');
+      }
+
+      const staff = await Staff.findByPk(staffId, {
+        include: [{ model: MerchantBranch, as: 'merchantBranch', through: { attributes: [] } }],
+      });
+      if (!staff) throw new AppError('Staff not found', 404, 'STAFF_NOT_FOUND');
+
+      const slot = await BookingTimeSlot.findOne({
+        where: { id: slot_id, branch_id, is_active: true },
+        include: [{ model: MerchantBranch, as: 'branch' }],
+      });
+      if (!slot) throw new AppError('Invalid or inactive time slot', 404, 'SLOT_NOT_FOUND');
+
+      const shiftDate = new Date(date);
+      const dayOfWeek = shiftDate.getDay();
+      if (slot.day_of_week !== dayOfWeek) {
+        throw new AppError('Slot day of week does not match the provided date', 400, 'INVALID_DATE');
+      }
+
+      const shift = {
+        branch_id,
+        slot_id,
+        start_time: new Date(`${date} ${slot.start_time}`),
+        end_time: new Date(`${date} ${slot.end_time}`),
+        scheduled_start: new Date(`${date} ${slot.start_time}`),
+        scheduled_end: new Date(`${date} ${slot.end_time}`),
+        status: 'scheduled',
+      };
+
+      staff.work_location = staff.work_location || {};
+      staff.work_location.shift_logs = staff.work_location.shift_logs || [];
+      staff.work_location.shift_logs.push(shift);
+      await staff.save();
+
+      await this.sendShiftNotifications(staffId, shift);
+      logger.info('Shift managed for staff', { staffId, shift });
+      return staff;
+    } catch (error) {
+      logger.error('Error managing shifts', { error: error.message, staffId });
+      throw error instanceof AppError ? error : new AppError('Failed to manage shifts', 500);
+    }
+  }
+
+  /**
+   * Sends notifications for a staff member's shift.
+   * @param {string} staffId - The ID of the staff member.
+   * @param {Object} shift - The shift details.
+   * @returns {Promise<void>}
+   */
+  async sendShiftNotifications(staffId, shift) {
+    try {
+      const staff = await Staff.findByPk(staffId, {
+        include: [{ model: User, as: 'user', include: [{ model: Device, as: 'driver_profile' }] }],
+      });
+      if (!staff) throw new AppError('Staff not found', 404, 'STAFF_NOT_FOUND');
+
+      const message = {
+        title: 'Shift Notification',
+        body: `Your shift at branch ${shift.branch_id} is scheduled from ${shift.scheduled_start.toLocaleString()} to ${shift.scheduled_end.toLocaleString()}.`,
+        data: { type: 'shift', staffId, shift },
+      };
+
+      await NotificationService.sendThroughChannel({
+        userId: staff.user_id,
+        message,
+        channel: staff.user.driver_profile?.preferred_response_format || 'push',
+        language: staff.user.driver_profile?.preferred_language || 'en',
+      });
+
+      // Schedule reminder 15 minutes prior
+      const now = new Date();
+      const reminderTime = new Date(shift.scheduled_start) - 15 * 60 * 1000;
+      if (reminderTime > now) {
+        cron.schedule(
+          `${reminderTime.getMinutes()} ${reminderTime.getHours()} ${reminderTime.getDate()} ${reminderTime.getMonth() + 1} *`,
+          async () => {
+            await NotificationService.sendThroughChannel({
+              userId: staff.user_id,
+              message: { ...message, body: `Reminder: Your shift starts in 15 minutes!` },
+              channel: staff.user.driver_profile?.preferred_response_format || 'push',
+            });
+          },
+          { scheduled: true, timezone: 'UTC' }
+        );
+      }
+
+      logger.info('Shift notification sent', { staffId, shift });
+    } catch (error) {
+      logger.error('Error sending shift notifications', { error: error.message, staffId });
+      throw new AppError('Failed to send shift notifications', 500);
+    }
+  }
+
+  /**
+   * Detects and resolves scheduling conflicts for a staff member.
+   * @param {string} staffId - The ID of the staff member.
+   * @returns {Promise<Object[]>} Array of detected conflicts.
+   */
+  async resolveConflicts(staffId) {
+    try {
+      const conflicts = await this.detectConflicts(staffId);
+      if (conflicts.length > 0) {
+        const staff = await Staff.findByPk(staffId, { include: [{ model: User, as: 'user' }] });
+        if (staff.availability_status !== 'busy') {
+          staff.availability_status = 'busy';
+          await staff.save();
+        }
+
+        await NotificationService.sendThroughChannel({
+          userId: staff.manager_id || staff.user_id,
+          message: {
+            title: 'Scheduling Conflict',
+            body: `Conflicts detected for ${staff.user.getFullName()}: ${conflicts.length} overlapping tasks.`,
+            data: { type: 'conflict', staffId, conflicts },
+          },
+          channel: 'email',
+        });
+
+        logger.warn('Conflicts resolved for staff', { staffId, conflictCount: conflicts.length });
+      }
+      return conflicts;
+    } catch (error) {
+      logger.error('Error resolving conflicts', { error: error.message, staffId });
+      throw new AppError('Failed to resolve conflicts', 500);
+    }
+  }
+
+  // Helper Methods
+
+  /**
+   * Notifies availability changes via WebSocket and NotificationService.
+   * @param {Staff} staff - The staff instance.
+   * @returns {Promise<void>}
+   */
+  async notifyAvailabilityChange(staff) {
+    try {
+      const message = {
+        title: 'Availability Update',
+        body: `${staff.user.getFullName()} is now ${staff.availability_status}.`,
+        data: { type: 'availability', staffId: staff.id, status: staff.availability_status },
+      };
+
+      // WebSocket broadcast to merchant admins
+      io.to(`merchant:${staff.merchant_id}`).emit('staffAvailabilityUpdate', {
+        staffId: staff.id,
+        status: staff.availability_status,
+        timestamp: new Date(),
+      });
+
+      // Notify staff via preferred device channel
+      await NotificationService.sendThroughChannel({
+        userId: staff.user_id,
+        message,
+        channel: staff.user.driver_profile?.preferred_response_format || 'push',
+      });
+    } catch (error) {
+      logger.error('Error notifying availability change', { error: error.message, staffId: staff.id });
+    }
+  }
+
+  /**
+   * Detects scheduling conflicts for a staff member.
+   * @param {string} staffId - The ID of the staff member.
+   * @returns {Promise<Object[]>} Array of conflict details.
+   */
+  async detectConflicts(staffId) {
+    try {
+      const staff = await Staff.findByPk(staffId);
+      if (!staff) throw new AppError('Staff not found', 404, 'STAFF_NOT_FOUND');
+
+      const shiftLogs = staff.work_location?.shift_logs || [];
+      const [orders, inDiningOrders, bookings, tables] = await Promise.all([
+        Order.findAll({
+          where: { staff_id: staffId, status: { [Op.in]: ['pending', 'confirmed', 'preparing'] } },
+        }),
+        InDiningOrder.findAll({
+          where: { staff_id: staffId, status: { [Op.in]: ['pending', 'confirmed', 'preparing'] } },
+        }),
+        Booking.findAll({
+          where: { staff_id: staffId, status: { [Op.in]: ['approved', 'seated'] }, booking_date: { [Op.gte]: new Date() } },
+        }),
+        Table.findAll({
+          where: { assigned_staff_id: staffId, status: 'occupied' },
+        }),
+      ]);
+
+      const branch = await MerchantBranch.findByPk(staff.branch_id);
+      const maxTables = branch?.reservation_settings?.seating_capacity * (branch?.reservation_settings?.capacity_alert_threshold / 100) || 10;
+
+      const conflicts = [];
+      const now = new Date();
+
+      // Check shift overlaps
+      for (let i = 0; i < shiftLogs.length; i++) {
+        for (let j = i + 1; j < shiftLogs.length; j++) {
+          const shiftA = shiftLogs[i];
+          const shiftB = shiftLogs[j];
+          if (
+            shiftA.start_time < shiftB.end_time &&
+            shiftA.end_time > shiftB.start_time &&
+            shiftA.status !== 'completed' &&
+            shiftB.status !== 'completed'
+          ) {
+            conflicts.push({ type: 'shift_overlap', shiftA, shiftB });
+          }
+        }
+      }
+
+      // Check task overlaps with shifts
+      const tasks = [...orders, ...inDiningOrders, ...bookings];
+      for (const shift of shiftLogs.filter(s => s.status === 'scheduled' && s.start_time <= now && (!s.end_time || s.end_time >= now))) {
+        for (const task of tasks) {
+          const taskStart = new Date(task.created_at);
+          const taskEnd = task.updated_at ? new Date(task.updated_at) : now;
+          if (shift.start_time < taskEnd && (!shift.end_time || shift.end_time > taskStart)) {
+            conflicts.push({ type: 'task_shift_overlap', shift, task });
+          }
+        }
+      }
+
+      // Check table overload based on branch capacity
+      if (tables.length > maxTables) {
+        conflicts.push({ type: 'table_overload', tableCount: tables.length, maxTables });
+      }
+
+      return conflicts;
+    } catch (error) {
+      logger.error('Error detecting conflicts', { error: error.message, staffId });
+      throw new AppError('Failed to detect conflicts', 500);
+    }
+  }
+
+  /**
+   * Sets up cron jobs for periodic availability checks.
+   */
+  setupCronJobs() {
+    // Run every 5 minutes to update availability
+    cron.schedule('*/5 * * * *', async () => {
+      try {
+        const staffMembers = await Staff.findAll({ where: { availability_status: { [Op.ne]: 'offline' } } });
+        await Promise.all(staffMembers.map(staff => this.updateRealTimeAvailability(staff.id)));
+        logger.info('Periodic availability check completed', { staffCount: staffMembers.length });
+      } catch (error) {
+        logger.error('Error in periodic availability check', { error: error.message });
+      }
+    });
+  }
+}
+
+module.exports = new AvailabilityShiftService();
+Key Enhancements Based on Your System:
+Dependencies:
+Socket.IO: Used io from @server for real-time WebSocket updates to merchant admins (assumes server.js initializes Socket.IO).
+Node-Cron: Added setupCronJobs to periodically update staff availability every 5 minutes.
+Winston: Enhanced logging with detailed context using @utils/logger.
+Model Integration:
+Staff: Added availability_status (assumed; see below if not present) and used work_location.shift_logs for shifts.
+User & Device: Adjusted to use driver_profile alias for Device association via User, respecting your schema.
+BookingTimeSlot: Integrated for shift scheduling, ensuring shifts align with branch-specific time slots.
+MerchantBranch: Used reservation_settings for dynamic table overload thresholds.
+Order, InDiningOrder, Booking, Table: Updated statuses and conditions to match your enums and business logic.
+Real-Time Updates:
+WebSocket: Broadcasts availability changes to merchant:${merchant_id} room, aligning with your real-time needs.
+Device Status: Uses connection_quality from Device to refine availability logic.
+Shift Management:
+BookingTimeSlot: Shifts are now tied to specific time slots, ensuring alignment with branch schedules.
+Cron Reminder: Replaced setTimeout with node-cron for reliable shift reminders.
+Conflict Resolution:
+Dynamic Thresholds: Table overload uses MerchantBranch.reservation_settings for capacity limits.
+Task Overlaps: Updated to check relevant statuses from Order, InDiningOrder, and Booking.
+Assumptions and Necessary Adjustments:
+Staff Model Update:
+Your provided Staff model lacks availability_status. Add it:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+availability_status: {
+  type: DataTypes.ENUM('available', 'busy', 'on_break', 'offline'),
+  allowNull: false,
+  defaultValue: 'offline',
+}
+If already added elsewhere, ensure it matches this ENUM.
+Socket.IO Setup:
+Assumes server.js exports io as a Socket.IO instance. If not, initialize it:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+const { Server } = require('socket.io');
+const io = new Server(httpServer); // Pass your HTTP server
+module.exports = { io };
+Staff-MerchantBranch Relationship:
+Assumes a many-to-many relationship via BranchStaffRole. If different, adjust the include in queries.
+Suggestions for Further Enhancement:
+StaffShift Model:
+Replace work_location.shift_logs with a dedicated StaffShift model (as previously suggested) for better querying and scalability:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+StaffShift.findAll({ where: { staff_id: staffId, status: 'scheduled' } })
+WhatsApp Integration:
+Leverage whatsapp-web.js in sendShiftNotifications for WhatsApp reminders:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+const { Client } = require('whatsapp-web.js');
+const client = new Client();
+await client.sendMessage(`${staff.user.phone}@c.us`, message.body);
+BookingService Integration:
+Call BookingService to auto-assign staff to bookings when scheduling shifts:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+await BookingService.assignStaffToBooking(bookingId, staffId);
+
+'use strict';
+
+const { Staff, User, MerchantBranch, Table, TableLayoutSection, Booking, Order, InDiningOrder, Notification, Device, BookingTimeSlot } = require('@models');
+const NotificationService = require('@services/notificationService');
+const BookingService = require('@services/bookingService');
+const QuickLinkService = require('@services/quickLinkService');
+const InDiningOrderService = require('@services/inDiningOrderService'); // Added
+const { logger, PerformanceMonitor } = require('@utils/logger');
+const AppError = require('@utils/appError');
+const { Op } = require('sequelize');
+const { io } = require('@server');
+const cron = require('node-cron');
+
+class AvailabilityShiftService {
+  constructor() {
+    this.performanceMonitor = PerformanceMonitor;
+    this.setupCronJobs();
+  }
+
+  async setAvailabilityStatus(staffId, status) {
+    // Existing method unchanged
+    // ...
+  }
+
+  async updateRealTimeAvailability(staffId) {
+    try {
+      const staff = await Staff.findByPk(staffId, {
+        include: [
+          { model: User, as: 'user', include: [{ model: Device, as: 'driver_profile' }] },
+        ],
+      });
+      if (!staff) throw new AppError('Staff not found', 404, 'STAFF_NOT_FOUND');
+
+      const [orders, inDiningOrders, tables, bookings, staffRequests] = await Promise.all([
+        Order.count({ where: { staff_id: staffId, status: { [Op.in]: ['pending', 'confirmed', 'preparing'] } } }),
+        InDiningOrder.count({ where: { staff_id: staffId, status: { [Op.in]: ['pending', 'confirmed', 'preparing'] } } }),
+        Table.count({ where: { assigned_staff_id: staffId, status: 'occupied' } }),
+        Booking.count({
+          where: { staff_id: staffId, status: { [Op.in]: ['approved', 'seated'] }, booking_date: { [Op.gte]: new Date() } },
+        }),
+        Notification.count({ // QuickLinkService staff requests
+          where: {
+            user_id: staff.user_id,
+            type: 'staff_request',
+            read_status: false,
+            created_at: { [Op.gte]: new Date(Date.now() - 24 * 60 * 60 * 1000) }, // Last 24 hours
+          },
+        }),
+      ]);
+
+      const activeTasks = orders + inDiningOrders + tables + bookings + staffRequests;
+      const deviceStatus = staff.user.driver_profile?.connection_quality || 'unknown';
+      const newStatus = activeTasks > 0 ? 'busy' : deviceStatus === 'poor' ? 'offline' : 'available';
+
+      if (staff.availability_status !== newStatus) {
+        staff.availability_status = newStatus;
+        await staff.save();
+        await this.notifyAvailabilityChange(staff);
+        logger.info('Real-time availability updated', { staffId, newStatus, activeTasks });
+      }
+    } catch (error) {
+      logger.error('Error updating real-time availability', { error: error.message, staffId });
+      throw new AppError('Failed to update real-time availability', 500);
+    }
+  }
+
+  async manageShifts(staffId, shiftData) {
+    // Existing method unchanged
+    // ...
+  }
+
+  async sendShiftNotifications(staffId, shift) {
+    // Existing method unchanged
+    // ...
+  }
+
+  async resolveConflicts(staffId) {
+    // Existing method unchanged
+    // ...
+  }
+
+  /**
+   * Assigns staff to a booking when approved or checked in.
+   * @param {string} bookingId - The ID of the booking.
+   * @returns {Promise<Staff>} The assigned staff.
+   */
+  async assignStaffToBooking(bookingId) {
+    try {
+      const booking = await Booking.findByPk(bookingId, {
+        include: [{ model: Table, as: 'table' }, { model: MerchantBranch, as: 'branch' }],
+      });
+      if (!booking) throw new AppError('Booking not found', 404, 'BOOKING_NOT_FOUND');
+
+      const availableStaff = await Staff.findOne({
+        where: {
+          merchant_id: booking.merchant_id,
+          availability_status: 'available',
+          branch_id: booking.branch_id,
+        },
+        include: [{ model: User, as: 'user' }],
+      });
+      if (!availableStaff) throw new AppError('No available staff found', 404, 'NO_STAFF_AVAILABLE');
+
+      booking.staff_id = availableStaff.id;
+      await booking.save();
+
+      await Table.update(
+        { assigned_staff_id: availableStaff.id },
+        { where: { id: booking.table_id } }
+      );
+
+      await NotificationService.sendThroughChannel({
+        userId: availableStaff.user_id,
+        message: {
+          title: 'Booking Assignment',
+          body: `You are assigned to booking ${booking.reference} at table ${booking.table.table_number}.`,
+          data: { type: 'booking_assignment', bookingId, staffId: availableStaff.id },
+        },
+        channel: availableStaff.user.driver_profile?.preferred_response_format || 'push',
+      });
+
+      await this.updateRealTimeAvailability(availableStaff.id);
+      logger.info('Staff assigned to booking', { bookingId, staffId: availableStaff.id });
+      return availableStaff;
+    } catch (error) {
+      logger.error('Error assigning staff to booking', { error: error.message, bookingId });
+      throw new AppError('Failed to assign staff to booking', 500);
+    }
+  }
+
+  async notifyAvailabilityChange(staff) {
+    // Existing method unchanged
+    // ...
+  }
+
+  async detectConflicts(staffId) {
+    // Existing method unchanged
+    // ...
+  }
+
+  setupCronJobs() {
+    cron.schedule('*/5 * * * *', async () => {
+      try {
+        const staffMembers = await Staff.findAll({ where: { availability_status: { [Op.ne]: 'offline' } } });
+        await Promise.all(staffMembers.map(staff => this.updateRealTimeAvailability(staff.id)));
+        logger.info('Periodic availability check completed', { staffCount: staffMembers.length });
+      } catch (error) {
+        logger.error('Error in periodic availability check', { error: error.message });
+      }
+    });
+  }
+}
+
+module.exports = new AvailabilityShiftService();
+
+Models to Update
+1. Staff (src/models/staff.js)
+Reason: Missing availability_status and branch_id fields required by the service for tracking staff availability and direct branch association.
+Updates:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+// Add to Staff.init fields
+availability_status: {
+  type: DataTypes.ENUM('available', 'busy', 'on_break', 'offline'),
+  allowNull: false,
+  defaultValue: 'offline',
+},
+branch_id: {
+  type: DataTypes.INTEGER,
+  allowNull: true,
+  references: {
+    model: 'merchant_branches',
+    key: 'id',
+  },
+  onUpdate: 'CASCADE',
+  onDelete: 'SET NULL',
+},
+2. User (src/models/users.js)
+Reason: The driver_profile association is incorrectly tied to Driver instead of Device, which the service expects for device-related data.
+Updates:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+// Replace existing 'driver_profile' association in static associate(models)
+this.hasOne(models.Device, {
+  foreignKey: 'user_id',
+  as: 'driver_profile',
+});
+// Remove: this.hasOne(models.Driver, { foreignKey: 'user_id', as: 'driver_profile' });
+3. Table (src/models/table.js)
+Reason: Missing assigned_staff_id field needed for staff assignment in the service’s assignStaffToBooking method.
+Updates:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+// Add to Table.init fields
+assigned_staff_id: {
+  type: DataTypes.INTEGER,
+  allowNull: true,
+  references: {
+    model: 'staff',
+    key: 'id',
+  },
+  onUpdate: 'CASCADE',
+  onDelete: 'SET NULL',
+},
+4. Booking (src/models/booking.js)
+Reason: Missing staff_id field required for staff assignment in assignStaffToBooking.
+Updates:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+// Add to Booking.init fields
+staff_id: {
+  type: DataTypes.INTEGER,
+  allowNull: true,
+  references: {
+    model: 'staff',
+    key: 'id',
+  },
+  onUpdate: 'CASCADE',
+  onDelete: 'SET NULL',
+},
+5. Order (src/models/order.js)
+Reason: Missing staff_id field needed for staff assignment in updateRealTimeAvailability.
+Updates:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+// Add to Order.init fields
+staff_id: {
+  type: DataTypes.INTEGER,
+  allowNull: true,
+  references: {
+    model: 'staff',
+    key: 'id',
+  },
+  onUpdate: 'CASCADE',
+  onDelete: 'SET NULL',
+},
+6. MerchantBranch (src/models/merchantBranch.js)
+Reason: The service expects reservation_settings (JSON with seating_capacity and capacity_alert_threshold), but this file wasn’t provided. If it doesn’t exist, add it.
+Updates (Assuming it exists or needs to be added):
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+// Add to MerchantBranch.init fields
+reservation_settings: {
+  type: DataTypes.JSONB,
+  allowNull: true,
+  defaultValue: {
+    seating_capacity: 50,
+    capacity_alert_threshold: 80,
+  },
+},
+

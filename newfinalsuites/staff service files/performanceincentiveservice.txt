@@ -1,0 +1,570 @@
+Here’s the complete PerformanceIncentiveService.js:
+
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+'use strict';
+
+const { Staff, User, Order, InDiningOrder, Table, Notification, Payment, Device, Booking } = require('@models');
+const OrderService = require('@services/orderService');
+const InDiningOrderService = require('@services/inDiningOrderService');
+const QuickLinkService = require('@services/quickLinkService');
+const NotificationService = require('@services/notificationService');
+const { logger } = require('@utils/logger');
+const AppError = require('@utils/appError');
+const { Op } = require('sequelize');
+
+class PerformanceIncentiveService {
+  constructor() {
+    this.tiers = {
+      BRONZE: { minPoints: 0, maxPoints: 499, label: 'Bronze' },
+      SILVER: { minPoints: 500, maxPoints: 999, label: 'Silver' },
+      GOLD: { minPoints: 1000, maxPoints: Infinity, label: 'Gold' },
+    };
+    this.pointValues = {
+      orderCompleted: 10,
+      inDiningOrderClosed: 8,
+      tableTurnover: 5,
+      quickCheckIn: 3,
+      positiveFeedback: 15,
+      tipReceived: 1, // Per unit of currency (e.g., MWK)
+    };
+  }
+
+  /**
+   * Calculates and awards reward points for a staff member.
+   * @param {string} staffId - The ID of the staff member.
+   * @returns {Promise<number>} The points awarded.
+   */
+  async calculateRewards(staffId) {
+    try {
+      const staff = await Staff.findByPk(staffId, {
+        include: [{ model: User, as: 'user' }],
+      });
+      if (!staff) throw new AppError('Staff not found', 404, 'STAFF_NOT_FOUND');
+
+      const metrics = await this.getPerformanceMetrics(staffId);
+      const points = this.calculatePoints(metrics);
+
+      staff.performance_metrics = staff.performance_metrics || { points: 0, tier: 'Bronze', lastEvaluated: null };
+      staff.performance_metrics.points = (staff.performance_metrics.points || 0) + points;
+      staff.performance_metrics.lastEvaluated = new Date();
+
+      const newTier = this.determineTier(staff.performance_metrics.points);
+      if (staff.performance_metrics.tier !== newTier.label) {
+        staff.performance_metrics.tier = newTier.label;
+        await this.notifyTierChange(staff, newTier);
+      }
+
+      await staff.save();
+      logger.info('Rewards calculated for staff', { staffId, points, newTier: newTier.label });
+      return points;
+    } catch (error) {
+      logger.error('Error calculating rewards', { error: error.message, staffId });
+      throw error instanceof AppError ? error : new AppError('Failed to calculate rewards', 500);
+    }
+  }
+
+  /**
+   * Assigns a performance tier to a staff member based on current points.
+   * @param {string} staffId - The ID of the staff member.
+   * @returns {Promise<string>} The assigned tier label.
+   */
+  async assignTier(staffId) {
+    try {
+      const staff = await Staff.findByPk(staffId);
+      if (!staff) throw new AppError('Staff not found', 404, 'STAFF_NOT_FOUND');
+
+      const metrics = await this.getPerformanceMetrics(staffId);
+      const points = staff.performance_metrics?.points || 0;
+      const tier = this.determineTier(points);
+
+      if (staff.performance_metrics?.tier !== tier.label) {
+        staff.performance_metrics = staff.performance_metrics || {};
+        staff.performance_metrics.tier = tier.label;
+        staff.performance_metrics.lastEvaluated = new Date();
+        await staff.save();
+        await this.notifyTierChange(staff, tier);
+        logger.info('Tier assigned to staff', { staffId, tier: tier.label });
+      }
+
+      return tier.label;
+    } catch (error) {
+      logger.error('Error assigning tier', { error: error.message, staffId });
+      throw error instanceof AppError ? error : new AppError('Failed to assign tier', 500);
+    }
+  }
+
+  /**
+   * Redeems staff points for rewards.
+   * @param {string} staffId - The ID of the staff member.
+   * @param {string} rewardType - Type of reward ('gift_card', 'time_off', 'cash').
+   * @param {number} pointsToRedeem - Points to redeem.
+   * @returns {Promise<Object>} Details of the redemption.
+   */
+  async redeemRewards(staffId, rewardType, pointsToRedeem) {
+    try {
+      const validRewards = ['gift_card', 'time_off', 'cash'];
+      if (!validRewards.includes(rewardType)) {
+        throw new AppError('Invalid reward type', 400, 'INVALID_REWARD_TYPE');
+      }
+
+      const staff = await Staff.findByPk(staffId, { include: [{ model: User, as: 'user' }] });
+      if (!staff) throw new AppError('Staff not found', 404, 'STAFF_NOT_FOUND');
+
+      const currentPoints = staff.performance_metrics?.points || 0;
+      if (pointsToRedeem > currentPoints) {
+        throw new AppError('Insufficient points for redemption', 400, 'INSUFFICIENT_POINTS');
+      }
+
+      const rewardValue = this.calculateRewardValue(rewardType, pointsToRedeem);
+      staff.performance_metrics.points -= pointsToRedeem;
+      staff.performance_metrics.redemption_history = staff.performance_metrics.redemption_history || [];
+      staff.performance_metrics.redemption_history.push({
+        type: rewardType,
+        points: pointsToRedeem,
+        value: rewardValue,
+        date: new Date(),
+      });
+
+      await staff.save();
+
+      await NotificationService.sendThroughChannel({
+        userId: staff.user_id,
+        message: {
+          title: 'Reward Redeemed',
+          body: `You redeemed ${pointsToRedeem} points for ${rewardType} worth ${rewardValue}!`,
+          data: { type: 'reward_redemption', staffId, rewardType, pointsToRedeem },
+        },
+        channel: staff.user.driver_profile?.preferred_response_format || 'push',
+      });
+
+      logger.info('Rewards redeemed', { staffId, rewardType, pointsToRedeem, rewardValue });
+      return { rewardType, pointsRedeemed: pointsToRedeem, value: rewardValue };
+    } catch (error) {
+      logger.error('Error redeeming rewards', { error: error.message, staffId, rewardType });
+      throw error instanceof AppError ? error : new AppError('Failed to redeem rewards', 500);
+    }
+  }
+
+  // Helper Methods
+
+  /**
+   * Fetches performance metrics for a staff member over the last 30 days.
+   * @param {string} staffId - The ID of the staff member.
+   * @returns {Promise<Object>} Performance metrics.
+   */
+  async getPerformanceMetrics(staffId) {
+    try {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const [orders, inDiningOrders, tables, checkIns, feedback, tips] = await Promise.all([
+        Order.count({
+          where: {
+            staff_id: staffId,
+            status: 'completed',
+            updated_at: { [Op.gte]: thirtyDaysAgo },
+          },
+        }),
+        InDiningOrder.count({
+          where: {
+            staff_id: staffId,
+            status: 'closed',
+            updated_at: { [Op.gte]: thirtyDaysAgo },
+          },
+        }),
+        Table.findAll({
+          where: {
+            assigned_staff_id: staffId,
+            status: 'available',
+            updated_at: { [Op.gte]: thirtyDaysAgo },
+          },
+        }),
+        QuickLinkService.getCheckInCount(staffId, thirtyDaysAgo), // Assumes method exists
+        Notification.count({
+          where: {
+            user_id: (await Staff.findByPk(staffId)).user_id,
+            type: 'feedback',
+            message: { [Op.like]: '%positive%' },
+            created_at: { [Op.gte]: thirtyDaysAgo },
+          },
+        }),
+        Payment.sum('tip_amount', {
+          where: {
+            staff_id: staffId,
+            payment_status: 'paid',
+            created_at: { [Op.gte]: thirtyDaysAgo },
+          },
+        }),
+      ]);
+
+      const deviceUsage = await Device.count({
+        where: {
+          user_id: (await Staff.findByPk(staffId)).user_id,
+          last_used_at: { [Op.gte]: thirtyDaysAgo },
+        },
+      });
+
+      return {
+        completedOrders: orders,
+        closedInDiningOrders: inDiningOrders,
+        tableTurnovers: tables.length,
+        quickCheckIns: checkIns,
+        positiveFeedback: feedback,
+        tipsReceived: tips || 0,
+        deviceActivity: deviceUsage,
+      };
+    } catch (error) {
+      logger.error('Error fetching performance metrics', { error: error.message, staffId });
+      throw new AppError('Failed to fetch performance metrics', 500);
+    }
+  }
+
+  /**
+   * Calculates points based on performance metrics.
+   * @param {Object} metrics - Performance metrics.
+   * @returns {number} Total points earned.
+   */
+  calculatePoints(metrics) {
+    const {
+      completedOrders,
+      closedInDiningOrders,
+      tableTurnovers,
+      quickCheckIns,
+      positiveFeedback,
+      tipsReceived,
+    } = metrics;
+
+    return (
+      completedOrders * this.pointValues.orderCompleted +
+      closedInDiningOrders * this.pointValues.inDiningOrderClosed +
+      tableTurnovers * this.pointValues.tableTurnover +
+      quickCheckIns * this.pointValues.quickCheckIn +
+      positiveFeedback * this.pointValues.positiveFeedback +
+      Math.floor(tipsReceived * this.pointValues.tipReceived)
+    );
+  }
+
+  /**
+   * Determines the performance tier based on points.
+   * @param {number} points - Total points.
+   * @returns {Object} Tier details.
+   */
+  determineTier(points) {
+    for (const [tierName, tier] of Object.entries(this.tiers)) {
+      if (points >= tier.minPoints && points <= tier.maxPoints) {
+        return tier;
+      }
+    }
+    return this.tiers.BRONZE; // Default to Bronze if no match
+  }
+
+  /**
+   * Calculates the reward value based on type and points.
+   * @param {string} rewardType - Type of reward.
+   * @param {number} points - Points to redeem.
+   * @returns {string} Value of the reward.
+   */
+  calculateRewardValue(rewardType, points) {
+    switch (rewardType) {
+      case 'gift_card':
+        return `${(points / 100).toFixed(2)} MWK`; // 100 points = 1 MWK gift card
+      case 'time_off':
+        return `${Math.floor(points / 200)} hours`; // 200 points = 1 hour off
+      case 'cash':
+        return `${(points / 150).toFixed(2)} MWK`; // 150 points = 1 MWK cash
+      default:
+        return '0';
+    }
+  }
+
+  /**
+   * Notifies staff of a tier change.
+   * @param {Staff} staff - Staff instance.
+   * @param {Object} tier - New tier details.
+   * @returns {Promise<void>}
+   */
+  async notifyTierChange(staff, tier) {
+    try {
+      await NotificationService.sendThroughChannel({
+        userId: staff.user_id,
+        message: {
+          title: 'Performance Tier Update',
+          body: `Congratulations! You've reached ${tier.label} tier!`,
+          data: { type: 'tier_change', staffId: staff.id, tier: tier.label },
+        },
+        channel: staff.user.driver_profile?.preferred_response_format || 'push',
+      });
+    } catch (error) {
+      logger.error('Error notifying tier change', { error: error.message, staffId: staff.id });
+    }
+  }
+}
+
+module.exports = new PerformanceIncentiveService();
+Tailoring to Your System:
+Reward System:
+Points Calculation: Awards points for:
+Order.status = 'completed' (10 points)
+InDiningOrder.status = 'closed' (8 points)
+Table.status changes to 'available' (5 points)
+QuickLinkService.checkIn (3 points, assumes method exists)
+Positive feedback via Notification (15 points)
+Tips from Payment.tip_amount (1 point per MWK)
+Redemption: Supports gift cards, time off, and cash with configurable conversion rates.
+Tiered Rewards:
+Tiers: Bronze (0-499), Silver (500-999), Gold (1000+), stored in Staff.performance_metrics.tier.
+Metrics: Considers points from getPerformanceMetrics and device usage via Device.last_used_at.
+Model Integration:
+Staff: Uses performance_metrics JSONB (suggested addition):
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+performance_metrics: {
+  type: DataTypes.JSONB,
+  allowNull: true,
+  defaultValue: { points: 0, tier: 'Bronze', lastEvaluated: null, redemption_history: [] },
+}
+Payment: Assumes a tip_amount field; add if missing:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+tip_amount: {
+  type: DataTypes.FLOAT,
+  allowNull: true,
+  defaultValue: 0,
+}
+Service Dependencies:
+QuickLinkService: Assumes getCheckInCount(staffId, date) exists. If not, replace with a custom query or remove this metric.
+Error Handling: Uses AppError for consistent error management.
+Assumptions and Suggestions:
+Staff Model Update:
+Add performance_metrics to Staff if not present, as shown above.
+If you prefer a separate table, create a StaffPerformance model:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+class StaffPerformance extends Model {}
+StaffPerformance.init({
+  staff_id: { type: DataTypes.INTEGER, references: { model: 'staff', key: 'id' } },
+  points: { type: DataTypes.INTEGER, defaultValue: 0 },
+  tier: { type: DataTypes.ENUM('Bronze', 'Silver', 'Gold'), defaultValue: 'Bronze' },
+  redemption_history: { type: DataTypes.JSONB, defaultValue: [] },
+}, { sequelize, modelName: 'StaffPerformance', tableName: 'staff_performance' });
+QuickLinkService:
+If getCheckInCount doesn’t exist, implement it in QuickLinkService.js or remove the quickCheckIns metric.
+Integration with Controllers:
+Call calculateRewards from staffPerformanceController.js after task completion:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+await PerformanceIncentiveService.calculateRewards(staffId);
+Periodic Evaluation:
+Add a cron job to evaluate all staff weekly:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+const cron = require('node-cron');
+cron.schedule('0 0 * * 1', async () => {
+  const staff = await Staff.findAll();
+  await Promise.all(staff.map(s => this.calculateRewards(s.id)));
+});
+
+'use strict';
+
+const { Staff, User, Order, InDiningOrder, Table, Notification, Payment, Device, Booking } = require('@models');
+const OrderService = require('@services/orderService');
+const InDiningOrderService = require('@services/inDiningOrderService');
+const QuickLinkService = require('@services/quickLinkService');
+const NotificationService = require('@services/notificationService');
+const { logger } = require('@utils/logger');
+const AppError = require('@utils/appError');
+const { Op } = require('sequelize');
+
+class PerformanceIncentiveService {
+  constructor() {
+    this.tiers = {
+      BRONZE: { minPoints: 0, maxPoints: 499, label: 'Bronze' },
+      SILVER: { minPoints: 500, maxPoints: 999, label: 'Silver' },
+      GOLD: { minPoints: 1000, maxPoints: Infinity, label: 'Gold' },
+    };
+    this.pointValues = {
+      orderCompleted: 10,
+      inDiningOrderClosed: 8,
+      tableTurnover: 5,
+      quickCheckIn: 3,
+      positiveFeedback: 15,
+      tipReceived: 1,
+      bookingHandled: 5, // New: Handling a booking
+      staffRequestFulfilled: 3, // New: Responding to QuickLink requests
+    };
+  }
+
+  async calculateRewards(staffId) {
+    try {
+      const staff = await Staff.findByPk(staffId, {
+        include: [{ model: User, as: 'user' }],
+      });
+      if (!staff) throw new AppError('Staff not found', 404, 'STAFF_NOT_FOUND');
+
+      const metrics = await this.getPerformanceMetrics(staffId);
+      const points = this.calculatePoints(metrics);
+
+      staff.performance_metrics = staff.performance_metrics || { points: 0, tier: 'Bronze', lastEvaluated: null };
+      staff.performance_metrics.points = (staff.performance_metrics.points || 0) + points;
+      staff.performance_metrics.lastEvaluated = new Date();
+
+      const newTier = this.determineTier(staff.performance_metrics.points);
+      if (staff.performance_metrics.tier !== newTier.label) {
+        staff.performance_metrics.tier = newTier.label;
+        await this.notifyTierChange(staff, newTier);
+      }
+
+      await staff.save();
+      logger.info('Rewards calculated for staff', { staffId, points, newTier: newTier.label });
+      return points;
+    } catch (error) {
+      logger.error('Error calculating rewards', { error: error.message, staffId });
+      throw error instanceof AppError ? error : new AppError('Failed to calculate rewards', 500);
+    }
+  }
+
+  async assignTier(staffId) {
+    // Existing method unchanged
+    // ...
+  }
+
+  async redeemRewards(staffId, rewardType, pointsToRedeem) {
+    // Existing method unchanged
+    // ...
+  }
+
+  async getPerformanceMetrics(staffId) {
+    try {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const [orders, inDiningOrders, tables, checkIns, feedback, tips, bookings, staffRequests] = await Promise.all([
+        Order.count({
+          where: { staff_id: staffId, status: 'completed', updated_at: { [Op.gte]: thirtyDaysAgo } },
+        }),
+        InDiningOrder.count({
+          where: { staff_id: staffId, status: 'closed', updated_at: { [Op.gte]: thirtyDaysAgo } },
+        }),
+        Table.findAll({
+          where: { assigned_staff_id: staffId, status: 'available', updated_at: { [Op.gte]: thirtyDaysAgo } },
+        }),
+        Booking.count({ // QuickLinkService check-ins
+          where: { staff_id: staffId, status: 'seated', seated_at: { [Op.gte]: thirtyDaysAgo } },
+        }),
+        Notification.count({
+          where: {
+            user_id: (await Staff.findByPk(staffId)).user_id,
+            type: 'feedback',
+            message: { [Op.like]: '%positive%' },
+            created_at: { [Op.gte]: thirtyDaysAgo },
+          },
+        }),
+        Payment.sum('tip_amount', {
+          where: { staff_id: staffId, payment_status: 'paid', created_at: { [Op.gte]: thirtyDaysAgo } },
+        }),
+        Booking.count({
+          where: { staff_id: staffId, status: { [Op.in]: ['approved', 'seated'] }, updated_at: { [Op.gte]: thirtyDaysAgo } },
+        }),
+        Notification.count({ // QuickLinkService staff requests fulfilled
+          where: {
+            user_id: (await Staff.findByPk(staffId)).user_id,
+            type: 'staff_request',
+            read_status: true,
+            created_at: { [Op.gte]: thirtyDaysAgo },
+          },
+        }),
+      ]);
+
+      const deviceUsage = await Device.count({
+        where: { user_id: (await Staff.findByPk(staffId)).user_id, last_used_at: { [Op.gte]: thirtyDaysAgo } },
+      });
+
+      return {
+        completedOrders: orders,
+        closedInDiningOrders: inDiningOrders,
+        tableTurnovers: tables.length,
+        quickCheckIns: checkIns,
+        positiveFeedback: feedback,
+        tipsReceived: tips || 0,
+        deviceActivity: deviceUsage,
+        bookingsHandled: bookings,
+        staffRequestsFulfilled: staffRequests,
+      };
+    } catch (error) {
+      logger.error('Error fetching performance metrics', { error: error.message, staffId });
+      throw new AppError('Failed to fetch performance metrics', 500);
+    }
+  }
+
+  calculatePoints(metrics) {
+    const {
+      completedOrders,
+      closedInDiningOrders,
+      tableTurnovers,
+      quickCheckIns,
+      positiveFeedback,
+      tipsReceived,
+      bookingsHandled,
+      staffRequestsFulfilled,
+    } = metrics;
+
+    return (
+      completedOrders * this.pointValues.orderCompleted +
+      closedInDiningOrders * this.pointValues.inDiningOrderClosed +
+      tableTurnovers * this.pointValues.tableTurnover +
+      quickCheckIns * this.pointValues.quickCheckIn +
+      positiveFeedback * this.pointValues.positiveFeedback +
+      Math.floor(tipsReceived * this.pointValues.tipReceived) +
+      bookingsHandled * this.pointValues.bookingHandled +
+      staffRequestsFulfilled * this.pointValues.staffRequestFulfilled
+    );
+  }
+
+  determineTier(points) {
+    // Existing method unchanged
+    // ...
+  }
+
+  calculateRewardValue(rewardType, points) {
+    // Existing method unchanged
+    // ...
+  }
+
+  async notifyTierChange(staff, tier) {
+    // Existing method unchanged
+    // ...
+  }
+}
+
+module.exports = new PerformanceIncentiveService();

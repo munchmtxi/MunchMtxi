@@ -69,6 +69,17 @@ module.exports = {
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL',
       },
+      // New field for staff assignment
+      assigned_staff_id: {
+        type: Sequelize.INTEGER,
+        allowNull: true,
+        references: {
+          model: 'staff',
+          key: 'id',
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL',
+      },
       created_at: {
         type: Sequelize.DATE,
         allowNull: false,

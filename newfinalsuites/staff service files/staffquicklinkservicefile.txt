@@ -1,0 +1,343 @@
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+'use strict';
+
+const { Booking, Table, Staff, Notification, Device, InDiningOrder, User } = require('@models');
+const QuickLinkService = require('@services/quickLinkService');
+const NotificationService = require('@services/notificationService');
+const InDiningOrderService = require('@services/inDiningOrderService');
+const BookingService = require('@services/bookingService');
+const AvailabilityShiftService = require('@services/availabilityShiftService'); // For staff assignment
+const { logger } = require('@utils/logger');
+const AppError = require('@utils/appError');
+const { Op } = require('sequelize');
+const { io } = require('@server'); // Assumes Socket.IO initialized in server.js
+
+class CustomerServiceIntegrationService {
+  constructor() {
+    this.io = io;
+  }
+
+  /**
+   * Handles customer check-in for a booking, assigns staff, and notifies them.
+   * @param {string} bookingId - The ID of the booking.
+   * @param {string} userId - The ID of the customer user checking in.
+   * @returns {Promise<Booking>} The updated booking.
+   */
+  async handleCheckIn(bookingId, userId) {
+    try {
+      const booking = await Booking.findByPk(bookingId, {
+        include: [
+          { model: Table, as: 'table' },
+          { model: Customer, as: 'customer', include: [{ model: User, as: 'user' }] },
+          { model: MerchantBranch, as: 'branch' },
+        ],
+      });
+      if (!booking) throw new AppError('Booking not found', 404, 'BOOKING_NOT_FOUND');
+      if (booking.customer.user_id !== userId) throw new AppError('Unauthorized', 403, 'UNAUTHORIZED');
+      if (!['pending', 'approved'].includes(booking.status)) {
+        throw new AppError('Booking cannot be checked in', 400, 'INVALID_BOOKING_STATUS');
+      }
+
+      // Update booking status via BookingService
+      const updatedBooking = await BookingService.checkInBooking({ bookingId, merchantId: booking.merchant_id });
+
+      // Assign staff if not already assigned
+      let assignedStaff = booking.staff_id ? await Staff.findByPk(booking.staff_id) : null;
+      if (!assignedStaff) {
+        assignedStaff = await AvailabilityShiftService.assignStaffToBooking(bookingId);
+      }
+
+      // Update table status
+      await Table.update(
+        { status: 'occupied', assigned_staff_id: assignedStaff.id },
+        { where: { id: booking.table_id } }
+      );
+
+      // Notify staff
+      const message = {
+        title: 'Customer Check-In',
+        body: `Customer ${booking.customer.user.getFullName()} checked in at table ${booking.table.table_number} (Booking: ${booking.reference}).`,
+        data: { type: 'check_in', bookingId, staffId: assignedStaff.id },
+      };
+
+      io.to(`branch:${booking.branch_id}`).emit('checkInUpdate', {
+        bookingId,
+        tableId: booking.table_id,
+        staffId: assignedStaff.id,
+        timestamp: new Date(),
+      });
+
+      await NotificationService.sendThroughChannel({
+        userId: assignedStaff.user_id,
+        message,
+        channel: assignedStaff.user.driver_profile?.preferred_response_format || 'whatsapp',
+      });
+
+      logger.info('Customer check-in handled', { bookingId, staffId: assignedStaff.id });
+      return updatedBooking;
+    } catch (error) {
+      logger.error('Error handling check-in', { error: error.message, bookingId, userId });
+      throw error instanceof AppError ? error : new AppError('Failed to handle check-in', 500);
+    }
+  }
+
+  /**
+   * Handles customer assistance requests and notifies staff.
+   * @param {string} userId - The ID of the customer user making the request.
+   * @param {string} tableId - The ID of the table.
+   * @param {string} requestType - The type of request (e.g., 'assistance', 'order').
+   * @returns {Promise<Notification>} The created notification.
+   */
+  async handleAssistanceRequest(userId, tableId, requestType) {
+    try {
+      const table = await Table.findByPk(tableId, {
+        include: [{ model: MerchantBranch, as: 'branch' }],
+      });
+      if (!table) throw new AppError('Table not found', 404, 'TABLE_NOT_FOUND');
+      if (!['occupied', 'reserved'].includes(table.status)) {
+        throw new AppError('Table not in use', 400, 'TABLE_NOT_IN_USE');
+      }
+
+      // Use QuickLinkService to create the staff request
+      const { notification } = await QuickLinkService.callStaff(userId, tableId, requestType);
+
+      // Assign staff if not already assigned
+      let assignedStaff = table.assigned_staff_id ? await Staff.findByPk(table.assigned_staff_id) : null;
+      if (!assignedStaff) {
+        assignedStaff = await Staff.findOne({
+          where: {
+            branch_id: table.branch_id,
+            availability_status: 'available',
+          },
+          include: [{ model: User, as: 'user' }],
+        });
+        if (!assignedStaff) throw new AppError('No available staff found', 404, 'NO_STAFF_AVAILABLE');
+
+        await Table.update(
+          { assigned_staff_id: assignedStaff.id },
+          { where: { id: tableId } }
+        );
+      }
+
+      // Real-time notification
+      io.to(`branch:${table.branch_id}`).emit('assistanceRequest', {
+        tableId,
+        requestType,
+        staffId: assignedStaff.id,
+        notificationId: notification.id,
+        timestamp: new Date(),
+      });
+
+      await NotificationService.sendThroughChannel({
+        userId: assignedStaff.user_id,
+        message: {
+          title: 'Assistance Request',
+          body: `Customer at table ${table.table_number} requests ${requestType}.`,
+          data: { type: 'assistance_request', tableId, requestType, notificationId: notification.id },
+        },
+        channel: assignedStaff.user.driver_profile?.preferred_response_format || 'whatsapp',
+      });
+
+      await AvailabilityShiftService.updateRealTimeAvailability(assignedStaff.id);
+      logger.info('Assistance request handled', { userId, tableId, requestType, staffId: assignedStaff.id });
+      return notification;
+    } catch (error) {
+      logger.error('Error handling assistance request', { error: error.message, userId, tableId, requestType });
+      throw error instanceof AppError ? error : new AppError('Failed to handle assistance request', 500);
+    }
+  }
+
+  /**
+   * Processes bill requests for in-dining orders and notifies staff.
+   * @param {string} orderId - The ID of the in-dining order.
+   * @param {string} customerId - The ID of the customer requesting the bill.
+   * @param {Object} paymentMethod - Payment method details (e.g., { type: 'MOBILE_MONEY', provider: 'Airtel' }).
+   * @param {string[]} [splitWith] - Optional array of user IDs to split the bill with.
+   * @returns {Promise<InDiningOrder>} The updated order.
+   */
+  async processBill(orderId, customerId, paymentMethod, splitWith = []) {
+    try {
+      const order = await InDiningOrder.findByPk(orderId, {
+        include: [
+          { model: Table, as: 'table' },
+          { model: MerchantBranch, as: 'branch' },
+          { model: Customer, as: 'customer', include: [{ model: User, as: 'user' }] },
+        ],
+      });
+      if (!order) throw new AppError('Order not found', 404, 'ORDER_NOT_FOUND');
+      if (order.customer_id !== customerId) throw new AppError('Unauthorized', 403, 'UNAUTHORIZED');
+      if (order.payment_status !== 'unpaid') throw new AppError('Bill already processed', 400, 'BILL_ALREADY_PAID');
+
+      // Use QuickLinkService to request the bill
+      const { payment } = await QuickLinkService.requestBill(order.customer.user_id, orderId, paymentMethod, splitWith);
+
+      // Assign staff if not already assigned
+      let assignedStaff = order.staff_id ? await Staff.findByPk(order.staff_id) : null;
+      if (!assignedStaff) {
+        assignedStaff = await Staff.findOne({
+          where: {
+            branch_id: order.branch_id,
+            availability_status: 'available',
+          },
+          include: [{ model: User, as: 'user' }],
+        });
+        if (!assignedStaff) throw new AppError('No available staff found', 404, 'NO_STAFF_AVAILABLE');
+
+        order.staff_id = assignedStaff.id;
+        await order.save();
+        await Table.update(
+          { assigned_staff_id: assignedStaff.id },
+          { where: { id: order.table_id } }
+        );
+      }
+
+      // Process payment via InDiningOrderService
+      const updatedOrder = await InDiningOrderService.payOrder(orderId, customerId, {
+        payment_method: paymentMethod.type,
+        provider: paymentMethod.provider,
+        phone_number: order.customer.phone_number,
+      });
+
+      // Notify staff
+      const message = {
+        title: 'Bill Request Processed',
+        body: `Bill for table ${order.table.table_number} (Order: ${order.order_number}) has been requested and payment initiated.`,
+        data: { type: 'bill_request', orderId, staffId: assignedStaff.id },
+      };
+
+      io.to(`branch:${order.branch_id}`).emit('billRequestUpdate', {
+        orderId,
+        tableId: order.table_id,
+        staffId: assignedStaff.id,
+        paymentStatus: updatedOrder.payment_status,
+        timestamp: new Date(),
+      });
+
+      await NotificationService.sendThroughChannel({
+        userId: assignedStaff.user_id,
+        message,
+        channel: assignedStaff.user.driver_profile?.preferred_response_format || 'whatsapp',
+      });
+
+      await AvailabilityShiftService.updateRealTimeAvailability(assignedStaff.id);
+      logger.info('Bill processed', { orderId, customerId, staffId: assignedStaff.id });
+      return updatedOrder;
+    } catch (error) {
+      logger.error('Error processing bill', { error: error.message, orderId, customerId });
+      throw error instanceof AppError ? error : new AppError('Failed to process bill', 500);
+    }
+  }
+}
+
+module.exports = new CustomerServiceIntegrationService();
+Tailoring to Your System:
+Check-In Handling:
+Integration: Uses BookingService.checkInBooking to update booking status and AvailabilityShiftService.assignStaffToBooking to assign staff.
+Table Update: Sets Table.status to 'occupied' and assigns staff.
+Notification: Sends real-time updates via Socket.IO to branch:${branch_id} and notifies assigned staff via NotificationService.
+Staff Assistance Requests:
+Integration: Leverages QuickLinkService.callStaff to create requests and assigns staff if not already assigned.
+Real-Time: Broadcasts to branch:${branch_id} via Socket.IO.
+Availability: Updates staff availability post-assignment.
+Bill Processing:
+Integration: Uses QuickLinkService.requestBill and InDiningOrderService.payOrder to handle payment.
+Staff Assignment: Assigns staff if not present and updates Table.assigned_staff_id.
+Notification: Notifies staff via WebSocket and preferred channel (e.g., WhatsApp).
+Assumptions and Necessary Adjustments:
+Staff Model:
+Assumes availability_status and branch_id in Staff. If missing, add:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+availability_status: {
+  type: DataTypes.ENUM('available', 'busy', 'on_break', 'offline'),
+  allowNull: false,
+  defaultValue: 'offline',
+},
+branch_id: {
+  type: DataTypes.INTEGER,
+  references: { model: 'merchant_branch', key: 'id' },
+}
+InDiningOrder Model:
+Assumes staff_id exists. If not, add:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+staff_id: {
+  type: DataTypes.INTEGER,
+  references: { model: 'staff', key: 'id' },
+}
+Socket.IO:
+Assumes io is exported from @server. Verify in server.js:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+const { Server } = require('socket.io');
+const io = new Server(httpServer);
+module.exports = { io };
+Driver Removal:
+Excluded Driver and DriverOrderService as per your instruction, focusing on in-dining workflows.
+Suggestions for Enhancement:
+Staff Response Tracking:
+Add a method to track staff response times to assistance requests:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+async trackResponseTime(staffId, notificationId) {
+  const notification = await Notification.findByPk(notificationId);
+  const responseTime = (new Date() - new Date(notification.created_at)) / 1000; // Seconds
+  logger.info('Staff response time', { staffId, notificationId, responseTime });
+  return responseTime;
+}
+Bill Splitting Confirmation:
+Enhance processBill to wait for split participants' confirmation:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+if (splitWith.length > 0) {
+  await Promise.all(splitWith.map(uid => NotificationService.sendThroughChannel({
+    userId: uid,
+    message: { title: 'Confirm Bill Split', body: `Please confirm your ${splitAmount} MWK share.` },
+    channel: 'push',
+  })));
+}
+Customer Feedback:
+After bill processing, trigger feedback requests via NotificationService:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+await NotificationService.sendThroughChannel({
+  userId: customerId,
+  message: { title: 'Feedback', body: 'How was your experience?' },
+  channel: 'push',
+});

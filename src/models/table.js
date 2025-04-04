@@ -18,6 +18,11 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'section_id',
         as: 'section',
       });
+      // New association for assigned staff
+      this.belongsTo(models.Staff, {
+        foreignKey: 'assigned_staff_id',
+        as: 'assignedStaff',
+      });
     }
   }
 
@@ -93,12 +98,23 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: {},
       comment: 'Additional table properties like accessibility features, etc.',
     },
-    // New field for section association
+    // New field for section association (already existing)
     section_id: {
       type: DataTypes.INTEGER,
       allowNull: true,
       references: {
         model: 'table_layout_sections',
+        key: 'id',
+      },
+      onUpdate: 'CASCADE',
+      onDelete: 'SET NULL',
+    },
+    // New field for staff assignment
+    assigned_staff_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'staff',
         key: 'id',
       },
       onUpdate: 'CASCADE',

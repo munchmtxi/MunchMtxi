@@ -16,7 +16,6 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'booking_id',
         as: 'notifications',
       });
-      
       // New associations for Table and MerchantBranch
       this.belongsTo(models.Table, {
         foreignKey: 'table_id',
@@ -25,6 +24,11 @@ module.exports = (sequelize, DataTypes) => {
       this.belongsTo(models.MerchantBranch, {
         foreignKey: 'branch_id',
         as: 'branch',
+      });
+      // New association for staff assignment
+      this.belongsTo(models.Staff, {
+        foreignKey: 'staff_id',
+        as: 'staff',
       });
     }
 
@@ -122,10 +126,20 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: 'pending',
     },
-    // New additional fields for extended functionality
+    // New additional field for staff assignment
+    staff_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'staff',
+        key: 'id',
+      },
+      onUpdate: 'CASCADE',
+      onDelete: 'SET NULL',
+    },
     branch_id: {
       type: DataTypes.INTEGER,
-      allowNull: true, // Allow null initially for backward compatibility
+      allowNull: true,
       references: {
         model: 'merchant_branches',
         key: 'id',
@@ -223,7 +237,6 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: {},
       comment: 'Additional booking data like promotional info, device info, etc.'
     },
-    // Existing geo-location fields
     pickup_location: {
       type: DataTypes.JSONB,
       allowNull: true,

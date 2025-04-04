@@ -1,0 +1,629 @@
+Here’s the revised TableManagementService.js:
+
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+'use strict';
+
+const { Table, TableLayoutSection, Staff, User, Device, MerchantBranch, Booking, InDiningOrder, Notification } = require('@models');
+const BookingService = require('@services/bookingService');
+const QuickLinkService = require('@services/quickLinkService');
+const NotificationService = require('@services/notificationService');
+const { logger } = require('@utils/logger');
+const AppError = require('@utils/appError');
+const { Op } = require('sequelize');
+const { io } = require('@server'); // Assumes Socket.IO initialized in server.js
+
+class TableManagementService {
+  constructor() {
+    this.validStatuses = ['available', 'reserved', 'occupied', 'maintenance'];
+  }
+
+  /**
+   * Assigns a staff member to a table or section based on availability and branch settings.
+   * @param {string} staffId - The ID of the staff member.
+   * @param {string} tableId - The ID of the table (optional if assigning to section).
+   * @param {string} sectionId - The ID of the section (optional if assigning to table).
+   * @returns {Promise<Table | TableLayoutSection>} The updated table or section.
+   */
+  async assignTable(staffId, tableId, sectionId) {
+    try {
+      const staff = await Staff.findByPk(staffId, {
+        include: [
+          { model: User, as: 'user', include: [{ model: Device, as: 'driver_profile' }] },
+          { model: MerchantBranch, as: 'merchantBranch', through: { attributes: [] } },
+        ],
+      });
+      if (!staff) throw new AppError('Staff not found', 404, 'STAFF_NOT_FOUND');
+      if (staff.availability_status !== 'available') {
+        throw new AppError('Staff is not available for assignment', 400, 'STAFF_UNAVAILABLE');
+      }
+
+      let assignedEntity;
+      if (tableId) {
+        const table = await Table.findByPk(tableId, {
+          include: [{ model: MerchantBranch, as: 'branch' }],
+        });
+        if (!table) throw new AppError('Table not found', 404, 'TABLE_NOT_FOUND');
+        if (!table.branch.table_management_enabled) {
+          throw new AppError('Table management is disabled for this branch', 403, 'FEATURE_DISABLED');
+        }
+        if (table.status === 'maintenance') {
+          throw new AppError('Table is under maintenance', 400, 'TABLE_UNAVAILABLE');
+        }
+
+        table.assigned_staff_id = staffId;
+        table.status = 'occupied'; // Assume assignment implies occupancy
+        await table.save();
+        assignedEntity = table;
+
+        await this.notifyTableAssignment(table, staff);
+      } else if (sectionId) {
+        const section = await TableLayoutSection.findByPk(sectionId, {
+          include: [{ model: MerchantBranch, as: 'branch' }],
+        });
+        if (!section) throw new AppError('Section not found', 404, 'SECTION_NOT_FOUND');
+        if (!section.branch.table_management_enabled) {
+          throw new AppError('Table management is disabled for this branch', 403, 'FEATURE_DISABLED');
+        }
+
+        section.assigned_staff_id = staffId;
+        await section.save();
+        assignedEntity = section;
+
+        await this.notifySectionAssignment(section, staff);
+      } else {
+        throw new AppError('Table ID or Section ID must be provided', 400, 'INVALID_INPUT');
+      }
+
+      logger.info('Table or section assigned', { staffId, tableId, sectionId });
+      return assignedEntity;
+    } catch (error) {
+      logger.error('Error assigning table or section', { error: error.message, staffId, tableId, sectionId });
+      throw error instanceof AppError ? error : new AppError('Failed to assign table or section', 500);
+    }
+  }
+
+  /**
+   * Updates the status of a table and links to related workflows.
+   * @param {string} tableId - The ID of the table.
+   * @param {string} status - The new status ('available', 'reserved', 'occupied', 'maintenance').
+   * @param {Object} options - Additional options { bookingId, orderId }.
+   * @returns {Promise<Table>} The updated table.
+   */
+  async updateTableStatus(tableId, status, options = {}) {
+    try {
+      if (!this.validStatuses.includes(status)) {
+        throw new AppError('Invalid table status', 400, 'INVALID_STATUS');
+      }
+
+      const table = await Table.findByPk(tableId, {
+        include: [
+          { model: MerchantBranch, as: 'branch' },
+          { model: Staff, as: 'assigned_staff' },
+        ],
+      });
+      if (!table) throw new AppError('Table not found', 404, 'TABLE_NOT_FOUND');
+      if (!table.branch.table_management_enabled) {
+        throw new AppError('Table management is disabled for this branch', 403, 'FEATURE_DISABLED');
+      }
+
+      const { bookingId, orderId } = options;
+
+      // Link to booking or in-dining order
+      if (status === 'reserved' && bookingId) {
+        const booking = await Booking.findByPk(bookingId);
+        if (!booking || booking.table_id !== tableId) {
+          throw new AppError('Invalid or mismatched booking', 400, 'INVALID_BOOKING');
+        }
+        booking.status = 'approved';
+        await booking.save();
+      } else if (status === 'occupied' && orderId) {
+        const order = await InDiningOrder.findByPk(orderId);
+        if (!order || order.table_id !== tableId) {
+          throw new AppError('Invalid or mismatched in-dining order', 400, 'INVALID_ORDER');
+        }
+        order.status = 'confirmed';
+        await order.save();
+      } else if (status === 'available' && table.assigned_staff_id) {
+        table.assigned_staff_id = null; // Clear assignment when freeing table
+      }
+
+      table.status = status;
+      await table.save();
+
+      await this.notifyTableStatusUpdate(table);
+      logger.info('Table status updated', { tableId, status, bookingId, orderId });
+      return table;
+    } catch (error) {
+      logger.error('Error updating table status', { error: error.message, tableId, status });
+      throw error instanceof AppError ? error : new AppError('Failed to update table status', 500);
+    }
+  }
+
+  /**
+   * Generates a floor plan visualization for a branch.
+   * @param {string} branchId - The ID of the branch.
+   * @returns {Promise<Object>} The visualized floor plan.
+   */
+  async getFloorPlan(branchId) {
+    try {
+      const branch = await MerchantBranch.findByPk(branchId);
+      if (!branch) throw new AppError('Branch not found', 404, 'BRANCH_NOT_FOUND');
+      if (!branch.table_management_enabled) {
+        throw new AppError('Table management is disabled for this branch', 403, 'FEATURE_DISABLED');
+      }
+
+      const sections = await TableLayoutSection.findAll({
+        where: { branch_id: branchId, is_active: true },
+        include: [
+          { model: Table, as: 'tables', where: { is_active: true } },
+          { model: Staff, as: 'assigned_staff' },
+        ],
+      });
+
+      const floorPlan = this.visualizeFloorPlan(branch, sections);
+      logger.info('Floor plan retrieved', { branchId });
+      return floorPlan;
+    } catch (error) {
+      logger.error('Error retrieving floor plan', { error: error.message, branchId });
+      throw error instanceof AppError ? error : new AppError('Failed to retrieve floor plan', 500);
+    }
+  }
+
+  // Helper Methods
+
+  /**
+   * Notifies staff and managers of a table assignment.
+   * @param {Table} table - The table instance.
+   * @param {Staff} staff - The staff instance.
+   * @returns {Promise<void>}
+   */
+  async notifyTableAssignment(table, staff) {
+    try {
+      const message = {
+        title: 'Table Assignment',
+        body: `Table ${table.table_number} assigned to ${staff.user.getFullName()}.`,
+        data: { type: 'table_assignment', tableId: table.id, staffId: staff.id },
+      };
+
+      // WebSocket broadcast to branch staff
+      io.to(`branch:${table.branch_id}`).emit('tableAssignmentUpdate', {
+        tableId: table.id,
+        staffId: staff.id,
+        status: table.status,
+        timestamp: new Date(),
+      });
+
+      // Notify assigned staff
+      await NotificationService.sendThroughChannel({
+        userId: staff.user_id,
+        message,
+        channel: staff.user.driver_profile?.preferred_response_format || 'push',
+      });
+    } catch (error) {
+      logger.error('Error notifying table assignment', { error: error.message, tableId: table.id });
+    }
+  }
+
+  /**
+   * Notifies staff and managers of a section assignment.
+   * @param {TableLayoutSection} section - The section instance.
+   * @param {Staff} staff - The staff instance.
+   * @returns {Promise<void>}
+   */
+  async notifySectionAssignment(section, staff) {
+    try {
+      const message = {
+        title: 'Section Assignment',
+        body: `Section ${section.name} assigned to ${staff.user.getFullName()}.`,
+        data: { type: 'section_assignment', sectionId: section.id, staffId: staff.id },
+      };
+
+      io.to(`branch:${section.branch_id}`).emit('sectionAssignmentUpdate', {
+        sectionId: section.id,
+        staffId: staff.id,
+        timestamp: new Date(),
+      });
+
+      await NotificationService.sendThroughChannel({
+        userId: staff.user_id,
+        message,
+        channel: staff.user.driver_profile?.preferred_response_format || 'push',
+      });
+    } catch (error) {
+      logger.error('Error notifying section assignment', { error: error.message, sectionId: section.id });
+    }
+  }
+
+  /**
+   * Notifies staff and managers of a table status update.
+   * @param {Table} table - The table instance.
+   * @returns {Promise<void>}
+   */
+  async notifyTableStatusUpdate(table) {
+    try {
+      const message = {
+        title: 'Table Status Update',
+        body: `Table ${table.table_number} status changed to ${table.status}.`,
+        data: { type: 'table_status', tableId: table.id, status: table.status },
+      };
+
+      io.to(`branch:${table.branch_id}`).emit('tableStatusUpdate', {
+        tableId: table.id,
+        status: table.status,
+        timestamp: new Date(),
+      });
+
+      if (table.assigned_staff_id) {
+        const staff = await Staff.findByPk(table.assigned_staff_id, {
+          include: [{ model: User, as: 'user' }],
+        });
+        await NotificationService.sendThroughChannel({
+          userId: staff.user_id,
+          message,
+          channel: staff.user.driver_profile?.preferred_response_format || 'push',
+        });
+      }
+    } catch (error) {
+      logger.error('Error notifying table status update', { error: error.message, tableId: table.id });
+    }
+  }
+
+  /**
+   * Visualizes the floor plan based on sections and tables.
+   * @param {MerchantBranch} branch - The branch instance.
+   * @param {TableLayoutSection[]} sections - Array of sections with tables.
+   * @returns {Object} The visualized floor plan.
+   */
+  visualizeFloorPlan(branch, sections) {
+    const floorPlan = {
+      branchId: branch.id,
+      name: branch.name,
+      layout: branch.floorplan_layout || { floors: [] }, // Use stored layout or default
+      sections: sections.map(section => ({
+        id: section.id,
+        name: section.name,
+        position: section.position || { x: 0, y: 0, width: 100, height: 100 },
+        floor: section.floor,
+        assignedStaff: section.assigned_staff
+          ? { id: section.assigned_staff.id, name: section.assigned_staff.user.getFullName() }
+          : null,
+        tables: section.tables.map(table => ({
+          id: table.id,
+          number: table.table_number,
+          capacity: table.capacity,
+          status: table.status,
+          position: table.position || { x: 0, y: 0 },
+          assignedStaff: table.assigned_staff_id
+            ? { id: table.assigned_staff_id }
+            : null,
+        })),
+      })),
+    };
+
+    // Enhance with real-time data (e.g., recent check-ins)
+    return floorPlan;
+  }
+}
+
+module.exports = new TableManagementService();
+Tailoring to Your System:
+Table Assignment:
+Staff Availability: Checks Staff.availability_status (assumed added as per previous suggestion).
+Branch Settings: Respects MerchantBranch.table_management_enabled.
+Flexibility: Supports both table (Table.assigned_staff_id) and section (TableLayoutSection.assigned_staff_id) assignments.
+Real-Time: Uses Socket.IO to broadcast updates to branch:${branch_id} room.
+Table Status Updates:
+Statuses: Enforces valid Table.status values from your ENUM.
+Workflow Links: Integrates with Booking (reservations) and InDiningOrder (orders) via optional bookingId and orderId.
+Automation: Clears assigned_staff_id when setting to 'available'.
+Floor Plan Visualization:
+Data: Combines MerchantBranch.floorplan_layout (JSONB) with TableLayoutSection and Table data.
+Real-Time: Structures output for frontend rendering, with positions and staff details.
+Assumptions and Necessary Adjustments:
+Staff Model:
+Assumes availability_status exists in Staff. If not, add:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+availability_status: {
+  type: DataTypes.ENUM('available', 'busy', 'on_break', 'offline'),
+  allowNull: false,
+  defaultValue: 'offline',
+}
+Socket.IO:
+Assumes io is exported from @server. If not, initialize in server.js:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+const { Server } = require('socket.io');
+const io = new Server(httpServer);
+module.exports = { io };
+QuickLinkService Integration:
+Removed explicit QuickLinkService.checkIn references due to lack of method details, but the floor plan could be enhanced with check-in data if implemented.
+Driver Removal:
+Excluded Driver and DriverOrderService as per your earlier instruction, focusing on restaurant operations only.
+Suggestions for Enhancement:
+Check-In Integration:
+Add QuickLinkService.checkIn to updateTableStatus for seamless customer check-ins:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+if (status === 'occupied' && options.checkInCode) {
+  await QuickLinkService.checkIn(options.checkInCode, tableId);
+}
+Capacity Alerts:
+Use MerchantBranch.reservation_settings.capacity_alert_threshold to notify when occupancy nears capacity:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+const occupiedTables = await Table.count({ where: { branch_id: table.branch_id, status: 'occupied' } });
+if (occupiedTables / table.branch.reservation_settings.seating_capacity >= table.branch.reservation_settings.capacity_alert_threshold / 100) {
+  await NotificationService.sendThroughChannel({ /* alert manager */ });
+}
+Frontend Visualization:
+Ensure your frontend uses the position fields (Table.position, TableLayoutSection.position) for a dynamic SVG or canvas-based floor plan.
+
+
+
+Updated TableManagementService.js
+This update ties table management to customer bookings, in-dining orders, and quick link requests.
+
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+'use strict';
+
+const { Table, TableLayoutSection, Staff, User, Device, MerchantBranch, Booking, InDiningOrder, Notification } = require('@models');
+const BookingService = require('@services/bookingService');
+const QuickLinkService = require('@services/quickLinkService');
+const NotificationService = require('@services/notificationService');
+const InDiningOrderService = require('@services/inDiningOrderService'); // Added
+const AvailabilityShiftService = require('@services/availabilityShiftService'); // Added
+const { logger } = require('@utils/logger');
+const AppError = require('@utils/appError');
+const { Op } = require('sequelize');
+const { io } = require('@server');
+
+class TableManagementService {
+  constructor() {
+    this.validStatuses = ['available', 'reserved', 'occupied', 'maintenance'];
+  }
+
+  async assignTable(staffId, tableId, sectionId) {
+    try {
+      const staff = await Staff.findByPk(staffId, {
+        include: [
+          { model: User, as: 'user', include: [{ model: Device, as: 'driver_profile' }] },
+          { model: MerchantBranch, as: 'merchantBranch', through: { attributes: [] } },
+        ],
+      });
+      if (!staff) throw new AppError('Staff not found', 404, 'STAFF_NOT_FOUND');
+      if (staff.availability_status !== 'available') {
+        throw new AppError('Staff is not available for assignment', 400, 'STAFF_UNAVAILABLE');
+      }
+
+      let assignedEntity;
+      if (tableId) {
+        const table = await Table.findByPk(tableId, {
+          include: [{ model: MerchantBranch, as: 'branch' }],
+        });
+        if (!table) throw new AppError('Table not found', 404, 'TABLE_NOT_FOUND');
+        if (!table.branch.table_management_enabled) {
+          throw new AppError('Table management is disabled for this branch', 403, 'FEATURE_DISABLED');
+        }
+        if (table.status === 'maintenance') {
+          throw new AppError('Table is under maintenance', 400, 'TABLE_UNAVAILABLE');
+        }
+
+        table.assigned_staff_id = staffId;
+        table.status = 'occupied';
+        await table.save();
+        assignedEntity = table;
+
+        await this.notifyTableAssignment(table, staff);
+        await AvailabilityShiftService.updateRealTimeAvailability(staffId); // Update availability
+      } else if (sectionId) {
+        // Existing section logic unchanged
+        // ...
+      } else {
+        throw new AppError('Table ID or Section ID must be provided', 400, 'INVALID_INPUT');
+      }
+
+      logger.info('Table or section assigned', { staffId, tableId, sectionId });
+      return assignedEntity;
+    } catch (error) {
+      logger.error('Error assigning table or section', { error: error.message, staffId, tableId, sectionId });
+      throw error instanceof AppError ? error : new AppError('Failed to assign table or section', 500);
+    }
+  }
+
+  async updateTableStatus(tableId, status, options = {}) {
+    try {
+      if (!this.validStatuses.includes(status)) {
+        throw new AppError('Invalid table status', 400, 'INVALID_STATUS');
+      }
+
+      const table = await Table.findByPk(tableId, {
+        include: [
+          { model: MerchantBranch, as: 'branch' },
+          { model: Staff, as: 'assigned_staff' },
+        ],
+      });
+      if (!table) throw new AppError('Table not found', 404, 'TABLE_NOT_FOUND');
+      if (!table.branch.table_management_enabled) {
+        throw new AppError('Table management is disabled for this branch', 403, 'FEATURE_DISABLED');
+      }
+
+      const { bookingId, orderId } = options;
+
+      if (status === 'reserved' && bookingId) {
+        const booking = await Booking.findByPk(bookingId);
+        if (!booking || booking.table_id !== tableId) {
+          throw new AppError('Invalid or mismatched booking', 400, 'INVALID_BOOKING');
+        }
+        booking.status = 'approved';
+        await booking.save();
+        if (!booking.staff_id) {
+          await AvailabilityShiftService.assignStaffToBooking(bookingId);
+        }
+      } else if (status === 'occupied' && orderId) {
+        const order = await InDiningOrder.findByPk(orderId);
+        if (!order || order.table_id !== tableId) {
+          throw new AppError('Invalid or mismatched in-dining order', 400, 'INVALID_ORDER');
+        }
+        order.status = 'confirmed';
+        order.staff_id = order.staff_id || table.assigned_staff_id;
+        await order.save();
+        if (order.staff_id) await AvailabilityShiftService.updateRealTimeAvailability(order.staff_id);
+      } else if (status === 'available' && table.assigned_staff_id) {
+        const staffId = table.assigned_staff_id;
+        table.assigned_staff_id = null;
+        await AvailabilityShiftService.updateRealTimeAvailability(staffId);
+      }
+
+      table.status = status;
+      await table.save();
+
+      await this.notifyTableStatusUpdate(table);
+      logger.info('Table status updated', { tableId, status, bookingId, orderId });
+      return table;
+    } catch (error) {
+      logger.error('Error updating table status', { error: error.message, tableId, status });
+      throw new AppError('Failed to update table status', 500);
+    }
+  }
+
+  async getFloorPlan(branchId) {
+    // Existing method unchanged
+    // ...
+  }
+
+  /**
+   * Handles staff response to QuickLinkService.callStaff requests.
+   * @param {string} staffId - The ID of the staff member responding.
+   * @param {string} notificationId - The ID of the staff request notification.
+   * @returns {Promise<Notification>} The updated notification.
+   */
+  async respondToStaffRequest(staffId, notificationId) {
+    try {
+      const notification = await Notification.findByPk(notificationId);
+      if (!notification || notification.type !== 'staff_request') {
+        throw new AppError('Invalid or non-existent staff request', 404, 'REQUEST_NOT_FOUND');
+      }
+      const staff = await Staff.findByPk(staffId, { include: [{ model: User, as: 'user' }] });
+      if (!staff) throw new AppError('Staff not found', 404, 'STAFF_NOT_FOUND');
+
+      notification.read_status = true;
+      notification.message += ` - Handled by ${staff.user.getFullName()}`;
+      await notification.save();
+
+      const tableIdMatch = notification.message.match(/table (\d+)/);
+      const tableId = tableIdMatch ? tableIdMatch[1] : null;
+      if (tableId) {
+        await Table.update(
+          { assigned_staff_id: staffId },
+          { where: { table_number: tableId, branch_id: staff.branch_id } }
+        );
+      }
+
+      await NotificationService.sendThroughChannel({
+        userId: notification.user_id,
+        message: {
+          title: 'Staff Response',
+          body: `Your request at table ${tableId || 'unknown'} has been handled by ${staff.user.getFullName()}.`,
+          data: { type: 'staff_response', notificationId, staffId },
+        },
+        channel: 'push',
+      });
+
+      await AvailabilityShiftService.updateRealTimeAvailability(staffId);
+      logger.info('Staff responded to request', { staffId, notificationId });
+      return notification;
+    } catch (error) {
+      logger.error('Error responding to staff request', { error: error.message, staffId, notificationId });
+      throw new AppError('Failed to respond to staff request', 500);
+    }
+  }
+
+  async notifyTableAssignment(table, staff) {
+    // Existing method unchanged
+    // ...
+  }
+
+  async notifySectionAssignment(section, staff) {
+    // Existing method unchanged
+    // ...
+  }
+
+  async notifyTableStatusUpdate(table) {
+    // Existing method unchanged
+    // ...
+  }
+
+  visualizeFloorPlan(branch, sections) {
+    // Existing method unchanged
+    // ...
+  }
+}
+
+module.exports = new TableManagementService();
+Changes:
+
+assignTable: Updates staff availability post-assignment.
+updateTableStatus: Links to BookingService and InDiningOrderService, assigns staff to bookings/orders, and updates availability.
+respondToStaffRequest: New method to handle QuickLinkService.callStaff requests, assigning staff to tables and marking notifications as read.
+Integration Details:
+BookingService:
+reserveTable: Triggers TableManagementService.updateTableStatus to reserve tables.
+approveOrDenyBooking: Calls AvailabilityShiftService.assignStaffToBooking on approval.
+checkInBooking: Updates TableManagementService.updateTableStatus to 'occupied' and assigns staff.
+InDiningOrderService:
+addItem/closeOrder: Links to TableManagementService.updateTableStatus for table status updates (e.g., 'occupied' to 'available').
+payOrder/addTip: Contributes to PerformanceIncentiveService tips metric.
+QuickLinkService:
+checkIn: Triggers AvailabilityShiftService.assignStaffToBooking and TableManagementService.updateTableStatus.
+callStaff: Adds to AvailabilityShiftService workload and PerformanceIncentiveService metrics; handled by TableManagementService.respondToStaffRequest.
+requestBill: Notifies staff via NotificationService, tracked in performance metrics.
+Assumptions and Suggestions:
+Staff Model:
+Ensure availability_status and branch_id are present in Staff. If not, add as previously suggested.
+Socket.IO:
+Assumes io is available from @server. Verify initialization in server.js.
+InDiningOrderService:
+Added staff_id to InDiningOrder for assignment tracking. Update model if missing:
+javascript
+
+Collapse
+
+Wrap
+
+Copy
+staff_id: { type: DataTypes.INTEGER, references: { model: 'staff', key: 'id' } },
+Performance Metrics:
+Added simple counts for bookings and staff requests. Enhance with more granular data (e.g., response time) if needed.
