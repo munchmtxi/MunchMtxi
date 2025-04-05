@@ -262,6 +262,9 @@ class OrderService {
       priority: 'MEDIUM',
     });
 
+    // Request feedback after delivery
+    await this.requestFeedback(order_id);
+
     return { order_id, status: order.status, actual_delivery_time: order.actual_delivery_time };
   }
 
@@ -280,6 +283,26 @@ class OrderService {
     });
 
     return { order_id, status: order.status };
+  }
+
+  static async submitFeedback(order_id, customer_id, staff_id, rating, comment) {
+    const order = await Order.findByPk(order_id);
+    if (!order) throw new AppError('Order not found', 404, 'ORDER_NOT_FOUND');
+    if (order.customer_id !== customer_id) throw new AppError('Unauthorized', 403, 'UNAUTHORIZED');
+    if (order.status !== 'completed') throw new AppError('Order not completed', 400, 'ORDER_NOT_COMPLETED');
+
+    const isPositive = rating >= 4; // 4 or 5 stars = positive
+    const feedback = await Feedback.create({
+      customer_id,
+      staff_id,
+      order_id,
+      rating,
+      comment,
+      is_positive: isPositive,
+    });
+
+    logger.info('Feedback submitted for order', { order_id, customer_id, staff_id, rating });
+    return feedback;
   }
 
   static async getOrderStatus(order_id) {

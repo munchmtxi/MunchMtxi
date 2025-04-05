@@ -121,6 +121,16 @@ module.exports = (sequelize, DataTypes) => {
       onUpdate: 'CASCADE',
       onDelete: 'SET NULL',
     },
+    performance_metrics: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      defaultValue: {
+        points: 0,
+        tier: 'Bronze',
+        lastEvaluated: null,
+        redemption_history: [],
+      },
+    },
     created_at: {
       type: DataTypes.DATE,
       allowNull: false,

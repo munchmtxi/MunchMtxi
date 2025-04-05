@@ -20,6 +20,10 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'driver_id',
         as: 'driver',
       });
+      this.belongsTo(models.Staff, {
+        foreignKey: 'staff_id',
+        as: 'staff',
+      });
     }
   }
 
@@ -86,6 +90,19 @@ module.exports = (sequelize, DataTypes) => {
           isInt: { msg: 'Driver ID must be an integer' },
         },
       },
+      staff_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+          model: 'staff',
+          key: 'id',
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL',
+        validate: {
+          isInt: { msg: 'Staff ID must be an integer' },
+        },
+      },
       amount: {
         type: DataTypes.FLOAT,
         allowNull: false,
@@ -109,7 +126,7 @@ module.exports = (sequelize, DataTypes) => {
           'processing',
           'completed',
           'failed',
-          'refunded', // Added 'refunded' status here
+          'refunded',
           'cancelled',
           'verified'
         ),

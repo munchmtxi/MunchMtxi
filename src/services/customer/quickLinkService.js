@@ -13,12 +13,6 @@ class QuickLinkService {
     this.paymentService = PaymentService;
   }
 
-  /**
-   * Handle customer check-in for a booking
-   * @param {number} userId - The ID of the user checking in
-   * @param {number} bookingId - The ID of the booking
-   * @returns {Promise<Object>} - Updated booking object and wait time estimate
-   */
   async checkIn(userId, bookingId) {
     const booking = await Booking.findOne({
       where: { id: bookingId },
@@ -43,7 +37,6 @@ class QuickLinkService {
       last_notification_sent: now,
     });
 
-    // Notify staff associated with the branch
     const staff = await Staff.findAll({
       where: { merchant_id: booking.merchant_id },
       include: [{ model: User, as: 'user' }],
@@ -63,11 +56,6 @@ class QuickLinkService {
     return { booking, waitTimeEstimate };
   }
 
-  /**
-   * Estimate wait time based on branch table availability
-   * @param {number} branchId - The branch ID
-   * @returns {Promise<number>} - Estimated wait time in minutes
-   */
   async estimateWaitTime(branchId) {
     const availableTables = await Table.count({
       where: { branch_id: branchId, status: 'available' },
@@ -75,16 +63,9 @@ class QuickLinkService {
     const pendingBookings = await Booking.count({
       where: { branch_id: branchId, status: ['pending', 'approved'] },
     });
-    return availableTables > 0 ? 0 : pendingBookings * 15; // 15 minutes per pending booking
+    return availableTables > 0 ? 0 : pendingBookings * 15;
   }
 
-  /**
-   * Request staff assistance for a table
-   * @param {number} userId - The ID of the user requesting assistance
-   * @param {number} tableId - The ID of the table
-   * @param {string} requestType - Type of request (e.g., 'assistance', 'order')
-   * @returns {Promise<Object>} - Notification details
-   */
   async callStaff(userId, tableId, requestType) {
     const table = await Table.findOne({
       where: { id: tableId, status: { [Op.in]: ['occupied', 'reserved'] } },
@@ -124,14 +105,6 @@ class QuickLinkService {
     return { notification };
   }
 
-  /**
-   * Request the bill for an in-dining order
-   * @param {number} userId - The ID of the user requesting the bill
-   * @param {number} inDiningOrderId - The ID of the in-dining order
-   * @param {Object} paymentMethod - Payment method details (e.g., { type: 'MOBILE_MONEY', provider: 'Airtel' })
-   * @param {number[]} [splitWith] - Optional array of user IDs to split the bill with
-   * @returns {Promise<Object>} - Payment details
-   */
   async requestBill(userId, inDiningOrderId, paymentMethod, splitWith = []) {
     const order = await InDiningOrder.findOne({
       where: { id: inDiningOrderId },
@@ -196,6 +169,19 @@ class QuickLinkService {
 
     return { payment };
   }
+
+  async getCheckInCount(staffId, startDate) {
+    return await Booking.count({
+      where: {
+        staff_id: staffId,
+        status: 'seated',
+        seated_at: { [Op.gte]: startDate },
+      },
+    });
+  }
 }
 
-module.exports = new QuickLinkService();
+// Export both the class (default) and a singleton instance (named)
+const quickLinkServiceInstance = new QuickLinkService();
+module.exports = QuickLinkService; // Default export: the class
+module.exports.instance = quickLinkServiceInstance; // Named export: the instance

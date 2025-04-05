@@ -37,6 +37,7 @@ const setupInventory = require('@setup/merchant/products/inventorySetup');
 const setupReservationRoutes = require('@setup/merchant/reservation/reservationRoutesSetup');
 const { setupStaffProfile } = require('@setup/staff/profile/staffProfileSetup');
 const setupStaffAvailability = require('@setup/staff/availabilitySetup');
+const setupPerformanceIncentive = require('@setup/staff/performanceIncentiveSetup'); // Added
 const { setupDriverProfile } = require('@setup/driver/driverSetup');
 const setupDriverAvailability = require('@setup/driver/driverAvailabilitySetup');
 const setupDriverOrder = require('@setup/driver/driverOrderSetup');
@@ -52,6 +53,7 @@ const setupSubscriptions = require('@setup/customer/subscriptionSetup');
 const { setupInDiningOrder } = require('@setup/customer/inDiningOrderSetup');
 const setupFriendSetup = require('@setup/customer/friendSetup');
 const { setupQuickLinkRoutes } = require('@setup/customer/quickLinkSetup');
+const setupFeedback = require('@setup/customer/feedbackSetup');
 
 const REQUIRED_ENV = [
   'PORT',
@@ -200,6 +202,11 @@ async function startServer() {
     setupQuickLinkRoutes(app);
     logRouterStack(app, 'setupQuickLinkRoutes');
 
+    logger.info('🌟 Setting up customer feedback routes...');
+    setupFeedback(app, io);
+    logRouterStack(app, 'setupFeedback');
+    logger.info('Feedback routes set up successfully');
+
     logger.info('🔐 Setting up auth routes...');
     setupAuthRoutes(app);
     logRouterStack(app, 'setupAuthRoutes');
@@ -283,6 +290,11 @@ async function startServer() {
     logger.info('👷 Setting up staff availability routes...');
     setupStaffAvailability(app);
     logRouterStack(app, 'setupStaffAvailability');
+
+    logger.info('🏆 Setting up staff performance incentive routes...'); // Added
+    setupPerformanceIncentive(app, io);
+    logRouterStack(app, 'setupPerformanceIncentive');
+    logger.info('Performance incentive routes set up successfully');
 
     logger.info('🚗 Setting up driver profile...');
     setupDriverProfile(app);

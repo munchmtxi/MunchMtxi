@@ -10,6 +10,7 @@ const {
   Table,
   ProductRecommendationAnalytics,
   User,
+  Feedback // Updated to uppercase Feedback
 } = require('@models');
 const { Op } = require('sequelize');
 const PaymentService = require('@services/common/paymentService');
@@ -28,7 +29,10 @@ class InDiningOrderService {
   async addItem(orderId, customerId, items) {
     return await InDiningOrder.sequelize.transaction(async (t) => {
       const order = await InDiningOrder.findByPk(orderId, {
-        include: [{ model: OrderItems, as: 'orderItems' }, { model: Table, as: 'table' }],
+        include: [
+          { model: OrderItems, as: 'orderItems' },
+          { model: Table, as: 'table' }
+        ],
         lock: t.LOCK.UPDATE,
         transaction: t,
       });
@@ -120,6 +124,10 @@ class InDiningOrderService {
     await Table.update({ status: 'available' }, { where: { id: order.table_id } });
 
     await this.sendNotification(order, 'Order closed - please proceed to payment');
+    // Request feedback if payment has been completed
+    if (order.payment_status === 'paid') {
+      await this.requestFeedback(orderId, customerId);
+    }
     return order;
   }
 
@@ -177,6 +185,8 @@ class InDiningOrderService {
 
     await order.update({ payment_status: 'paid' });
     await this.sendNotification(order, 'Payment successful');
+    // Request feedback after successful payment
+    await this.requestFeedback(orderId, customerId);
     return payment;
   }
 
@@ -349,6 +359,45 @@ class InDiningOrderService {
     });
     const orderedItemIds = pastOrders.flatMap((o) => o.orderItems.map((oi) => oi.menu_item_id));
     return menuItems.filter((item) => !orderedItemIds.includes(item.id)).slice(0, 3);
+  }
+
+  async requestFeedback(orderId, customerId) {
+    const order = await InDiningOrder.findByPk(orderId);
+    if (!order) throw new AppError('In-dining order not found', 404);
+    if (order.customer_id !== customerId) throw new AppError('Unauthorized', 403);
+
+    await this.notificationService.sendThroughChannel(
+      'WHATSAPP',
+      {
+        notification: { templateName: 'feedback_request', parameters: { orderNumber: order.order_number } },
+        content: `How was your experience with order #${order.order_number}? Leave a review!`,
+        recipient: (await Customer.findByPk(customerId)).format_phone_for_whatsapp(),
+      }
+    );
+
+    logger.info('Feedback requested for in-dining order', { orderId, customerId });
+  }
+
+  async submitFeedback(orderId, customerId, staffId, rating, comment) {
+    const order = await InDiningOrder.findByPk(orderId);
+    if (!order) throw new AppError('In-dining order not found', 404);
+    if (order.customer_id !== customerId) throw new AppError('Unauthorized', 403);
+    if (order.status !== 'closed' || order.payment_status !== 'paid') {
+      throw new AppError('Order must be closed and paid to submit feedback', 400);
+    }
+
+    const isPositive = rating >= 4;
+    const feedback = await Feedback.create({
+      customer_id: customerId,
+      staff_id: staffId,
+      in_dining_order_id: orderId,
+      rating,
+      comment,
+      is_positive: isPositive,
+    });
+
+    logger.info('Feedback submitted for in-dining order', { orderId, customerId, staffId, rating });
+    return feedback;
   }
 
   async setupInDiningOrder() {

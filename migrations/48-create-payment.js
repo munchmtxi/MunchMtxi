@@ -25,7 +25,7 @@ module.exports = {
       END$$;
     `);
 
-    // Create the payments table
+    // Create the payments table with the new staff_id column
     await queryInterface.createTable('payments', {
       id: {
         type: Sequelize.INTEGER,
@@ -68,6 +68,16 @@ module.exports = {
         allowNull: true,
         references: {
           model: 'drivers',
+          key: 'id',
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL',
+      },
+      staff_id: {
+        type: Sequelize.INTEGER,
+        allowNull: true,
+        references: {
+          model: 'staff',
           key: 'id',
         },
         onUpdate: 'CASCADE',
@@ -185,10 +195,8 @@ module.exports = {
   },
 
   down: async (queryInterface, Sequelize) => {
-    // Drop the table
+    // Drop the payments table and ENUM types
     await queryInterface.dropTable('payments');
-
-    // Drop the ENUM types
     await queryInterface.sequelize.query('DROP TYPE IF EXISTS enum_payments_status;');
     await queryInterface.sequelize.query('DROP TYPE IF EXISTS enum_payments_refund_status;');
   },
