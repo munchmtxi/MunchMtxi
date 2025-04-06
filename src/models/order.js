@@ -150,17 +150,14 @@ module.exports = (sequelize, DataTypes) => {
     estimated_delivery_time: { type: DataTypes.DATE, allowNull: true },
     actual_delivery_time: { type: DataTypes.DATE, allowNull: true },
     delivery_distance: { type: DataTypes.DECIMAL, allowNull: true },
-    created_at: { 
-      type: DataTypes.DATE, 
-      allowNull: false, 
-      defaultValue: sequelize.literal('CURRENT_TIMESTAMP') 
+    // New field for staff assignment
+    staff_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: { model: 'staff', key: 'id' },
+      onUpdate: 'CASCADE',
+      onDelete: 'SET NULL',
     },
-    updated_at: { 
-      type: DataTypes.DATE, 
-      allowNull: false, 
-      defaultValue: sequelize.literal('CURRENT_TIMESTAMP') 
-    },
-    deleted_at: { type: DataTypes.DATE, allowNull: true },
     applied_promotions: { 
       type: DataTypes.JSON, 
       allowNull: true, 
@@ -178,14 +175,23 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: { original_branch_id: null, routed_branch_id: null, routing_timestamp: null, routing_reason: null, routing_metrics: { distance: null, estimated_time: null, branch_load: null } },
     },
     routing_history: { type: DataTypes.JSONB, allowNull: true, defaultValue: [] },
-    // New field for staff assignment
-    staff_id: {
-      type: DataTypes.INTEGER,
+    // New field for delivery location
+    delivery_location: { 
+      type: DataTypes.JSONB,
       allowNull: true,
-      references: { model: 'staff', key: 'id' },
-      onUpdate: 'CASCADE',
-      onDelete: 'SET NULL',
+      comment: 'Delivery location coordinates or address in JSONB format (e.g., { lat, lng } or { formattedAddress })',
     },
+    created_at: { 
+      type: DataTypes.DATE, 
+      allowNull: false, 
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP') 
+    },
+    updated_at: { 
+      type: DataTypes.DATE, 
+      allowNull: false, 
+      defaultValue: sequelize.literal('CURRENT_TIMESTAMP') 
+    },
+    deleted_at: { type: DataTypes.DATE, allowNull: true },
   }, {
     sequelize,
     modelName: 'Order',

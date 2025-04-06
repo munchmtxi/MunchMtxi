@@ -1,9 +1,10 @@
 'use strict';
 module.exports = {
   up: async (queryInterface, Sequelize) => {
+    // Destructure DataTypes from Sequelize for convenience
     const { DataTypes } = Sequelize;
 
-    // Create the orders table
+    // Create the orders table with the new delivery_location field
     await queryInterface.createTable('orders', {
       id: {
         type: Sequelize.INTEGER,
@@ -113,7 +114,13 @@ module.exports = {
       routing_info: {
         type: Sequelize.JSONB,
         allowNull: true,
-        defaultValue: { original_branch_id: null, routed_branch_id: null, routing_timestamp: null, routing_reason: null, routing_metrics: { distance: null, estimated_time: null, branch_load: null } },
+        defaultValue: {
+          original_branch_id: null,
+          routed_branch_id: null,
+          routing_timestamp: null,
+          routing_reason: null,
+          routing_metrics: { distance: null, estimated_time: null, branch_load: null },
+        },
       },
       routing_history: {
         type: Sequelize.JSONB,
@@ -128,9 +135,15 @@ module.exports = {
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL',
       },
+      // New field for delivery location
+      delivery_location: {
+        type: Sequelize.JSONB,
+        allowNull: true,
+        comment: 'Delivery location coordinates or address in JSONB format (e.g., { lat, lng } or { formattedAddress })',
+      },
     });
 
-    // Add indexes
+    // Add indexes for improved performance
     await queryInterface.addIndex('orders', ['customer_id'], { name: 'orders_customer_id_index' });
     await queryInterface.addIndex('orders', ['merchant_id'], { name: 'orders_merchant_id_index' });
     await queryInterface.addIndex('orders', ['branch_id'], { name: 'orders_branch_id_index' });
@@ -142,8 +155,7 @@ module.exports = {
   },
 
   down: async (queryInterface, Sequelize) => {
-    // Drop the orders table
+    // Drop the orders table (and optionally ENUM types)
     await queryInterface.dropTable('orders');
-    // Optionally, drop ENUM types if needed
   },
 };

@@ -37,7 +37,8 @@ const setupInventory = require('@setup/merchant/products/inventorySetup');
 const setupReservationRoutes = require('@setup/merchant/reservation/reservationRoutesSetup');
 const { setupStaffProfile } = require('@setup/staff/profile/staffProfileSetup');
 const setupStaffAvailability = require('@setup/staff/availabilitySetup');
-const setupPerformanceIncentive = require('@setup/staff/performanceIncentiveSetup'); // Added
+const setupPerformanceIncentive = require('@setup/staff/performanceIncentiveSetup');
+const setupStaffDriverCoordination = require('@setup/staff/staffDriverCoordinationSetup');
 const { setupDriverProfile } = require('@setup/driver/driverSetup');
 const setupDriverAvailability = require('@setup/driver/driverAvailabilitySetup');
 const setupDriverOrder = require('@setup/driver/driverOrderSetup');
@@ -142,11 +143,11 @@ async function startServer() {
 
     const server = createServer(app);
     const io = await setupSocket(server);
-    app.locals.io = io; // Store Socket.IO instance
+    app.locals.io = io;
 
     const { whatsappService, emailService, smsService } = setupCommonServices();
     const notificationService = setupNotificationService(io, whatsappService, emailService, smsService);
-    app.locals.notificationService = notificationService; // Store notification service
+    app.locals.notificationService = notificationService;
 
     app.locals.authService = authService;
     app.locals.sequelize = sequelize;
@@ -291,10 +292,13 @@ async function startServer() {
     setupStaffAvailability(app);
     logRouterStack(app, 'setupStaffAvailability');
 
-    logger.info('🏆 Setting up staff performance incentive routes...'); // Added
+    logger.info('🏆 Setting up staff performance incentive routes...');
     setupPerformanceIncentive(app, io);
     logRouterStack(app, 'setupPerformanceIncentive');
-    logger.info('Performance incentive routes set up successfully');
+
+    logger.info('🚚 Setting up staff driver coordination routes...');
+    setupStaffDriverCoordination(app);
+    logRouterStack(app, 'setupStaffDriverCoordination');
 
     logger.info('🚗 Setting up driver profile...');
     setupDriverProfile(app);
