@@ -2,31 +2,22 @@
 
 const driverRoutes = require('@routes/driver/driverRoutes');
 const { logger } = require('@utils/logger');
-const { Server } = require('socket.io');
 const DriverService = require('@services/driver/driverService');
 const Geolocation2Service = require('@services/geoLocation/Geolocation2Service');
 
 /**
  * Sets up driver-related ride-hailing functionality for the MunchMtxi server.
  * @param {Object} app - Express application instance.
- * @param {Object} server - HTTP server instance (for WebSocket integration).
+ * @param {Object} io - Socket.IO instance (passed from server.js).
  */
-const setupDriverRide = (app, server) => {
+const setupDriverRide = (app, io) => {
   logger.info('Setting up driver ride module');
 
   // Register driver routes under /api/v1/driver
   app.use('/api/v1/driver', driverRoutes);
   logger.info('Driver routes registered successfully at /api/v1/driver');
 
-  // Initialize WebSocket for real-time driver updates
-  const io = new Server(server, {
-    cors: {
-      origin: process.env.CORS_ORIGIN || '*',
-      methods: ['GET', 'POST'],
-    },
-  });
-
-  // Namespace for driver-specific real-time communication
+  // Use the existing Socket.IO instance with a /driver namespace
   const driverNamespace = io.of('/driver');
 
   driverNamespace.on('connection', (socket) => {

@@ -3,11 +3,13 @@
 require('module-alias/register');
 require('dotenv').config();
 const { createServer } = require('http');
-const { Router } = require('express');
+const express = require('express');
 const { sequelize } = require('@models');
 const { logger } = require('@utils/logger');
-const { setupApp } = require('@server/app');
 const { setupSocket } = require('@server/socket');
+
+// Import all setup modules (kept as in your original)
+const { setupApp } = require('@server/app');
 const { setupCommonServices } = require('@setup/services/commonServices');
 const { setupNotificationService } = require('@setup/services/notificationServices');
 const authService = require('@services/common/authService');
@@ -39,6 +41,7 @@ const { setupStaffProfile } = require('@setup/staff/profile/staffProfileSetup');
 const setupStaffAvailability = require('@setup/staff/availabilitySetup');
 const setupPerformanceIncentive = require('@setup/staff/performanceIncentiveSetup');
 const setupStaffDriverCoordination = require('@setup/staff/staffDriverCoordinationSetup');
+const setupStaffCustomer = require('@setup/staff/staffCustomerSetup');
 const { setupDriverProfile } = require('@setup/driver/driverSetup');
 const setupDriverAvailability = require('@setup/driver/driverAvailabilitySetup');
 const setupDriverOrder = require('@setup/driver/driverOrderSetup');
@@ -55,6 +58,7 @@ const { setupInDiningOrder } = require('@setup/customer/inDiningOrderSetup');
 const setupFriendSetup = require('@setup/customer/friendSetup');
 const { setupQuickLinkRoutes } = require('@setup/customer/quickLinkSetup');
 const setupFeedback = require('@setup/customer/feedbackSetup');
+const staffRoutes = require('@routes/staff/staffRoutes');
 
 const REQUIRED_ENV = [
   'PORT',
@@ -65,6 +69,7 @@ const REQUIRED_ENV = [
 ];
 const GRACEFUL_SHUTDOWN_TIMEOUT = 10000;
 
+// Validate environment variables (unchanged logging)
 const validateEnvironment = (requiredEnv) => {
   const missing = requiredEnv.filter((key) => !process.env[key]);
   if (missing.length > 0) {
@@ -74,6 +79,7 @@ const validateEnvironment = (requiredEnv) => {
   logger.info('✅ Env vars checked');
 };
 
+// Graceful shutdown (unchanged logging)
 const shutdownServer = async (server, io, sequelize) => {
   logger.info('🛑 Starting graceful shutdown...');
   if (io) io.close(() => logger.info('🔌 Socket.IO closed'));
@@ -99,6 +105,7 @@ const shutdownServer = async (server, io, sequelize) => {
   });
 };
 
+// Error handlers (unchanged logging)
 const setupErrorHandlers = (server, io, sequelize) => {
   process.on('uncaughtException', (error) => {
     logger.error(`💥 Uncaught Exception: ${error.message}`, { stack: error.stack });
@@ -118,43 +125,48 @@ const setupErrorHandlers = (server, io, sequelize) => {
   logger.info('🛡️ Error handlers ready');
 };
 
+// Router stack logging (unchanged)
 const logRouterStack = (app, label) => {
   logger.debug(`🚦 Stack after ${label}: ${app._router.stack.length} layers`);
 };
 
+// Main server startup
 async function startServer() {
   try {
     logger.info('🚀 Booting server...');
     validateEnvironment(REQUIRED_ENV);
+
+    // Database connection
     await sequelize.authenticate();
     logger.info('💾 DB connected');
 
     const models = require('@models');
     logger.info(`📦 Loaded ${Object.keys(models).length - 2} models`);
 
-    const express = require('express');
+    // Express app setup
     const app = express();
-
     app.use(express.json());
     logger.info('📋 JSON parser active');
 
     await setupApp(app);
     logRouterStack(app, 'setupApp');
 
+    // Single HTTP server and Socket.IO instance
     const server = createServer(app);
-    const io = await setupSocket(server);
+    const io = await setupSocket(server); // Centralized Socket.IO
     app.locals.io = io;
 
+    // Common services and notification setup
     const { whatsappService, emailService, smsService } = setupCommonServices();
     const notificationService = setupNotificationService(io, whatsappService, emailService, smsService);
     app.locals.notificationService = notificationService;
-
     app.locals.authService = authService;
     app.locals.sequelize = sequelize;
     app.locals.models = models;
 
     logger.info('🛤️ Mounting routes...');
 
+    // Customer Routes (pass io where needed)
     logger.info('🚗 Setting up customer ride routes...');
     setupRideRoutes(app);
     logRouterStack(app, 'setupRideRoutes');
@@ -206,8 +218,8 @@ async function startServer() {
     logger.info('🌟 Setting up customer feedback routes...');
     setupFeedback(app, io);
     logRouterStack(app, 'setupFeedback');
-    logger.info('Feedback routes set up successfully');
 
+    // Auth and Merchant Routes
     logger.info('🔐 Setting up auth routes...');
     setupAuthRoutes(app);
     logRouterStack(app, 'setupAuthRoutes');
@@ -226,7 +238,7 @@ async function startServer() {
 
     logger.info('📊 Adding analytics to public profile...');
     app.use('/api/v1/merchants/:merchantId/profile', trackAnalytics());
-    logger.info('📈 Analytics added');
+    logRouterStack(app, 'trackAnalytics');
 
     logger.info('🛍️ Setting up merchant products...');
     setupMerchantProducts(app);
@@ -284,6 +296,7 @@ async function startServer() {
     setupReservationRoutes(app);
     logRouterStack(app, 'setupReservationRoutes');
 
+    // Staff Routes
     logger.info('👷 Setting up staff profile...');
     setupStaffProfile(app);
     logRouterStack(app, 'setupStaffProfile');
@@ -300,6 +313,15 @@ async function startServer() {
     setupStaffDriverCoordination(app);
     logRouterStack(app, 'setupStaffDriverCoordination');
 
+    logger.info('🛠️ Setting up staff customer service routes...');
+    setupStaffCustomer(app, io, whatsappService, emailService, smsService);
+    logRouterStack(app, 'setupStaffCustomer');
+
+    logger.info('👷 Setting up staff management routes...');
+    app.use('/api/staff', staffRoutes);
+    logRouterStack(app, 'staffRoutes');
+
+    // Driver Routes
     logger.info('🚗 Setting up driver profile...');
     setupDriverProfile(app);
     logRouterStack(app, 'setupDriverProfile');
@@ -313,13 +335,14 @@ async function startServer() {
     logRouterStack(app, 'setupDriverOrder');
 
     logger.info('🚗 Setting up driver ride routes...');
-    setupDriverRide(app, server);
+    setupDriverRide(app, io); // Pass io instead of server
     logRouterStack(app, 'setupDriverRide');
 
     logger.info('💰 Setting up driver payment routes...');
     setupDriverPayment(app);
     logRouterStack(app, 'setupDriverPayment');
 
+    // Notification and Analytics Routes
     logger.info('🔔 Setting up notification routes...');
     setupNotificationRoutes(app);
     logRouterStack(app, 'setupNotificationRoutes');
@@ -329,7 +352,7 @@ async function startServer() {
     logRouterStack(app, 'setupNotifications');
 
     logger.info('🎉 Setting up customer events...');
-    setupCustomerEvents(io, notificationService);
+    setupCustomerEvents(io, notificationService); // io directly since no app routes
     logRouterStack(app, 'setupCustomerEvents');
 
     logger.info('📊 Setting up analytics routes...');
@@ -340,6 +363,7 @@ async function startServer() {
     setupPublicProfile(app);
     logRouterStack(app, 'setupPublicProfile');
 
+    // Catch-all middleware (unchanged logging)
     app.use((req, res, next) => {
       if (req.headers['user-agent']?.includes('curl')) {
         logger.info('🌀 CSRF skipped for curl', { path: req.path });
@@ -348,12 +372,13 @@ async function startServer() {
       next();
     });
 
-    app.use((req, res, next) => {
+    app.use((req, res) => {
       logger.warn(`🚫 404: ${req.method} ${req.url}`);
       res.status(404).json({ status: 'fail', message: `Route ${req.url} not found` });
     });
     logRouterStack(app, 'catch-all');
 
+    // Start server
     const port = process.env.PORT || 3000;
     server.listen(port, () => {
       logger.info(`🎉 Server live on port ${port}`);

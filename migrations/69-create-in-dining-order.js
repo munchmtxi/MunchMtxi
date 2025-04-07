@@ -65,9 +65,9 @@ module.exports = {
         defaultValue: 'MWK',
       },
       payment_status: {
-        type: Sequelize.ENUM('unpaid', 'paid', 'refunded'),
+        type: Sequelize.ENUM('pending', 'completed', 'failed', 'refunded', 'processing', 'verified', 'cancelled'),
         allowNull: false,
-        defaultValue: 'unpaid',
+        defaultValue: 'pending',
       },
       notes: {
         type: Sequelize.TEXT,

@@ -143,9 +143,9 @@ module.exports = (sequelize, DataTypes) => {
       },
     },
     payment_status: {
-      type: DataTypes.ENUM('unpaid', 'paid', 'refunded'),
+      type: DataTypes.ENUM('pending', 'completed', 'failed', 'refunded', 'processing', 'verified', 'cancelled'),
       allowNull: false,
-      defaultValue: 'unpaid',
+      defaultValue: 'pending', // Align with broader enum
     },
     notes: {
       type: DataTypes.TEXT,

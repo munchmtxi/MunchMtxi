@@ -114,6 +114,12 @@ module.exports = {
       unique: true,
       name: 'tables_branch_table_unique',
     });
+
+    // New index for assigned_staff_id
+    await queryInterface.addIndex('tables', {
+      fields: ['assigned_staff_id'],
+      name: 'tables_assigned_staff_id_index',
+    });
   },
 
   down: async (queryInterface, Sequelize) => {

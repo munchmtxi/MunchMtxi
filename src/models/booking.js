@@ -296,6 +296,15 @@ module.exports = (sequelize, DataTypes) => {
       {
         fields: ['special_requests'],
         name: 'bookings_special_requests_index'
+      },
+      // New indexes for performance on staff and branch
+      {
+        fields: ['staff_id'],
+        name: 'bookings_staff_id_index'
+      },
+      {
+        fields: ['branch_id'],
+        name: 'bookings_branch_id_index'
       }
     ],
   });

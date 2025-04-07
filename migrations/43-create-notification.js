@@ -53,6 +53,12 @@ module.exports = {
         type: Sequelize.BOOLEAN,
         defaultValue: false,
       },
+      // New field for notification status tracking
+      status: {
+        type: Sequelize.ENUM('not_sent', 'sent', 'failed'),
+        allowNull: false,
+        defaultValue: 'not_sent',
+      },
       created_at: {
         type: Sequelize.DATE,
         allowNull: false,

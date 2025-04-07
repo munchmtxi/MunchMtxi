@@ -153,6 +153,11 @@ module.exports = (sequelize, DataTypes) => {
         unique: true,
         fields: ['branch_id', 'table_number'],
         name: 'tables_branch_table_unique'
+      },
+      // New index for assigned_staff_id
+      {
+        fields: ['assigned_staff_id'],
+        name: 'tables_assigned_staff_id_index'
       }
     ],
   });

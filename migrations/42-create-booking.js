@@ -262,6 +262,7 @@ module.exports = {
     await queryInterface.addIndex('bookings', ['guest_count'], { name: 'bookings_guest_count_index' });
     await queryInterface.addIndex('bookings', ['special_requests'], { name: 'bookings_special_requests_index' });
     await queryInterface.addIndex('bookings', ['branch_id'], { name: 'bookings_branch_id_index' });
+    await queryInterface.addIndex('bookings', ['staff_id'], { name: 'bookings_staff_id_index' });
     await queryInterface.addIndex('bookings', ['table_id'], { name: 'bookings_table_id_index' });
     await queryInterface.addIndex('bookings', ['status'], { name: 'bookings_status_index' });
     await queryInterface.addIndex('bookings', ['notification_status'], { name: 'bookings_notification_status_index' });
