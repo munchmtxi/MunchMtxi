@@ -24,6 +24,11 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'staff_id',
         as: 'staff',
       });
+      // Optionally, define an association for in_dining_order if needed:
+      // this.belongsTo(models.InDiningOrder, {
+      //   foreignKey: 'in_dining_order_id',
+      //   as: 'inDiningOrder',
+      // });
     }
   }
 
@@ -37,7 +42,7 @@ module.exports = (sequelize, DataTypes) => {
       },
       order_id: {
         type: DataTypes.INTEGER,
-        allowNull: false,
+        allowNull: true, // Changed to allow null
         references: {
           model: 'orders',
           key: 'id',
@@ -45,7 +50,6 @@ module.exports = (sequelize, DataTypes) => {
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE',
         validate: {
-          notNull: { msg: 'Order ID is required' },
           isInt: { msg: 'Order ID must be an integer' },
         },
       },
@@ -102,6 +106,14 @@ module.exports = (sequelize, DataTypes) => {
         validate: {
           isInt: { msg: 'Staff ID must be an integer' },
         },
+      },
+      // Existing in_dining_order_id field:
+      in_dining_order_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: { model: 'in_dining_orders', key: 'id' },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL',
       },
       amount: {
         type: DataTypes.FLOAT,
@@ -223,36 +235,22 @@ module.exports = (sequelize, DataTypes) => {
       tableName: 'payments',
       underscored: true,
       paranoid: true,
+      validate: {
+        atLeastOneOrderReference() {
+          if (!this.order_id && !this.in_dining_order_id) {
+            throw new Error('At least one of Order ID or In-Dining Order ID is required');
+          }
+        },
+      },
       indexes: [
-        {
-          fields: ['order_id'],
-          name: 'payments_order_id_index',
-        },
-        {
-          fields: ['customer_id'],
-          name: 'payments_customer_id_index',
-        },
-        {
-          fields: ['merchant_id'],
-          name: 'payments_merchant_id_index',
-        },
-        {
-          fields: ['driver_id'],
-          name: 'payments_driver_id_index',
-        },
-        {
-          unique: true,
-          fields: ['transaction_id'],
-          name: 'payments_transaction_id_unique',
-        },
-        {
-          fields: ['bank_reference'],
-          name: 'payments_bank_reference_index',
-        },
-        {
-          fields: ['provider'],
-          name: 'payments_provider_index',
-        },
+        { fields: ['order_id'], name: 'payments_order_id_index' },
+        { fields: ['customer_id'], name: 'payments_customer_id_index' },
+        { fields: ['merchant_id'], name: 'payments_merchant_id_index' },
+        { fields: ['driver_id'], name: 'payments_driver_id_index' },
+        { unique: true, fields: ['transaction_id'], name: 'payments_transaction_id_unique' },
+        { fields: ['bank_reference'], name: 'payments_bank_reference_index' },
+        { fields: ['provider'], name: 'payments_provider_index' },
+        { fields: ['in_dining_order_id'], name: 'payments_in_dining_order_id_index' },
       ],
     }
   );

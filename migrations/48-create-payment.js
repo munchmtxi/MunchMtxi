@@ -25,7 +25,7 @@ module.exports = {
       END$$;
     `);
 
-    // Create the payments table with the new staff_id column
+    // Create the payments table with the updated order_id and in_dining_order_id columns
     await queryInterface.createTable('payments', {
       id: {
         type: Sequelize.INTEGER,
@@ -35,7 +35,7 @@ module.exports = {
       },
       order_id: {
         type: Sequelize.INTEGER,
-        allowNull: false,
+        allowNull: true, // Changed to allow null
         references: {
           model: 'orders',
           key: 'id',
@@ -78,6 +78,17 @@ module.exports = {
         allowNull: true,
         references: {
           model: 'staff',
+          key: 'id',
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL',
+      },
+      // New in_dining_order_id column remains unchanged
+      in_dining_order_id: {
+        type: Sequelize.INTEGER,
+        allowNull: true,
+        references: {
+          model: 'in_dining_orders',
           key: 'id',
         },
         onUpdate: 'CASCADE',
@@ -192,6 +203,7 @@ module.exports = {
     await queryInterface.addIndex('payments', ['transaction_id'], { name: 'payments_transaction_id_unique', unique: true });
     await queryInterface.addIndex('payments', ['bank_reference'], { name: 'payments_bank_reference_index' });
     await queryInterface.addIndex('payments', ['provider'], { name: 'payments_provider_index' });
+    await queryInterface.addIndex('payments', ['in_dining_order_id'], { name: 'payments_in_dining_order_id_index' });
   },
 
   down: async (queryInterface, Sequelize) => {

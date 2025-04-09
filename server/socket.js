@@ -9,12 +9,14 @@ const STAFF_EVENTS = require('@config/events/staff/profile/events');
 const roomManager = require('@services/rooms/core/roomManager');
 const EventManager = require('@services/events/core/eventManager');
 const staffSocketSetup = require('@server/setup/staff/staffSocketSetup');
+const staffOperationsSocket = require('@handlers/merchant/staffOperationsSocket');
+const merchantCustomerHandlers = require('@handlers/merchant/merchantCustomerHandlers');
 
 const socketOptions = {
   cors: { origin: config.frontendUrl || 'http://localhost:5173', methods: ['GET', 'POST'], credentials: true },
   pingTimeout: 60000,
   pingInterval: 25000,
-  transports: ['websocket'], // Force WebSocket to match client
+  transports: ['websocket', 'polling'], // Add polling support
   maxHttpBufferSize: 1e6,
 };
 
@@ -105,6 +107,7 @@ module.exports.setupSocket = (server) => {
     });
 
     staffSocketSetup(io, socket);
+    staffOperationsSocket(io, socket); // Add this line to register staff operations handlers
 
     socket.on('subscribe:geolocation', (userId) => {
       if (!userId) {

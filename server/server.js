@@ -59,6 +59,8 @@ const setupFriendSetup = require('@setup/customer/friendSetup');
 const { setupQuickLinkRoutes } = require('@setup/customer/quickLinkSetup');
 const setupFeedback = require('@setup/customer/feedbackSetup');
 const staffRoutes = require('@routes/staff/staffRoutes');
+const setupStaffOperations = require('@setup/merchant/staffOperationsSetup');
+const setupMerchantCustomer = require('@setup/merchant/merchantCustomerSetup');
 
 const REQUIRED_ENV = [
   'PORT',
@@ -224,6 +226,14 @@ async function startServer() {
     setupAuthRoutes(app);
     logRouterStack(app, 'setupAuthRoutes');
 
+    logger.info('👥 Setting up merchant customer operations...');
+    setupMerchantCustomer(app, io);
+    logRouterStack(app, 'setupMerchantCustomer');
+
+    logger.info('👷 Setting up merchant staff operations routes...');
+    setupStaffOperations(app, io);
+    logRouterStack(app, 'setupStaffOperations');
+
     logger.info('🎨 Setting up banner...');
     setupBanner(app);
     logRouterStack(app, 'setupBanner');
@@ -377,6 +387,16 @@ async function startServer() {
       res.status(404).json({ status: 'fail', message: `Route ${req.url} not found` });
     });
     logRouterStack(app, 'catch-all');
+
+    // Enhanced Server Logging for WebSocket and HTTP errors
+    server.on('upgrade', (req, socket, head) => {
+      logger.info('WebSocket upgrade request received:', { url: req.url, headers: req.headers });
+      socket.on('error', (err) => logger.error('WebSocket socket error:', err));
+    });
+
+    server.on('error', (err) => {
+      logger.error('HTTP server error:', err);
+    });
 
     // Start server
     const port = process.env.PORT || 3000;

@@ -9,7 +9,7 @@ const { Subscription, Customer, MenuInventory, ProductDiscount, Merchant, Order,
 const whatsappService = require('@services/common/whatsappService');
 const emailService = require('@services/common/emailService');
 
-// Assumed Subscription model (to be defined later if not exists)
+// Assumed Subscription model (unchanged)
 const subscriptionModelAttributes = {
   customer_id: 'Customer.id',
   menu_item_id: 'MenuInventory.id',
@@ -242,4 +242,9 @@ class SubscriptionService {
   }
 }
 
-module.exports = new SubscriptionService();
+// Export both the class and a singleton instance
+const subscriptionServiceInstance = new SubscriptionService();
+module.exports = {
+  SubscriptionService,           // Export the class
+  subscriptionService: subscriptionServiceInstance // Export the singleton instance
+};

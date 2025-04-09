@@ -78,11 +78,16 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: sequelize.literal('CURRENT_TIMESTAMP'),
     },
+    deleted_at: { // Added
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   }, {
     sequelize,
     modelName: 'Feedback',
     tableName: 'feedback',
     underscored: true,
+    paranoid: true, // Enable soft deletes
     indexes: [
       { fields: ['customer_id'] },
       { fields: ['staff_id'] },
