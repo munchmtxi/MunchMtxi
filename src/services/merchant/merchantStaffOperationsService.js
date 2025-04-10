@@ -1,4 +1,3 @@
-// src/services/merchant/staff/merchantStaffOperationsService.js
 'use strict';
 
 const { Staff, User, MerchantBranch, Booking, InDiningOrder, Order, Subscription, Feedback } = require('@models');
@@ -9,28 +8,73 @@ const NotificationService = require('@services/notifications/core/notificationSe
 const { logger } = require('@utils/logger');
 const AppError = require('@utils/appError');
 const { Op } = require('sequelize');
+const bcrypt = require('bcryptjs');
 
 class MerchantStaffOperationsService {
   constructor(io) {
     this.io = io;
     this.staffManagementService = StaffManagementService;
-    this.availabilityShiftService = new AvailabilityShiftService();
+    this.availabilityShiftService = new AvailabilityShiftService(io);
     this.performanceIncentiveService = new PerformanceIncentiveService(io);
     this.notificationService = new NotificationService(io);
   }
 
-  // Recruit new staff
+  generateTempPassword() {
+    const chars = {
+      uppercase: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+      lowercase: 'abcdefghijklmnopqrstuvwxyz',
+      numbers: '0123456789',
+      special: '!@#$%^&*',
+    };
+    const getRandomChar = (str) => str[Math.floor(Math.random() * str.length)];
+
+    let password = [
+      getRandomChar(chars.uppercase),
+      getRandomChar(chars.lowercase),
+      getRandomChar(chars.numbers),
+      getRandomChar(chars.special),
+    ];
+
+    const allChars = chars.uppercase + chars.lowercase + chars.numbers + chars.special;
+    while (password.length < 12) {
+      password.push(getRandomChar(allChars));
+    }
+
+    return password.sort(() => Math.random() - 0.5).join('');
+  }
+
   async recruitStaff(merchantId, staffData) {
     try {
       const { first_name, last_name, email, phone, position, branch_id } = staffData;
+
+      const branch = await MerchantBranch.findOne({ where: { id: branch_id, merchant_id: merchantId } });
+      if (!branch) throw new AppError('Branch not found or does not belong to this merchant', 404);
+
+      const existingUser = await User.findOne({ where: { email } });
+      if (existingUser) throw new AppError('User with this email already exists', 400);
+
+      const tempPassword = this.generateTempPassword();
+      const hashedPassword = await bcrypt.hash(tempPassword, 10);
+
+      const countryMap = {
+        '+265': 'malawi',
+        '+260': 'zambia',
+        '+258': 'mozambique',
+        '+255': 'tanzania',
+      };
+      const country = countryMap[phone.slice(0, 4)] || 'malawi';
+
       const user = await User.create({
         first_name,
         last_name,
         email,
         phone,
-        role_id: 4, // Staff role
+        password: hashedPassword,
+        role_id: 4,
         merchant_id: merchantId,
+        country,
       });
+
       const staff = await Staff.create({
         user_id: user.id,
         merchant_id: merchantId,
@@ -39,53 +83,74 @@ class MerchantStaffOperationsService {
         availability_status: 'offline',
       });
 
-      await this.notificationService.sendThroughChannel('WHATSAPP', {
-        notification: { templateName: 'staff_welcome' },
-        content: `Welcome to the team, ${first_name}! Your role: ${position}`,
-        recipient: phone,
-      });
+      try {
+        await this.notificationService.sendThroughChannel('WHATSAPP', {
+          notification: { templateName: 'staff_welcome' },
+          content: `Welcome to the team, ${first_name}! Your role: ${position}. Temp password: ${tempPassword}`,
+          recipient: phone,
+        });
+      } catch (notificationError) {
+        logger.error('Failed to send staff welcome notification', { error: notificationError.message, recipient: phone });
+      }
 
       this.io.to(`merchant:${merchantId}`).emit('staffRecruited', { staffId: staff.id, name: user.getFullName() });
       logger.info('Staff recruited', { merchantId, staffId: staff.id });
-      return staff;
+      return { staff, tempPassword };
     } catch (error) {
       logger.error('Error recruiting staff', { error: error.message, merchantId });
-      throw new AppError('Failed to recruit staff', 500);
+      throw error; // Propagate AppError or other errors as-is
     }
   }
 
-  // Update staff role or branch assignment
   async updateStaffRole(merchantId, staffId, updates) {
     try {
-      const staff = await Staff.findOne({ where: { id: staffId, merchant_id: merchantId }, include: [{ model: User }] });
+      const staff = await Staff.findOne({
+        where: { id: staffId, merchant_id: merchantId },
+        include: [{ model: User, as: 'user' }],
+      });
       if (!staff) throw new AppError('Staff not found', 404);
 
       const { position, branch_id } = updates;
+
+      if (branch_id) {
+        const branch = await MerchantBranch.findOne({ where: { id: branch_id, merchant_id: merchantId } });
+        if (!branch) throw new AppError('Branch not found or does not belong to this merchant', 404);
+      }
+
       await staff.update({ position, branch_id });
 
       this.io.to(`branch:${branch_id}`).emit('staffRoleUpdated', { staffId, position });
-      await this.notificationService.sendThroughChannel('WHATSAPP', {
-        notification: { templateName: 'staff_role_update' },
-        content: `Your role has been updated to ${position} at branch ${branch_id}`,
-        recipient: staff.user.phone,
-      });
+
+      try {
+        await this.notificationService.sendThroughChannel('WHATSAPP', {
+          notification: { templateName: 'staff_role_update' },
+          content: `Your role has been updated to ${position} at branch ${branch_id}`,
+          recipient: staff.user.phone,
+        });
+      } catch (notificationError) {
+        logger.error('Failed to send staff role update notification', { error: notificationError.message, recipient: staff.user.phone });
+      }
 
       logger.info('Staff role updated', { merchantId, staffId, position });
       return staff;
     } catch (error) {
       logger.error('Error updating staff role', { error: error.message, merchantId, staffId });
-      throw new AppError('Failed to update staff role', 500);
+      throw error;
     }
   }
 
-  // Remove staff and reassign tasks
   async removeStaff(merchantId, staffId) {
     try {
       const staff = await Staff.findOne({ where: { id: staffId, merchant_id: merchantId } });
       if (!staff) throw new AppError('Staff not found', 404);
 
       const activeTasks = await this.getStaffTasks(merchantId, staffId);
-      for (const task of [...activeTasks.bookings, ...activeTasks.inDiningOrders, ...activeTasks.takeawayOrders, ...activeTasks.subscriptionOrders]) {
+      for (const task of [
+        ...activeTasks.bookings,
+        ...activeTasks.inDiningOrders,
+        ...activeTasks.takeawayOrders,
+        ...activeTasks.subscriptionOrders,
+      ]) {
         const availableStaff = await this.staffManagementService.findAvailableStaff(merchantId, task.branch_id);
         if (availableStaff) {
           await task.update({ staff_id: availableStaff.id });
@@ -99,14 +164,13 @@ class MerchantStaffOperationsService {
       return { success: true };
     } catch (error) {
       logger.error('Error removing staff', { error: error.message, merchantId, staffId });
-      throw new AppError('Failed to remove staff', 500);
+      throw error;
     }
   }
 
-  // Assign staff to a customer-facing task (booking, in-dining order, takeaway order, subscription pickup)
   async assignStaffToTask(merchantId, staffId, taskType, taskId) {
     try {
-      const staff = await Staff.findOne({ where: { id: staffId, merchant_id: merchantId }, include: [{ model: User }] });
+      const staff = await Staff.findOne({ where: { id: staffId, merchant_id: merchantId }, include: [{ model: User, as: 'user' }] });
       if (!staff) throw new AppError('Staff not found', 404);
 
       let task;
@@ -115,31 +179,39 @@ class MerchantStaffOperationsService {
           task = await Booking.findByPk(taskId);
           if (!task || task.merchant_id !== merchantId) throw new AppError('Booking not found', 404);
           await task.update({ staff_id: staffId });
+          await this.availabilityShiftService.setAvailabilityStatus(staffId, 'busy'); // Update availability
           break;
         case 'inDiningOrder':
           task = await InDiningOrder.findByPk(taskId);
-          if (!task || task.branch.merchant_id !== merchantId) throw new AppError('Order not found', 404);
+          if (!task || task.branch?.merchant_id !== merchantId) throw new AppError('Order not found', 404);
           await task.update({ staff_id: staffId });
+          await this.availabilityShiftService.setAvailabilityStatus(staffId, 'busy');
           break;
         case 'takeawayOrder':
           task = await Order.findByPk(taskId);
           if (!task || task.merchant_id !== merchantId || task.order_number.startsWith('SUB')) throw new AppError('Order not found', 404);
           await task.update({ staff_id: staffId });
+          await this.availabilityShiftService.setAvailabilityStatus(staffId, 'busy');
           break;
         case 'subscriptionPickup':
           task = await Order.findByPk(taskId);
           if (!task || task.merchant_id !== merchantId || !task.order_number.startsWith('SUB')) throw new AppError('Subscription order not found', 404);
           await task.update({ staff_id: staffId });
+          await this.availabilityShiftService.setAvailabilityStatus(staffId, 'busy');
           break;
         default:
           throw new AppError('Invalid task type', 400);
       }
 
-      await this.notificationService.sendThroughChannel('WHATSAPP', {
-        notification: { templateName: 'staff_task_assignment' },
-        content: `You’ve been assigned to ${taskType} #${taskId}`,
-        recipient: staff.user.phone,
-      });
+      try {
+        await this.notificationService.sendThroughChannel('WHATSAPP', {
+          notification: { templateName: 'staff_task_assignment' },
+          content: `You’ve been assigned to ${taskType} #${taskId}`,
+          recipient: staff.user.phone,
+        });
+      } catch (notificationError) {
+        logger.error('Failed to send task assignment notification', { error: notificationError.message, recipient: staff.user.phone });
+      }
 
       this.io.to(`staff:${staffId}`).emit('taskAssigned', { taskType, taskId });
       this.io.to(`merchant:${merchantId}`).emit('taskAssignedUpdate', { staffId, taskType, taskId });
@@ -147,11 +219,10 @@ class MerchantStaffOperationsService {
       return task;
     } catch (error) {
       logger.error('Error assigning staff to task', { error: error.message, merchantId, staffId });
-      throw new AppError('Failed to assign staff to task', 500);
+      throw error;
     }
   }
 
-  // Get all active tasks for a specific staff member
   async getStaffTasks(merchantId, staffId = null) {
     try {
       const whereStaff = staffId ? { id: staffId, merchant_id: merchantId } : { merchant_id: merchantId };
@@ -178,11 +249,10 @@ class MerchantStaffOperationsService {
       return tasks;
     } catch (error) {
       logger.error('Error retrieving staff tasks', { error: error.message, merchantId, staffId });
-      throw new AppError('Failed to retrieve staff tasks', 500);
+      throw error;
     }
   }
 
-  // Manage staff availability
   async manageStaffAvailability(merchantId, staffId, availabilityStatus) {
     try {
       const staff = await Staff.findOne({ where: { id: staffId, merchant_id: merchantId } });
@@ -194,41 +264,49 @@ class MerchantStaffOperationsService {
       return { success: true };
     } catch (error) {
       logger.error('Error managing staff availability', { error: error.message, merchantId, staffId });
-      throw new AppError('Failed to manage staff availability', 500);
+      throw error;
     }
   }
 
-  // Monitor staff performance across tasks
   async getStaffPerformance(merchantId, staffId, period = 'month') {
     try {
-      const staff = await Staff.findOne({ where: { id: staffId, merchant_id: merchantId }, include: [{ model: User }] });
+      const staff = await Staff.findOne({ where: { id: staffId, merchant_id: merchantId }, include: [{ model: User, as: 'user' }] });
       if (!staff) throw new AppError('Staff not found', 404);
 
+      const startDate = this.getPeriodStart(period);
       const bookingsCount = await Booking.count({
-        where: { staff_id: staffId, status: 'seated', seated_at: { [Op.gte]: this.getPeriodStart(period) } },
+        where: { staff_id: staffId, status: 'seated', seated_at: { [Op.gte]: startDate } },
       });
       const ordersCount = await InDiningOrder.count({
-        where: { staff_id: staffId, status: 'closed', updated_at: { [Op.gte]: this.getPeriodStart(period) } },
+        where: { staff_id: staffId, status: 'closed', updated_at: { [Op.gte]: startDate } },
       });
       const takeawayCount = await Order.count({
-        where: { staff_id: staffId, status: 'ready', order_number: { [Op.notLike]: 'SUB%' }, updated_at: { [Op.gte]: this.getPeriodStart(period) } },
+        where: { staff_id: staffId, status: 'ready', order_number: { [Op.notLike]: 'SUB%' }, updated_at: { [Op.gte]: startDate } },
       });
       const subscriptionCount = await Order.count({
-        where: { staff_id: staffId, status: 'ready', order_number: { [Op.like]: 'SUB%' }, updated_at: { [Op.gte]: this.getPeriodStart(period) } },
+        where: { staff_id: staffId, status: 'ready', order_number: { [Op.like]: 'SUB%' }, updated_at: { [Op.gte]: startDate } },
       });
       const feedback = await Feedback.findAll({
-        where: { staff_id: staffId, created_at: { [Op.gte]: this.getPeriodStart(period) } },
+        where: { staff_id: staffId, created_at: { [Op.gte]: startDate } },
       });
+
+      const metrics = {
+        bookingsCompleted: bookingsCount,
+        inDiningOrdersClosed: ordersCount,
+        takeawayOrdersPrepared: takeawayCount,
+        subscriptionOrdersPrepared: subscriptionCount,
+      };
+      const points = this.performanceIncentiveService.calculatePointsFromMetrics(metrics);
 
       const performance = {
         staffId,
-        name: staff.user.getFullName(),
+        name: `${staff.user.first_name} ${staff.user.last_name}`,
         bookingsCompleted: bookingsCount,
         inDiningOrdersClosed: ordersCount,
         takeawayOrdersPrepared: takeawayCount,
         subscriptionOrdersPrepared: subscriptionCount,
         averageRating: feedback.length ? feedback.reduce((sum, f) => sum + f.rating, 0) / feedback.length : 0,
-        points: this.performanceIncentiveService.calculateRewards({ bookingsCount, ordersCount, takeawayCount, subscriptionCount }),
+        points,
       };
 
       this.io.to(`merchant:${merchantId}`).emit('staffPerformanceUpdate', performance);
@@ -236,30 +314,38 @@ class MerchantStaffOperationsService {
       return performance;
     } catch (error) {
       logger.error('Error retrieving staff performance', { error: error.message, merchantId, staffId });
-      throw new AppError('Failed to retrieve staff performance', 500);
+      throw error;
     }
   }
 
-  // Generate staff performance report for all staff
   async generateStaffReport(merchantId, period = 'month') {
     try {
-      const staff = await Staff.findAll({ where: { merchant_id: merchantId } });
+      const staff = await Staff.findAll({ where: { merchant_id: merchantId, deleted_at: null } });
       const report = await Promise.all(
         staff.map(async (s) => await this.getStaffPerformance(merchantId, s.id, period))
       );
-      await this.notificationService.sendThroughChannel('EMAIL', {
-        notification: { templateName: 'staff_report' },
-        content: `Staff Performance Report for ${period}: ${JSON.stringify(report, null, 2)}`,
-        recipient: (await User.findOne({ where: { id: merchantId, role_id: 19 } })).email,
-      });
+
+      try {
+        const owner = await User.findOne({ where: { merchant_id: merchantId, role_id: 19 } });
+        if (owner) {
+          await this.notificationService.sendThroughChannel('EMAIL', {
+            notification: { templateName: 'staff_report' },
+            content: `Staff Performance Report for ${period}: ${JSON.stringify(report, null, 2)}`,
+            recipient: owner.email,
+          });
+        }
+      } catch (notificationError) {
+        logger.error('Failed to send staff report notification', { error: notificationError.message, merchantId });
+      }
+
+      logger.info('Staff report generated', { merchantId, period });
       return report;
     } catch (error) {
       logger.error('Error generating staff report', { error: error.message, merchantId });
-      throw new AppError('Failed to generate staff report', 500);
+      throw error;
     }
   }
 
-  // Helper to calculate period start date
   getPeriodStart(period) {
     const now = new Date();
     switch (period) {

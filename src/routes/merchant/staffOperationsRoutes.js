@@ -1,21 +1,22 @@
 'use strict';
 
 const express = require('express');
-const router = express.Router();
+const router = express.Router({ mergeParams: true });
 const staffOperationsController = require('@controllers/merchant/staffOperationsController');
 const { merchantStaffOperationsMiddleware } = require('@middleware/merchant/staffOperationsMiddleware');
+const { logger } = require('@utils/logger');
 
 module.exports = (io) => {
   const controller = staffOperationsController(io);
 
-  router.post('/staff/recruit', merchantStaffOperationsMiddleware, controller.recruitStaff);
-  router.patch('/staff/:staffId/role', merchantStaffOperationsMiddleware, controller.updateStaffRole);
-  router.delete('/staff/:staffId', merchantStaffOperationsMiddleware, controller.removeStaff);
-  router.post('/staff/:staffId/task/:taskType/:taskId', merchantStaffOperationsMiddleware, controller.assignStaffToTask);
-  router.get('/staff/:staffId/tasks', merchantStaffOperationsMiddleware, controller.getStaffTasks);
-  router.patch('/staff/:staffId/availability', merchantStaffOperationsMiddleware, controller.manageStaffAvailability);
-  router.get('/staff/:staffId/performance', merchantStaffOperationsMiddleware, controller.getStaffPerformance);
-  router.get('/staff/report', merchantStaffOperationsMiddleware, controller.generateStaffReport);
+  router.post('/recruit', merchantStaffOperationsMiddleware, controller.recruitStaff);
+  router.patch('/:staffId/role', merchantStaffOperationsMiddleware, controller.updateStaffRole);
+  router.delete('/:staffId', merchantStaffOperationsMiddleware, controller.removeStaff);
+  router.post('/:staffId/task/:taskType/:taskId', merchantStaffOperationsMiddleware, controller.assignStaffToTask);
+  router.get('/:staffId/tasks', merchantStaffOperationsMiddleware, controller.getStaffTasks);
+  router.patch('/:staffId/availability', merchantStaffOperationsMiddleware, controller.manageStaffAvailability);
+  router.get('/:staffId/performance', merchantStaffOperationsMiddleware, controller.getStaffPerformance);
+  router.get('/report', merchantStaffOperationsMiddleware, controller.getStaffReport); // Changed to getStaffReport
 
   return router;
 };

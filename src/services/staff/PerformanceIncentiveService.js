@@ -291,6 +291,27 @@ class PerformanceIncentiveService {
   }
 
   /**
+   * Calculate points from pre-fetched performance metrics (e.g., from /report)
+   * @param {Object} metrics - Pre-fetched performance metrics
+   * @returns {number} - Total points
+   */
+  calculatePointsFromMetrics(metrics) {
+    const {
+      bookingsCompleted = 0,
+      inDiningOrdersClosed = 0,
+      takeawayOrdersPrepared = 0,
+      subscriptionOrdersPrepared = 0,
+    } = metrics;
+
+    return (
+      bookingsCompleted * this.pointValues.bookingHandled +
+      inDiningOrdersClosed * this.pointValues.inDiningOrderClosed +
+      takeawayOrdersPrepared * this.pointValues.orderCompleted +
+      subscriptionOrdersPrepared * this.pointValues.orderCompleted // Assuming subscriptions count as orders
+    );
+  }
+
+  /**
    * Determine performance tier based on points
    * @param {number} points - Total points
    * @returns {Object} - Tier object

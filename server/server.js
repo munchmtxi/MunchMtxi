@@ -7,6 +7,7 @@ const express = require('express');
 const { sequelize } = require('@models');
 const { logger } = require('@utils/logger');
 const { setupSocket } = require('@server/socket');
+const { errorHandler, forceJsonMiddleware } = require('@middleware/errorHandler');
 
 // Import all setup modules (kept as in your original)
 const { setupApp } = require('@server/app');
@@ -71,7 +72,7 @@ const REQUIRED_ENV = [
 ];
 const GRACEFUL_SHUTDOWN_TIMEOUT = 10000;
 
-// Validate environment variables (unchanged logging)
+// Validate environment variables
 const validateEnvironment = (requiredEnv) => {
   const missing = requiredEnv.filter((key) => !process.env[key]);
   if (missing.length > 0) {
@@ -81,7 +82,7 @@ const validateEnvironment = (requiredEnv) => {
   logger.info('✅ Env vars checked');
 };
 
-// Graceful shutdown (unchanged logging)
+// Graceful shutdown
 const shutdownServer = async (server, io, sequelize) => {
   logger.info('🛑 Starting graceful shutdown...');
   if (io) io.close(() => logger.info('🔌 Socket.IO closed'));
@@ -107,14 +108,14 @@ const shutdownServer = async (server, io, sequelize) => {
   });
 };
 
-// Error handlers (unchanged logging)
+// Error handlers
 const setupErrorHandlers = (server, io, sequelize) => {
   process.on('uncaughtException', (error) => {
-    logger.error(`💥 Uncaught Exception: ${error.message}`, { stack: error.stack });
+    logger.error('Uncaught Exception', { error: error.message, stack: error.stack });
     shutdownServer(server, io, sequelize).then(() => process.exit(1));
   });
   process.on('unhandledRejection', (reason) => {
-    logger.error(`❌ Unhandled Rejection: ${reason.message || reason}`, { stack: reason.stack });
+    logger.error('Unhandled Rejection', { reason: reason.message || reason, stack: reason.stack });
   });
   process.on('SIGTERM', () => {
     logger.info('👋 SIGTERM received, shutting down...');
@@ -127,7 +128,28 @@ const setupErrorHandlers = (server, io, sequelize) => {
   logger.info('🛡️ Error handlers ready');
 };
 
-// Router stack logging (unchanged)
+// Additional Error Middleware to catch unhandled errors
+// This middleware logs the error details and responds with a structured error message.
+const additionalErrorMiddleware = (err, req, res, next) => {
+  logger.error('Unhandled error', { error: err.message, stack: err.stack });
+  res.status(err.statusCode || 500).json({
+    status: 'error',
+    message: err.message || 'Internal Server Error',
+    errorCode: err.errorCode || 'SERVER_ERROR',
+  });
+};
+
+// Global process error handlers (in case they are not captured elsewhere)
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught Exception', { error: error.message, stack: error.stack });
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Rejection', { reason: reason.message || reason, stack: reason.stack });
+});
+
+// Router stack logging
 const logRouterStack = (app, label) => {
   logger.debug(`🚦 Stack after ${label}: ${app._router.stack.length} layers`);
 };
@@ -168,7 +190,7 @@ async function startServer() {
 
     logger.info('🛤️ Mounting routes...');
 
-    // Customer Routes (pass io where needed)
+    // Customer Routes
     logger.info('🚗 Setting up customer ride routes...');
     setupRideRoutes(app);
     logRouterStack(app, 'setupRideRoutes');
@@ -345,7 +367,7 @@ async function startServer() {
     logRouterStack(app, 'setupDriverOrder');
 
     logger.info('🚗 Setting up driver ride routes...');
-    setupDriverRide(app, io); // Pass io instead of server
+    setupDriverRide(app, io);
     logRouterStack(app, 'setupDriverRide');
 
     logger.info('💰 Setting up driver payment routes...');
@@ -362,7 +384,7 @@ async function startServer() {
     logRouterStack(app, 'setupNotifications');
 
     logger.info('🎉 Setting up customer events...');
-    setupCustomerEvents(io, notificationService); // io directly since no app routes
+    setupCustomerEvents(io, notificationService);
     logRouterStack(app, 'setupCustomerEvents');
 
     logger.info('📊 Setting up analytics routes...');
@@ -373,7 +395,7 @@ async function startServer() {
     setupPublicProfile(app);
     logRouterStack(app, 'setupPublicProfile');
 
-    // Catch-all middleware (unchanged logging)
+    // Catch-all middleware
     app.use((req, res, next) => {
       if (req.headers['user-agent']?.includes('curl')) {
         logger.info('🌀 CSRF skipped for curl', { path: req.path });
@@ -387,6 +409,17 @@ async function startServer() {
       res.status(404).json({ status: 'fail', message: `Route ${req.url} not found` });
     });
     logRouterStack(app, 'catch-all');
+
+    // Add error handling after all routes
+    app.use(forceJsonMiddleware);
+    logger.info('Force JSON Content-Type middleware applied');
+    app.use(errorHandler);
+    logger.info('Error handler middleware applied');
+
+    // Additional error middleware to catch any unhandled errors
+    app.use(additionalErrorMiddleware);
+
+    logger.info('Final middleware stack:', app._router.stack.map(layer => layer.name || 'anonymous'));
 
     // Enhanced Server Logging for WebSocket and HTTP errors
     server.on('upgrade', (req, socket, head) => {

@@ -1,4 +1,5 @@
 'use strict';
+
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
@@ -13,7 +14,6 @@ const deviceMiddleware = require('@middleware/deviceDetectionMiddleware');
 const responseOptimizer = require('@middleware/responseOptimizerMiddleware');
 const { requestLogger } = require('@middleware/requestLogger');
 const { setupAuthRoutes } = require('@setup/routes/authRouteSetup');
-const errorHandler = require('../src/middleware/errorHandler');
 const { logger } = require('@utils/logger');
 
 module.exports.setupApp = async (app) => {
@@ -29,7 +29,6 @@ module.exports.setupApp = async (app) => {
   app.options('*', cors(corsOptions));
   logger.info('CORS middleware applied with credentials support');
 
-  // Move other middleware after CORS
   app.use(cookieParser());
   logger.info('Cookie parser middleware applied');
 
@@ -88,14 +87,12 @@ module.exports.setupApp = async (app) => {
 
   setupPassport(app);
   logger.info('Passport setup applied');
+
   setupSwagger(app);
   logger.info('Swagger setup applied');
 
   setupAuthRoutes(app);
   logger.info('Authentication routes setup complete');
-
-  app.use(errorHandler);
-  logger.info('Error handler middleware applied');
 
   logger.info('Express app setup complete');
   return app;
